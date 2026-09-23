@@ -1,0 +1,87 @@
+import { expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { createCollector } from "./account";
+import { navigate, skipWelcomeTour } from "./navigation";
+
+test("mobile collection import, export, reconnect, and undo preserve copy totals", async ({ browser, request }) => {
+  const account = await createCollector(request);
+  const cardResponse = await request.get(account.baseURL + "/api/v1/catalog/search?q=Island");
+  const card = (await cardResponse.json()).items.find((item: { language: string }) => item.language === "en");
+  expect(card, "Load the real print catalog before running the collection browser test").toBeTruthy();
+  let context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    let page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(account.username);
+    await page.locator("#password").fill(account.password);
+    await page.locator("#kc-login").click();
+    await skipWelcomeTour(page);
+    await navigate(page, "Import / export");
+    await expect(page.getByRole("heading", { name: "Bring your collection" })).toBeVisible();
+    // Synthetic holdings using a real provider printing ID; this is not a ManaBox compatibility fixture.
+    const csv = `Scryfall ID,Quantity,Binder Name,Notes\r\n${card.id},3,Browser fixture,=2+2\r\n${card.id},2,Second binder,Another physical lot\r\n`;
+    const acceptedResponse = page.waitForResponse((response) => response.url().includes("/api/v1/imports?filename=") && response.status() === 202);
+    await page.getByTestId("csv-input").setInputFiles({ name: "synthetic-browser-collection.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    const accepted = await (await acceptedResponse).json();
+    const savedSession = await context.storageState();
+    await context.close();
+    // No browser is alive while the actual Celery worker parses and resolves the CSV.
+    const cookie = savedSession.cookies.map((item) => item.name + "=" + item.value).join("; ");
+    await expect.poll(async () => (await (await request.get(account.baseURL + "/api/v1/imports/" + accepted.id, { headers: { Cookie: cookie } })).json()).state, { timeout: 30000 }).toBe("REVIEW");
+    context = await browser.newContext({ baseURL: account.baseURL, storageState: savedSession, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    page = await context.newPage();
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/");
+    await navigate(page, "Import / export");
+    await page.getByRole("button", { name: /synthetic-browser-collection.csv/ }).click();
+    await expect(page.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible({ timeout: 30000 });
+    const addButton = page.getByRole("button", { name: "Add 5 copies", exact: true });
+    await expect(addButton).toBeDisabled();
+    await page.getByLabel("These are cards I own. Add the reviewed quantities to my collection.").check();
+    const confirmed = page.waitForResponse((response) => response.url().endsWith("/confirm") && response.status() === 202);
+    await addButton.click();
+    await confirmed;
+    const confirmationSession = await context.storageState();
+    await context.close();
+    await expect.poll(async () => (await (await request.get(account.baseURL + "/api/v1/imports/" + accepted.id, { headers: { Cookie: cookie } })).json()).state, { timeout: 30000 }).toBe("COMPLETED");
+    context = await browser.newContext({ baseURL: account.baseURL, storageState: confirmationSession, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    page = await context.newPage();
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/");
+    await navigate(page, "Collection");
+    await expect(page.getByText("5 copies", { exact: true })).toBeVisible({ timeout: 30000 });
+    await expect(page.locator(".collection-card")).toHaveCount(1);
+    await expect(page.getByText("×5", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    mkdirSync("../../artifacts", { recursive: true });
+    await page.screenshot({ path: "../../artifacts/mobile-collection-" + browser.browserType().name() + ".png", fullPage: true });
+    await navigate(page, "Import / export");
+    await page.getByRole("combobox", { name: "Export format", exact: true }).selectOption("canonical");
+    await page.getByRole("button", { name: "Prepare export", exact: true }).click();
+    const download = page.getByRole("link", { name: "Download CSV", exact: true }).first();
+    await expect(download).toBeVisible({ timeout: 30000 });
+    const csvResponse = await context.request.get((await download.getAttribute("href"))!);
+    expect(csvResponse.status()).toBe(200);
+    const exported = await csvResponse.text();
+    expect(exported).toContain("apostrophe-v1");
+    expect(exported).toContain("'=2+2");
+    const sameFileResponse = page.waitForResponse((response) => response.url().includes("/api/v1/imports?filename=") && response.status() === 409);
+    await page.getByTestId("csv-input").setInputFiles({ name: "synthetic-browser-collection.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await sameFileResponse;
+    await page.getByRole("button", { name: "Open existing import", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Import complete", exact: true })).toBeVisible();
+    await page.getByText("Undo this import", { exact: true }).click();
+    await page.getByLabel("Stop further additions and remove this import’s remaining copies").check();
+    await page.getByRole("button", { name: "Undo remaining copies", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Import undone", exact: true })).toBeVisible({ timeout: 30000 });
+    expect((await (await context.request.get("/api/v1/collection")).json()).copies).toBe(0);
+    expect((await (await context.request.get("/api/v1/imports/" + accepted.id)).json()).summary.undone_copies).toBe(5);
+    expect(errors).toEqual([]);
+  } finally {
+    await context.close().catch(() => {});
+    await account.remove().catch(() => {});
+  }
+});

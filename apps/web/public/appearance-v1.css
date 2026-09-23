@@ -1,0 +1,116 @@
+/* Shared by the application and identity pages. Artwork is never recolored. */
+:root {
+  color-scheme: light;
+  color-scheme: only light;
+  --canvas: #f5f1e9;
+  --ink: #203d37;
+  --muted: #636d66;
+  --forest: #163e38;
+  --line: #e1ded4;
+  --paper: #fffdf8;
+  --surface-muted: #f2f1e9;
+  --surface-hover: #eaece4;
+  --control-border: #cbd1c7;
+  --on-forest: #fffdf8;
+  --forest-hover: #234f46;
+  --backdrop: #1d252566;
+  --gold: #e7bf78;
+  --copper: #a1532e;
+  --hero-bg: #163e38;
+  --success-bg: #edf4e9;
+  --success-text: #345b37;
+  --success-border: #cbdcc1;
+  --error-bg: #fcf0e9;
+  --error-text: #903e2d;
+  --error-border: #e8cdc0;
+  --warning-bg: #f3eddf;
+  --warning-text: #806132;
+  --warning-border: #e9dfcc;
+  --placeholder: #798375;
+  --decorative-bg: #dce6cd;
+  --decorative-secondary: #eadbc0;
+  --decorative-border: #a8baa0;
+  --chevron: url("/icons/chevron-down.svg");
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color-scheme: only dark;
+  --canvas: #0f1b19;
+  --ink: #edf2ea;
+  --muted: #b0beb5;
+  --forest: #9bd3bd;
+  --line: #334840;
+  --paper: #182724;
+  --surface-muted: #22342e;
+  --surface-hover: #2c433a;
+  --control-border: #637e71;
+  --on-forest: #122b23;
+  --forest-hover: #b2e4d0;
+  --backdrop: #050b0bd0;
+  --gold: #e7bf78;
+  --copper: #e5aa7f;
+  --hero-bg: #17382f;
+  --success-bg: #233b2c;
+  --success-text: #b9dfa3;
+  --success-border: #4d6c47;
+  --error-bg: #3d2824;
+  --error-text: #ffbbaa;
+  --error-border: #916253;
+  --warning-bg: #382f22;
+  --warning-text: #edca8f;
+  --warning-border: #78613e;
+  --placeholder: #a0b4a8;
+  --decorative-bg: #28463a;
+  --decorative-secondary: #433c2b;
+  --decorative-border: #637d60;
+  --chevron: url("/icons/chevron-down-dark.svg");
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+  color-scheme: dark;
+  color-scheme: only dark;
+  --canvas: #0f1b19;
+  --ink: #edf2ea;
+  --muted: #b0beb5;
+  --forest: #9bd3bd;
+  --line: #334840;
+  --paper: #182724;
+  --surface-muted: #22342e;
+  --surface-hover: #2c433a;
+  --control-border: #637e71;
+  --on-forest: #122b23;
+  --forest-hover: #b2e4d0;
+  --backdrop: #050b0bd0;
+  --gold: #e7bf78;
+  --copper: #e5aa7f;
+  --hero-bg: #17382f;
+  --success-bg: #233b2c;
+  --success-text: #b9dfa3;
+  --success-border: #4d6c47;
+  --error-bg: #3d2824;
+  --error-text: #ffbbaa;
+  --error-border: #916253;
+  --warning-bg: #382f22;
+  --warning-text: #edca8f;
+  --warning-border: #78613e;
+  --placeholder: #a0b4a8;
+  --decorative-bg: #28463a;
+  --decorative-secondary: #433c2b;
+  --decorative-border: #637d60;
+  --chevron: url("/icons/chevron-down-dark.svg");
+}
+}
+
+.appearance-picker { min-width: 0; margin: 0; padding: 0; border: 0; font-family: "DM Sans", system-ui, sans-serif; }
+.appearance-picker legend { width: auto; margin: 0 0 9px; padding: 0; border: 0; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.5; }
+.appearance-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--control-border); border-radius: 12px; background: var(--surface-muted); }
+.appearance-option { -webkit-appearance: none; appearance: none; min-width: 0; min-height: 44px; margin: 0; padding: 8px 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--forest); font: 600 13px/1.5 "DM Sans", system-ui, sans-serif; cursor: pointer; }
+.appearance-option[aria-pressed=true] { background: var(--forest); color: var(--on-forest); border-color: var(--forest); }
+.appearance-option:focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+.appearance-picker .appearance-note { margin: 8px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.6; }
+.menu-account > .appearance-picker { margin-bottom: 18px; }
+.login-appearance { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 20px; }
+@media (hover: hover) { .appearance-option:not([aria-pressed=true]):hover { background: var(--surface-hover); } }
+@media (forced-colors: active) { .appearance-option[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -3px; } }
+
+input:-webkit-autofill { -webkit-text-fill-color: var(--ink); caret-color: var(--ink); box-shadow: 0 0 0 1000px var(--paper) inset; }

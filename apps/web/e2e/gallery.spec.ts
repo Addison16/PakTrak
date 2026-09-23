@@ -1,0 +1,141 @@
+import { expect, test } from "@playwright/test";
+import { createCollector } from "./account";
+import { navigate, skipWelcomeTour } from "./navigation";
+
+test("mobile gallery discovers owned cards, caches artwork and compares daily prices", async ({ browser, request }) => {
+  const account = await createCollector(request);
+  const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const cards = [];
+    for (const name of ["Lightning Bolt", "Counterspell", "Llanowar Elves", "Swords to Plowshares", "Sol Ring", "Dark Ritual", "Brainstorm", "Forest"]) {
+      const response = await request.get(account.baseURL + "/api/v1/catalog/search?q=" + encodeURIComponent(name));
+      const card = (await response.json()).items.find((item: { language: string; finishes: string[]; name: string }) => item.language === "en" && item.finishes.includes("nonfoil") && item.name === name);
+      expect(card, "The daily catalog includes " + name).toBeTruthy(); cards.push(card);
+    }
+    const page = await context.newPage();
+    const errors: string[] = [];
+    const foreignRequests: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (req) => { if (/api\.scryfall\.com|cards\.scryfall\.io|api\.cardkingdom\.com|manapool\.com/.test(req.url())) foreignRequests.push(req.url()); });
+    await page.goto("/");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(account.username); await page.locator("#password").fill(account.password); await page.locator("#kc-login").click();
+    await skipWelcomeTour(page);
+    await navigate(page, "Import / export");
+    const csv = "Scryfall ID,Quantity,Location,Finish\n" + cards.map((card, i) => `${card.id},${i === 0 ? 3 : 1},${i % 2 ? "Box 4" : "Red binder"},nonfoil`).join("\n");
+    await page.getByTestId("csv-input").setInputFiles({ name: "gallery-fixture.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(page.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByLabel("These are cards I own. Add the reviewed quantities to my collection.").check();
+    await page.getByRole("button", { name: "Add 10 copies", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Import complete", exact: true })).toBeVisible({ timeout: 30000 });
+    await navigate(page, "Collection");
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    await expect(page.getByText("10 copies", { exact: true })).toBeVisible();
+    expect(await page.locator(".gallery-grid").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(2);
+    const firstImage = page.locator(".gallery-grid img").first();
+    expect((await firstImage.boundingBox())!.y).toBeLessThan(844);
+    await firstImage.scrollIntoViewIfNeeded();
+    await expect(firstImage).toBeVisible();
+    await expect.poll(() => firstImage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), { timeout: 30000 }).toBe(true);
+    const imageURL = (await firstImage.getAttribute("src"))!;
+    const cachedImage = await context.request.get(imageURL);
+    expect(cachedImage.status()).toBe(200);
+    expect(cachedImage.headers()["cache-control"]).toContain("max-age=86400");
+    for (const img of await page.locator(".gallery-grid img").all()) { await img.scrollIntoViewIfNeeded(); await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true); }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: "../../artifacts/mobile-gallery-" + browser.browserType().name() + ".png", fullPage: true });
+
+    const source = page.getByRole("combobox", { name: "Price source", exact: true });
+    await expect(source).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Filters/ })).toHaveAttribute("aria-expanded", "false");
+    const priced = (await (await context.request.get("/api/v1/collection/cards?provider=tcgplayer")).json()).items;
+    const prices = priced.filter((card: { price_min: string | null }) => card.price_min !== null).map((card: { price_min: string }) => Number(card.price_min)).sort((a: number, b: number) => a - b);
+    expect(prices.length).toBeGreaterThan(1);
+    const minimum = prices[0]; const maximum = prices[Math.floor((prices.length - 1) / 2)];
+    const matching = priced.filter((card: { price_min: string | null }) => card.price_min !== null && Number(card.price_min) >= minimum && Number(card.price_min) <= maximum);
+    const matchingCopies = matching.reduce((sum: number, card: { quantity: number }) => sum + card.quantity, 0);
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    await page.getByRole("spinbutton", { name: "Minimum price ($)", exact: true }).fill("10");
+    await page.getByRole("spinbutton", { name: "Maximum price ($)", exact: true }).fill("1");
+    await page.getByRole("button", { name: "Apply price range", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveText("Minimum price must not exceed maximum price.");
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    await page.getByRole("spinbutton", { name: "Minimum price ($)", exact: true }).fill(String(minimum));
+    await page.getByRole("spinbutton", { name: "Maximum price ($)", exact: true }).fill(String(maximum));
+    await page.getByRole("button", { name: "Apply price range", exact: true }).click();
+    await expect(page.locator(".gallery-card")).toHaveCount(matching.length);
+    await expect(page.getByText(matchingCopies + " copies", { exact: true })).toBeVisible();
+    await expect(page.locator(".active-price-filter")).toContainText("per copy");
+    await page.locator(".price-range-filter").scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 320, height: 780 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: "../../artifacts/mobile-price-filters-" + browser.browserType().name() + ".png" });
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    await source.selectOption("manapool");
+    await expect(page.locator(".library-stats")).toContainText("ManaPool reference value");
+    const pool = (await (await context.request.get(`/api/v1/collection/cards?provider=manapool&min_price=${minimum}&max_price=${maximum}`)).json());
+    await expect(page.locator(".gallery-card")).toHaveCount(pool.cards);
+    await expect(page.getByText(pool.copies + " copies", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Clear price filter", exact: true }).click();
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    await page.reload();
+    await navigate(page, "Collection");
+    await expect(source).toHaveValue("manapool");
+    await source.selectOption("tcgplayer");
+    await expect(page.locator(".library-stats")).toContainText("TCGplayer reference value");
+
+    await page.getByRole("searchbox", { name: "Find a card" }).fill("Lightning Bolt");
+    await expect(page.locator(".gallery-card")).toHaveCount(1);
+    await page.locator(".gallery-card").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Lightning Bolt", exact: true })).toBeVisible();
+    await expect(dialog.locator(".oracle-text")).toContainText("3 damage");
+    await expect(dialog.getByRole("region", { name: "Price comparison" })).toBeVisible();
+    await expect(dialog.locator(".provider-price")).toHaveCount(3);
+    for (const name of ["TCGplayer", "Card Kingdom", "ManaPool"]) await expect(dialog.locator(".provider-price").filter({ hasText: name })).toBeVisible();
+    await expect(dialog.getByText("Find it: Red binder", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("×3", { exact: true })).toBeVisible();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: "../../artifacts/mobile-card-detail-" + browser.browserType().name() + ".png", fullPage: true });
+    await dialog.getByRole("heading", { name: "Price guide" }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "../../artifacts/mobile-card-prices-" + browser.browserType().name() + ".png" });
+    await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0);
+
+    await page.getByRole("searchbox", { name: "Find a card" }).fill("add {G}");
+    await expect(page.locator(".gallery-card")).toHaveCount(2); // Llanowar Elves and Forest.
+    await page.getByRole("searchbox", { name: "Find a card" }).fill("");
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    await page.getByRole("button", { name: "Blue", exact: true }).click();
+    await expect(page.locator(".gallery-card")).toHaveCount(2);
+    await page.getByRole("button", { name: "All", exact: true }).click();
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    await page.getByRole("combobox", { name: "Storage location", exact: true }).selectOption({ label: "Red binder" });
+    await expect(page.locator(".gallery-card")).toHaveCount(4);
+    await page.getByRole("button", { name: "Clear search & filters" }).click();
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    await page.getByRole("combobox", { name: "Sort by" }).selectOption("quantity");
+    await expect(page.locator(".gallery-card").first()).toContainText("Lightning Bolt");
+    for (const provider of ["cardkingdom", "manapool", "tcgplayer"]) {
+      await page.getByRole("combobox", { name: "Price source" }).selectOption(provider);
+      await expect(page.locator(".gallery-grid")).toHaveAttribute("aria-busy", "false");
+      const result = await (await context.request.get("/api/v1/collection/cards?provider=" + provider)).json();
+      expect(result.valuation.priced_copies).toBeGreaterThan(0);
+      expect(Number(result.valuation.amount)).toBeGreaterThan(0);
+    }
+    await page.getByRole("button", { name: "List", exact: true }).click();
+    await expect(page.locator(".gallery-grid")).toHaveClass(/gallery-list/);
+    await page.getByRole("button", { name: "Gallery", exact: true }).click();
+    await page.getByRole("button", { name: /Shuffle cards/ }).click();
+    await expect(page.locator(".gallery-card")).toHaveCount(8);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 320, height: 780 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect.poll(() => page.locator(".gallery-grid").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(4);
+    await page.screenshot({ path: "../../artifacts/desktop-gallery-" + browser.browserType().name() + ".png", fullPage: true });
+    expect(foreignRequests).toEqual([]);
+    expect(errors).toEqual([]);
+  } finally { await context.close().catch(() => {}); await account.remove(); }
+});

@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "PakTrak",
+  "short_name": "PakTrak",
+  "description": "Every card. In reach. Your cards, collections, binders and decks.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f1e9",
+  "theme_color": "#163e38",
+  "icons": [
+    { "src": "/brand/paktrak-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/paktrak-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand/paktrak-mark.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

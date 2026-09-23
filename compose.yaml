@@ -1,0 +1,189 @@
+name: mtg-scanner
+
+x-backend: &backend
+  image: mtg-scanner-backend:0.1.0
+  build:
+    context: .
+    dockerfile: services/backend/Dockerfile
+    target: runtime
+  init: true
+  restart: unless-stopped
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+  environment: &backend-environment
+    SCANNER_APP_URL: ${APP_URL:?Run setup first}
+    SCANNER_ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
+    SCANNER_MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-104857600}
+    SCANNER_DATABASE_URL: postgresql+psycopg://scanner:${SCANNER_DB_PASSWORD:?Run setup first}@database/scanner
+    SCANNER_BROKER_URL: redis://broker:6379/0
+    SCANNER_SESSION_SECRET: ${SESSION_SECRET:?Run setup first}
+    SCANNER_OIDC_ISSUER: ${APP_URL}/identity/realms/scanner
+    SCANNER_OIDC_INTERNAL_ISSUER: http://identity:8080/identity/realms/scanner
+    SCANNER_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Run setup first}
+    SCANNER_STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?Run setup first}
+    SCANNER_STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?Run setup first}
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  networks: [private]
+
+services:
+  database:
+    image: postgres:17-bookworm@sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup first}
+      SCANNER_DB_PASSWORD: ${SCANNER_DB_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./infra/postgres-init.sh:/docker-entrypoint-initdb.d/00-scanner.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [private]
+
+  broker:
+    image: valkey/valkey:9.1.2-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+    command: ["valkey-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes: [broker:/data]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [private]
+
+  storage:
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    command: ["server", "-dir=/data", "-ip=storage", "-s3", "-s3.port=8333", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024", "-volume.max=64"]
+    restart: unless-stopped
+    volumes:
+      - photos:/data
+      - ./infra/generated/s3.json:/etc/seaweedfs/s3.json:ro
+    networks: [private]
+
+  identity:
+    image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+    command: ["start", "--import-realm"]
+    restart: unless-stopped
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://database/identity_service
+      KC_DB_USERNAME: identity_service
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /identity
+      KC_HOSTNAME: ${APP_URL}/identity
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
+    volumes:
+      - ./infra/generated/scanner-realm.json:/opt/keycloak/data/import/scanner-realm.json:ro
+      - ./infra/themes/paktrak:/opt/keycloak/themes/paktrak:ro
+      - ./apps/web/public/fonts:/opt/keycloak/themes/paktrak/login/resources/fonts:ro
+      - ./apps/web/public:/opt/keycloak/themes/paktrak/login/resources/shared:ro
+    depends_on:
+      database: {condition: service_healthy}
+    networks: [private]
+
+  migrate:
+    <<: *backend
+    command: ["python", "-m", "scanner.bootstrap"]
+    restart: "no"
+    environment:
+      <<: *backend-environment
+      SCANNER_IDENTITY_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      SCANNER_PASSWORD_RESET_CLIENT_SECRET: ${PASSWORD_RESET_CLIENT_SECRET:-}
+    depends_on:
+      database: {condition: service_healthy}
+      storage: {condition: service_started}
+      identity: {condition: service_started}
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-environment
+      SCANNER_PASSWORD_RESET_CLIENT_SECRET: ${PASSWORD_RESET_CLIENT_SECRET:-}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 5
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "scanner.worker:celery", "worker", "--loglevel=WARNING", "--concurrency=1", "--queues=scans", "--hostname=scans@%h"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+    stop_grace_period: 70s
+
+  transfer-worker:
+    <<: *backend
+    command: ["celery", "-A", "scanner.worker:celery", "worker", "--loglevel=WARNING", "--concurrency=1", "--queues=transfers", "--hostname=transfers@%h"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+    stop_grace_period: 70s
+
+  dispatcher:
+    <<: *backend
+    command: ["python", "-m", "scanner.dispatcher"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_started}
+
+  data-worker:
+    <<: *backend
+    command: ["python", "-m", "scanner.data_sync"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    stop_grace_period: 30s
+
+  web:
+    image: mtg-scanner-web:0.1.0
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8095}:8080"]
+    environment:
+      APP_URL: ${APP_URL}
+    depends_on:
+      api: {condition: service_healthy}
+      identity: {condition: service_started}
+    networks: [private]
+
+  tests:
+    <<: *backend
+    image: mtg-scanner-tests:0.1.0
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      target: test
+    profiles: [test]
+    restart: "no"
+    environment:
+      <<: *backend-environment
+      SCANNER_DATABASE_URL: postgresql+psycopg://scanner:${SCANNER_DB_PASSWORD}@database/scanner_test
+      SCANNER_STORAGE_BUCKET: scanner-test
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+volumes:
+  database:
+  broker:
+  photos:
+
+networks:
+  private:

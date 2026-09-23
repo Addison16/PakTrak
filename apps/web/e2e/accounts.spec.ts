@@ -1,0 +1,146 @@
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { registrationCollector } from "./account";
+import { navigate, openNavigation, skipWelcomeTour } from "./navigation";
+
+test("first-run administrator, guest signup, approval and signup setting", async ({ browser, request }) => {
+  const isolated = process.env.SCANNER_ACCOUNTS_E2E_URL;
+  test.skip(!isolated, "Run scripts/test-accounts-browser.sh for an isolated account database.");
+  const admin = await registrationCollector(request);
+  const guest = await registrationCollector(request);
+  admin.password = admin.password.slice(0, 8);
+  guest.password = guest.password.slice(0, 8);
+  const contexts: BrowserContext[] = [];
+  async function newContext() {
+    const context = await browser.newContext({ baseURL: isolated, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    contexts.push(context);
+    return context;
+  }
+  async function register(page: Page, account: typeof admin) {
+    await page.locator("#username").fill(account.username);
+    await page.locator("#email").fill(account.username + "@localhost.invalid");
+    for (const field of ["firstName", "lastName"]) {
+      if (await page.locator("#" + field).isVisible()) await page.locator("#" + field).fill("Test");
+    }
+    await page.locator("#password").fill(account.password.slice(0, 7));
+    await page.locator("#password-confirm").fill(account.password.slice(0, 7));
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(page.locator("#input-error-password")).toContainText("8");
+    await page.locator("#password").fill(account.password);
+    await page.locator("#password-confirm").fill(account.password);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await skipWelcomeTour(page);
+    await navigate(page, "Collection");
+  }
+  try {
+    const adminContext = await newContext();
+    const adminPage = await adminContext.newPage();
+    await adminPage.goto("/");
+    await expect(adminPage.getByRole("heading", { name: "Create your administrator account" })).toBeVisible();
+    await adminPage.evaluate(() => document.fonts.ready);
+    await adminPage.screenshot({ path: "../../artifacts/mobile-welcome-" + browser.browserType().name() + ".png", fullPage: true });
+    await adminPage.getByRole("link", { name: "Create administrator account" }).click();
+    await expect(adminPage.locator("#password")).toBeVisible();
+    await adminPage.waitForLoadState("load");
+    await adminPage.evaluate(() => document.fonts.ready);
+    await adminPage.screenshot({ path: "../../artifacts/mobile-register-" + browser.browserType().name() + ".png", fullPage: true });
+    await register(adminPage, admin);
+    await navigate(adminPage, "Administration");
+    await expect(adminPage.getByLabel("Allow guest signup")).toBeChecked();
+    const guestContext = await newContext();
+    const guestPage = await guestContext.newPage();
+    await guestPage.goto("/");
+    await guestPage.getByRole("link", { name: "Create an account", exact: true }).click();
+    await register(guestPage, guest);
+    await navigate(guestPage, "Upload photo");
+    await expect(guestPage.getByText("Guest account · 0 / 100 card scans used", { exact: true })).toBeVisible();
+    const guestNavigation = await openNavigation(guestPage);
+    await expect(guestNavigation.getByRole("button", { name: "Administration", exact: true })).toHaveCount(0);
+    await guestNavigation.getByRole("button", { name: "Collection", exact: true }).click();
+    await expect(guestNavigation).not.toBeVisible();
+    await adminPage.getByRole("button", { name: "Refresh accounts" }).click();
+    await expect(adminPage.getByText(guest.username, { exact: true })).toBeVisible();
+    await adminPage.getByRole("button", { name: "Approve as standard member", exact: true }).click();
+    await expect(adminPage.getByText(guest.username + " is now a standard member.", { exact: true })).toBeVisible();
+    await expect(guestPage.getByText("Guest account · 0 / 100 card scans used", { exact: true })).toHaveCount(0, { timeout: 10000 });
+    const returningGuest = await (await newContext()).newPage();
+    await returningGuest.goto("/api/auth/login");
+    await returningGuest.locator("#username").fill(guest.username);
+    await returningGuest.locator("#password").fill(guest.password);
+    await returningGuest.locator("#kc-login").click();
+    const welcome = returningGuest.getByRole("dialog", { name: "You’re approved!" });
+    await expect(welcome).toContainText("Unlimited card scans");
+    await welcome.getByRole("button", { name: "Let’s keep collecting" }).click();
+    await navigate(returningGuest, "My account");
+    await returningGuest.getByRole("textbox", { name: "Display name", exact: true }).fill("My test binder");
+    await returningGuest.getByRole("button", { name: "Save profile", exact: true }).click();
+    await expect(returningGuest.getByText("Your display name is saved.", { exact: true })).toBeVisible();
+    await returningGuest.getByRole("link", { name: "Change password", exact: true }).click();
+    await expect(returningGuest.locator("#password")).toBeVisible();
+    if (await returningGuest.locator("#username").isVisible()) await returningGuest.locator("#username").fill(guest.username);
+    await returningGuest.locator("#password").fill(guest.password);
+    await returningGuest.locator("#kc-login").click();
+    await expect(returningGuest.locator("#password-new")).toBeVisible();
+    guest.password = "New8" + guest.password;
+    await returningGuest.locator("#password-new").fill(guest.password);
+    await returningGuest.locator("#password-confirm").fill(guest.password);
+    await returningGuest.getByRole("button", { name: "Submit", exact: true }).click();
+    await expect(returningGuest.getByRole("heading", { name: "My account", exact: true })).toBeVisible();
+    await expect(returningGuest.getByRole("textbox", { name: "Display name", exact: true })).toHaveValue("My test binder");
+    const passwordCheck = await (await newContext()).newPage();
+    await passwordCheck.goto("/api/auth/login");
+    await passwordCheck.locator("#username").fill(guest.username);
+    await passwordCheck.locator("#password").fill(guest.password);
+    await passwordCheck.locator("#kc-login").click();
+    await expect(passwordCheck.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
+    await navigate(passwordCheck, "My account");
+    await expect(passwordCheck.getByRole("textbox", { name: "Display name", exact: true })).toHaveValue("My test binder");
+    // Administrator reset invalidates both app and provider sessions, then requires a new password.
+    await adminPage.getByRole("button", { name: "Refresh accounts", exact: true }).click();
+    await adminPage.getByRole("button", { name: "Manage My test binder", exact: true }).click();
+    adminPage.once("dialog", (dialog) => dialog.accept());
+    await adminPage.getByRole("button", { name: "Reset password", exact: true }).click();
+    // Password inputs have no implicit textbox role until revealed.
+    const passwordField = adminPage.getByLabel("Temporary password", { exact: true });
+    await expect(passwordField).toBeVisible();
+    const temporaryPassword = await passwordField.inputValue();
+    expect(temporaryPassword.length >= 8).toBeTruthy();
+    expect((await passwordCheck.request.get(isolated + "/api/auth/session")).status()).toBe(401);
+    const restored = await (await newContext()).newPage();
+    await restored.goto("/api/auth/login");
+    await restored.locator("#username").fill(guest.username);
+    await restored.locator("#password").fill(guest.password);
+    await restored.locator("#kc-login").click();
+    await expect(restored.locator("#input-error")).toBeVisible();
+    await restored.locator("#password").fill(temporaryPassword);
+    await restored.locator("#kc-login").click();
+    await expect(restored.locator("#password-new")).toBeVisible();
+    expect((await restored.request.get(isolated + "/api/auth/session")).status()).toBe(401);
+    guest.password += "!2";
+    await restored.locator("#password-new").fill(guest.password);
+    await restored.locator("#password-confirm").fill(guest.password);
+    await restored.getByRole("button", { name: "Submit", exact: true }).click();
+    await expect(restored.getByRole("button", { name: "Menu", exact: true })).toBeVisible();
+    await navigate(restored, "My account");
+    await expect(restored.getByRole("textbox", { name: "Display name", exact: true })).toHaveValue("My test binder");
+    await adminPage.getByRole("button", { name: "I’ve saved the password", exact: true }).click();
+    await expect(passwordField).toHaveCount(0);
+    await adminPage.getByRole("button", { name: "Back to users", exact: false }).click();
+    await adminPage.getByLabel("Allow guest signup").uncheck();
+    await expect(adminPage.getByText("Guest signup is closed. Existing accounts can still sign in.")).toBeVisible();
+    const visitor = await (await newContext()).newPage();
+    await visitor.goto("/");
+    await expect(visitor.getByText("New account signup is currently closed.", { exact: true })).toBeVisible();
+    await expect(visitor.getByRole("link", { name: "Create an account", exact: true })).toHaveCount(0);
+    await visitor.goto("/api/auth/register");
+    await expect(visitor.getByRole("alert")).toContainText("signup is currently closed");
+    await adminPage.getByLabel("Allow guest signup").check();
+    await expect(adminPage.getByText("Guest signup is open.", { exact: true })).toBeVisible();
+    await visitor.goto("/");
+    await expect(visitor.getByRole("link", { name: "Create an account", exact: true })).toBeVisible();
+    expect(await adminPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await adminPage.screenshot({ path: "../../artifacts/mobile-admin-" + browser.browserType().name() + ".png", fullPage: true });
+  } finally {
+    for (const context of contexts) await context.close().catch(() => {});
+    await admin.remove(); await guest.remove();
+  }
+});

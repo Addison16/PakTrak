@@ -1,0 +1,67 @@
+import { expect, test } from "@playwright/test";
+import { createCollector } from "./account";
+import { navigate, skipWelcomeTour } from "./navigation";
+
+test("mobile card corrections change set and rarity while keeping copies and locations", async ({ browser, request }) => {
+  const account = await createCollector(request);
+  const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const find = async (rarity: string) => {
+      const params = new URLSearchParams({ q: "Lightning Bolt", exact_name: "true", rarity, language: "en" });
+      const result = await (await request.get(account.baseURL + "/api/v1/catalog/search?" + params)).json();
+      return result.items.find((card: { finishes: string[] }) => card.finishes.includes("nonfoil"));
+    };
+    const original = await find("common"); const corrected = await find("rare");
+    expect(original).toBeTruthy(); expect(corrected).toBeTruthy();
+    const page = await context.newPage(); const errors: string[] = []; const foreignRequests: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (req) => { if (/api\.scryfall\.com|cards\.scryfall\.io|api\.cardkingdom\.com|manapool\.com/.test(req.url())) foreignRequests.push(req.url()); });
+    await page.goto("/");
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(account.username); await page.locator("#password").fill(account.password); await page.locator("#kc-login").click();
+    await skipWelcomeTour(page);
+    await navigate(page, "Import / export");
+    const csv = `Scryfall ID,Quantity,Location,Finish,Notes\n${original.id},3,Red binder,nonfoil,Check edition\n${corrected.id},1,Box 4,nonfoil,Already correct\n`;
+    await page.getByTestId("csv-input").setInputFiles({ name: "printing-corrections.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(page.getByRole("heading", { name: "Ready to review", exact: true })).toBeVisible({ timeout: 30000 });
+    await page.getByLabel("These are cards I own. Add the reviewed quantities to my collection.").check();
+    await page.getByRole("button", { name: "Add 4 copies", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Import complete", exact: true })).toBeVisible({ timeout: 30000 });
+    await navigate(page, "Collection");
+    await expect(page.locator(".gallery-card")).toHaveCount(2);
+    await page.getByRole("button", { name: `Open ${original.name} · ${original.set_code.toUpperCase()} #${original.collector_number}`, exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Manage copies", { exact: true }).click();
+    await dialog.getByText("Edit card details", { exact: true }).click();
+    await dialog.getByText("Change set, rarity or card", { exact: true }).click();
+    await expect(dialog.getByRole("combobox", { name: "Rarity", exact: true }).locator('option[value="rare"]')).toBeAttached();
+    await dialog.getByRole("combobox", { name: "Rarity", exact: true }).selectOption("rare");
+    await dialog.getByRole("combobox", { name: "Set / expansion", exact: true }).selectOption(corrected.set_code);
+    await dialog.getByRole("textbox", { name: "Collector number", exact: true }).fill(corrected.collector_number);
+    await expect(dialog.locator(".printing-options")).toHaveAttribute("aria-busy", "false");
+    await expect(dialog.locator(".printing-choice")).toHaveCount(1);
+    await dialog.locator(".printing-choice").click();
+    await expect(dialog.locator(".chosen-printing")).toContainText(corrected.set_name);
+    await expect(dialog.locator(".chosen-printing .rarity-text")).toHaveText("rare");
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: "../../artifacts/mobile-card-editor-" + browser.browserType().name() + ".png", fullPage: true });
+    await dialog.getByRole("button", { name: "Save card details", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Card details saved. Your collection and prices are updated.", { exact: true })).toBeVisible();
+    await expect(page.locator(".gallery-card")).toHaveCount(1);
+    await expect(page.getByText("4 copies", { exact: true })).toBeVisible();
+    await expect(page.locator(".gallery-card .rarity-dot")).toHaveAttribute("title", "rare");
+    const result = await (await context.request.get("/api/v1/collection")).json();
+    expect(result.copies).toBe(4); expect(result.items.every((lot: { printing: { id: string } }) => lot.printing.id === corrected.id)).toBe(true);
+    const changed = result.items.find((lot: { notes: string }) => lot.notes === "Check edition");
+    expect(changed.quantity).toBe(3); expect(changed.binder).toBe("Red binder"); expect(changed.finish).toBe("nonfoil");
+    await page.reload();
+    await navigate(page, "Collection");
+    await expect(page.locator(".gallery-card")).toHaveCount(1);
+    await page.locator(".gallery-card").click();
+    await expect(page.getByRole("dialog").locator(".detail-copy")).toContainText(corrected.set_name);
+    await expect(page.getByRole("dialog").getByText("Find it: Red binder", { exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("Find it: Box 4", { exact: true })).toBeVisible();
+    expect(foreignRequests).toEqual([]); expect(errors).toEqual([]);
+  } finally { await context.close().catch(() => {}); await account.remove(); }
+});

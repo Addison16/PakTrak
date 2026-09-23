@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+infra/generated
+.tools
+.venv
+.hermes-backups
+.hermes-stage
+**/__pycache__
+**/node_modules
+**/dist
+artifacts
+backups
+Instructions/*.pdf
+test-results
+playwright-report

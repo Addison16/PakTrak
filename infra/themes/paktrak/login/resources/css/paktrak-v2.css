@@ -1,0 +1,84 @@
+:root {
+  --pf-global--FontFamily--text: "DM Sans", system-ui, sans-serif;
+  --pf-global--FontFamily--heading: "Fraunces", Georgia, serif;
+  --pf-global--primary-color--100: #163e38;
+  --pf-global--primary-color--200: #28584b;
+  --pf-global--link--Color: #a1532e;
+}
+html.login-pf, .login-pf body {
+  min-height: 100%;
+  background: #f5f1e9;
+  color: #203d37;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.login-pf body { background: radial-gradient(ellipse at 85% 0, #dce5d980, transparent 65%), #f5f1e9; }
+.login-pf-page { padding: 40px 20px; }
+#kc-header { color: #163e38; margin: 0 auto 26px; }
+#kc-header-wrapper { padding: 0; font-family: "DM Sans", system-ui, sans-serif; font-size: 27px; font-weight: 800; text-transform: none; letter-spacing: -.055em; display: flex; align-items: center; justify-content: center; gap: 12px; }
+#kc-header-wrapper::before { content: ""; display: inline-block; width: 44px; height: 44px; flex-shrink: 0; background: url("../img/paktrak-mark.svg") center / contain no-repeat; }
+.login-pf-page .card-pf {
+  width: 100%;
+  max-width: 480px;
+  padding: 32px 34px 24px;
+  background: #fffdf8;
+  border: 1px solid #e1e1d6;
+  border-top: 3px solid #a1532e;
+  border-radius: 20px;
+  box-shadow: 0 8px 28px -16px #203d3726;
+}
+.login-pf-page .login-pf-header { margin: 0 0 24px; }
+h1#kc-page-title { font-family: "Fraunces", Georgia, serif; font-weight: 400; font-size: 32px; line-height: 1.2; letter-spacing: -.04em; color: #203d37; margin: 8px 0 20px; }
+#kc-content-wrapper { margin-top: 0; }
+.login-pf-page .form-group { margin-bottom: 19px; }
+.login-pf-page label, .login-pf-page .pf-c-form__label { font-family: "DM Sans", system-ui, sans-serif; font-weight: 600; font-size: 13px; color: #3d5143; margin-bottom: 7px; }
+.login-pf-page .pf-c-form-control, .login-pf-page .form-control {
+  height: 48px;
+  padding: 11px 12px;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 16px;
+  color: #203d37;
+  background: #fbfcf7;
+  border: 1px solid #cfd7c8;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 2px #1e422905;
+}
+.login-pf-page .pf-c-form-control:focus { border-color: #a1532e; background: #fffdf8; }
+.login-pf-page .pf-c-input-group { border-radius: 10px; background: #fbfcf7; }
+.login-pf-page .pf-c-input-group > input { border-radius: 10px 0 0 10px; border-right: 0; }
+.login-pf-page .pf-c-input-group > button { min-width: 48px; min-height: 48px; background: #f1f4e9; color: #28584b; border: 1px solid #cfd7c8; border-left: 0; border-radius: 0 10px 10px 0; }
+.login-pf-page .pf-c-input-group > button::after { border: 0; }
+.login-pf-page .pf-c-button.pf-m-primary, .login-pf-page .btn-primary { min-height: 50px; border: 1px solid #254c3e; border-radius: 11px; background: linear-gradient(165deg, #28584b, #163e38); color: #fbf6ec; font: 600 14px/1.5 "DM Sans", system-ui, sans-serif; padding: 13px 20px; box-shadow: inset 0 1px 0 #ffffff12, 0 3px 6px #163e3818; }
+.login-pf-page .pf-c-button.pf-m-primary::after { border: 0; }
+.login-pf-page .pf-c-button.pf-m-primary:hover { background: #28584b; }
+.login-pf-page a { color: #a1532e; text-underline-offset: 4px; }
+.login-pf-page a:hover { color: #163e38; }
+.login-pf-page :is(input, button, a, select):focus-visible { outline: 3px solid #a1532e; outline-offset: 3px; }
+.login-pf-page .pf-c-form__helper-text { font: 12px/1.6 "DM Sans", system-ui, sans-serif; }
+.login-pf-page .pf-m-error, .login-pf-page .required { color: #954930; }
+.login-pf-page .pf-c-alert { border: 1px solid #e5d4bf; border-radius: 10px; background: #f8f1e5; color: #704f2d; padding: 14px; margin-bottom: 20px; }
+.login-pf-page .pf-c-alert.pf-m-danger { background: #fcf0e9; border-color: #e8cdc0; color: #903e2d; }
+.login-pf-page .kc-feedback-text { font-family: "DM Sans", system-ui, sans-serif; font-size: 13px; }
+#kc-form-buttons { margin-top: 22px; }
+#kc-info { margin: 22px 0 0; }
+#kc-info-wrapper { margin: 0; padding: 18px; background: #f0f3e9; color: #53674c; border: 1px solid #e2e7d9; border-radius: 11px; font-size: 13px; }
+#kc-info-wrapper:has(#kc-registration) { padding: 2px 12px; }
+#kc-registration > span { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0 6px; }
+#kc-registration a, #kc-form-options a { display: inline-flex; min-height: 44px; align-items: center; }
+#kc-form-options { font-size: 13px; }
+.login-pf-page .subtitle { color: #636d66; font-size: 11px; }
+.paktrak-footer { text-align: center; color: #636d66; font: 11px/1.6 "DM Sans", system-ui, sans-serif; letter-spacing: .02em; margin: 22px 0 0; }
+.paktrak-footer strong { color: #163e38; font-weight: 700; }
+@media (max-width: 767px) {
+  .login-pf-page { padding: 24px 18px; }
+  #kc-header { margin-bottom: 24px; padding: 0; }
+  #kc-header-wrapper { font-size: 25px; }
+  .login-pf-page .card-pf { padding: 26px 23px 20px; }
+  h1#kc-page-title { font-size: 29px; }
+  #kc-content-wrapper { padding: 0; }
+  .login-pf-page .login-pf-header { margin-bottom: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}

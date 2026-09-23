@@ -1,0 +1,24 @@
+.deck-value { margin: 24px 0; padding: 20px; border: 1px solid var(--control-border); border-radius: 16px; background: var(--surface-muted); }
+.deck-value-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.deck-value-heading h3 { margin: 5px 0 0; }
+.deck-value-heading .eyebrow { font-size: 10px; }
+.deck-value-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.deck-value-controls label { font-size: 12px; margin: 0; }
+.deck-value-controls select { min-width: 0; width: 100%; font-size: 16px; }
+.deck-value-source-status { margin: 8px 0 18px; }
+.deck-value-total { display: flex; flex-direction: column; gap: 4px; }
+.deck-value-total > strong { color: var(--forest); font-size: clamp(30px, 6vw, 42px); font-weight: 750; line-height: 1.2; letter-spacing: -.045em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.deck-value-total > span { color: var(--muted); font-size: 12px; }
+.deck-value-coverage { font-size: 13px; margin: 10px 0 18px; }
+.deck-value-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 16px 0; border-block: 1px solid var(--line); }
+.deck-value-sections > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.deck-value-sections span, .deck-value-sections small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.deck-value-sections strong { font-size: 16px; color: var(--forest); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.deck-value-breakdown { margin-top: 16px; }
+.deck-value-breakdown li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.deck-value-breakdown li > div { min-width: 0; flex: 1 1 0; }
+.deck-value-breakdown li > strong { flex-shrink: 0; max-width: 42%; font-size: 13px; overflow-wrap: anywhere; text-align: right; font-variant-numeric: tabular-nums; }
+.deck-value-breakdown .text-button { text-align: left; overflow-wrap: anywhere; }
+.deck-value-breakdown small { display: block; color: var(--muted); font-size: 11px; }
+.deck-value-note { margin-bottom: 0; }
+@media (max-width: 550px) { .deck-value { padding: 16px 12px; } .deck-value-controls { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
