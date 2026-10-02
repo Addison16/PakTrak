@@ -3,15 +3,53 @@ import usePriceSource from "./usePriceSource";
 import useBackgroundError from "./useBackgroundError";
 import { useEffect, useRef, useState } from "react";
 import { navigation, restoreScroll, useRoute } from "./navigation";
-import { isPriceSource, money, providers, request, type PriceSource, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
+import { ApiError, isPriceSource, money, providers, request, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
 import CardDetail, { CardArt } from "./CardDetail";
+import { captureCardFlight, preloadCardBack, type CardFlightOrigin } from "./CardArrival";
 import DataUpdates from "./DataUpdates";
 import Locations from "./Locations";
 import { Icon } from "./Icon";
+import BulkCollection from "./BulkCollection";
+import "./collection-qol.css";
+import "./card-foil.css";
 
 type Result = { copies: number; cards: number; items: CollectionCard[]; next_offset: number | null; valuation: { provider: string; amount: string | null; priced_copies: number; unpriced_copies: number; pricing_issues?: PricingIssues; feed: DataFeed | null } };
 const colors = [["", "All"], ["W", "White"], ["U", "Blue"], ["B", "Black"], ["R", "Red"], ["G", "Green"], ["M", "Multi"], ["C", "Colorless"]];
 const initial = { binder: "", color: "", rarity: "", card_type: "", set_code: "", finish: "", min_price: "", max_price: "" };
+type View = { query: string; filters: typeof initial; sort: string; seed: string; view: string };
+type SavedView = { name: string; value: string };
+function readSetting<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch { return fallback; }
+}
+function remember(key: string, value: unknown) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+}
+function decodeView(value: string | undefined): View {
+  const params = new URLSearchParams(typeof value === "string" ? value.slice(0, 2400) : "");
+  const filters = { ...initial };
+  for (const key of Object.keys(filters) as (keyof typeof initial)[]) filters[key] = (params.get(key) || "").slice(0, 255);
+  if (!colors.some(([color]) => color === filters.color)) filters.color = "";
+  if (!["", "nonfoil", "foil", "etched", "unknown"].includes(filters.finish)) filters.finish = "";
+  for (const key of ["min_price", "max_price"] as const) if (filters[key] && (!Number.isFinite(Number(filters[key])) || Number(filters[key]) < 0)) filters[key] = "";
+  const sort = params.get("sort") || "name";
+  return { query: (params.get("q") || "").slice(0, 255), filters, sort: ["name", "price_asc", "price_desc", "quantity", "newest", "mana", "shuffle"].includes(sort) ? sort : "name", seed: (params.get("seed") || "").slice(0, 80), view: params.get("view") === "list" ? "list" : "gallery" };
+}
+function encodeView(value: View) {
+  return new URLSearchParams(Object.entries({ q: value.query, ...value.filters, sort: value.sort, seed: value.seed, view: value.view }).filter(([, entry]) => entry)).toString();
+}
+
+function ownedSheen(card: CollectionCard) {
+  function count(finish: "foil" | "etched") {
+    const value = card.finish_counts?.[finish];
+    return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= card.quantity ? value : 0;
+  }
+  const foil = count("foil"), etched = count("etched");
+  if (!foil && !etched) return undefined;
+  const amount = foil + etched;
+  const label = foil && etched ? "Foil finishes" : `${foil ? "Foil" : "Etched"}${amount < card.quantity ? ` · ×${amount.toLocaleString()}` : ""}`;
+  const description = [foil && `${foil.toLocaleString()} foil ${foil === 1 ? "copy" : "copies"}`, etched && `${etched.toLocaleString()} etched ${etched === 1 ? "copy" : "copies"}`].filter(Boolean).join(" and ");
+  return { finish: foil ? "foil" : "etched", label, description };
+}
 
 
 export default function Gallery({ session }: { session: Session }) {
@@ -20,21 +58,41 @@ export default function Gallery({ session }: { session: Session }) {
 
 function AccountGallery({ session }: { session: Session }) {
   const route = useRoute();
+  useEffect(preloadCardBack, []);
   const active = route.page === "collection";
+  const settingsKey = "paktrak.collection." + session.owner_id;
+  const [start] = useState(() => decodeView(route.collectionQuery ?? readSetting<string>(settingsKey, "")));
   const [data, setData] = useState<Result | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [sets, setSets] = useState<{ code: string; name: string }[]>([]);
-  const [query, setQuery] = useState(""); const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState(initial);
+  const [query, setQuery] = useState(start.query); const [search, setSearch] = useState(start.query);
+  const [filters, setFilters] = useState(start.filters);
   const { provider, ready: sourceReady, saving: sourceSaving, preferenceError, retry, change: changeSource, retrySave } = usePriceSource(session);
-  const [minPrice, setMinPrice] = useState(""); const [maxPrice, setMaxPrice] = useState("");
+  const [minPrice, setMinPrice] = useState(start.filters.min_price); const [maxPrice, setMaxPrice] = useState(start.filters.max_price);
   const [priceError, setPriceError] = useState("");
-  const [sort, setSort] = useState("name"); const [seed, setSeed] = useState("");
-  const [offset, setOffset] = useState(0); const [view, setView] = useState("gallery");
+  const [sort, setSort] = useState(start.sort); const [seed, setSeed] = useState(start.seed);
+  const [offset, setOffset] = useState(0); const [view, setView] = useState(start.view);
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    const values = readSetting<unknown>(settingsKey + ".saved", []);
+    return Array.isArray(values) ? values.filter((item): item is SavedView => item && typeof item.name === "string" && typeof item.value === "string" && item.value.length <= 2400).slice(0, 20) : [];
+  });
+  const [viewName, setViewName] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selection, setSelection] = useState<string[]>([]);
+  const [organizing, setOrganizing] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<CollectionCard | null>(null);
+  const [cardFlight, setCardFlight] = useState<{ cardKey: string; origin: CardFlightOrigin } | null>(null);
+  const [cardError, setCardError] = useState<Error | null>(null);
+  const [cardRetry, setCardRetry] = useState(0);
+  const encoded = encodeView({ query: search, filters, sort, seed, view });
+  const lastEncoded = useRef(route.collectionQuery);
+  const hydrating = useRef(false);
   const selected = active ? route.card : undefined;
-  function setSelected(id: string | null) {
-    if (id) navigation.go({ page: "collection", card: id });
-    else if (navigation.route.page === "collection" && navigation.route.card) navigation.close({ page: "collection" });
+  function setSelected(id: string | null, source?: HTMLElement) {
+    const origin = id && source ? captureCardFlight(source, id) : null;
+    setCardFlight(id && origin ? { cardKey: id, origin } : null);
+    if (id) navigation.go({ ...navigation.route, page: "collection", card: id });
+    else if (navigation.route.page === "collection" && navigation.route.card) navigation.close({ ...navigation.route, card: undefined });
   }
   const [notice, setNotice] = useState("");
   const backgroundError = useBackgroundError(); const [loading, setLoading] = useState(true);
@@ -42,6 +100,37 @@ function AccountGallery({ session }: { session: Session }) {
   const [shownProvider, setShownProvider] = useState(provider);
   const priceFiltered = Boolean(filters.min_price || filters.max_price);
   const filterCount = Object.entries(filters).filter(([key, value]) => !["min_price", "max_price"].includes(key) && value).length + Number(priceFiltered);
+  function loadView(value: string | undefined) {
+    const next = decodeView(value);
+    setQuery(next.query); setSearch(next.query); setFilters(next.filters); setSort(next.sort); setSeed(next.seed); setView(next.view); setOffset(0); setMinPrice(next.filters.min_price); setMaxPrice(next.filters.max_price); setPriceError("");
+  }
+  useEffect(() => {
+    if (!active || route.collectionQuery === undefined || route.collectionQuery === lastEncoded.current) return;
+    lastEncoded.current = route.collectionQuery; hydrating.current = true; loadView(route.collectionQuery);
+  }, [route.collectionQuery, active]);
+  useEffect(() => {
+    if (!active) return;
+    if (hydrating.current) { hydrating.current = false; return; }
+    remember(settingsKey, encoded); lastEncoded.current = encoded;
+    navigation.go({ ...navigation.route, collectionQuery: encoded }, { replace: true });
+  }, [encoded, active, settingsKey]);
+  function saveView() {
+    const name = viewName.trim(); if (!name) return;
+    const next = [...savedViews.filter((item) => item.name !== name), { name, value: encoded }].slice(-20);
+    setSavedViews(next); setViewName("");
+    setNotice(remember(settingsKey + ".saved", next) ? "Collection view saved on this device. Its URL can also be bookmarked." : "Browser storage is unavailable. Bookmark this view’s URL to keep it.");
+  }
+  useEffect(() => { setSelection([]); }, [filters.binder]);
+  useEffect(() => {
+    setCardFlight((current) => current && current.cardKey !== selected ? null : current);
+  }, [selected]);
+  useEffect(() => {
+    setSelectedCard(null); setCardError(null);
+    if (!selected || !sourceReady) return;
+    let cancelled = false;
+    request<CollectionCard>(`/api/v1/collection/cards/${selected}?provider=${provider}`).then((value) => { if (!cancelled) setSelectedCard(value); }).catch((error: Error) => { if (!cancelled) setCardError(error); });
+    return () => { cancelled = true; };
+  }, [selected, provider, sourceReady, cardRetry]);
 
   useEffect(() => { setOffset(0); }, [provider]);
   useEffect(() => { const timer = setTimeout(() => { setSearch(query.trim()); setOffset(0); }, 300); return () => clearTimeout(timer); }, [query]);
@@ -55,6 +144,17 @@ function AccountGallery({ session }: { session: Session }) {
     if (!isCurrent()) return;
     setData(result); setLocations(bins.items); setSets(options.sets); setShownProvider(provider); setLoading(false); backgroundError.recovered();
     requestAnimationFrame(restoreScroll);
+    if (selected) {
+      try {
+        const detail = await request<CollectionCard>(`/api/v1/collection/cards/${selected}?provider=${provider}`);
+        if (isCurrent() && navigation.route.card === selected) setSelectedCard(detail);
+      } catch (error) {
+        if (isCurrent() && navigation.route.card === selected) {
+          if (error instanceof ApiError && error.status === 404) { setSelectedCard(null); navigation.go({ ...navigation.route, card: undefined }, { replace: true, force: true }); }
+          else setCardError(error as Error);
+        }
+      }
+    }
   }
   useEffect(() => {
     if (!sourceReady || !active) return;
@@ -75,13 +175,7 @@ function AccountGallery({ session }: { session: Session }) {
     if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) { setPriceError("Minimum price must not exceed maximum price."); return; }
     setPriceError(""); setFilters({ ...filters, min_price: minPrice, max_price: maxPrice }); setOffset(0);
   }
-  const card = data?.items.find((item) => item.printing.id === selected);
-  useEffect(() => {
-    if (selected && data && !loading && !card) {
-      setNotice("That card is not in this collection view. Search your collection to find it again.");
-      navigation.go({ page: "collection" }, { replace: true, force: true });
-    }
-  }, [selected, data, loading, card]);
+  const card = selectedCard?.printing.id === selected ? selectedCard : data?.items.find((item) => item.printing.id === selected);
   const value = data?.valuation;
   return <section className="panel gallery-panel">
     <div className="collection-heading"><div><span className="eyebrow">A place for every pull</span><h2>Your collection</h2></div><span className="badge">{(data?.copies || 0).toLocaleString()} copies</span></div>
@@ -101,6 +195,7 @@ function AccountGallery({ session }: { session: Session }) {
     <div className="color-filters" aria-label="Color identity">{colors.map(([id, name]) => <button key={id} className={"filter-chip color-" + id} aria-pressed={filters.color === id} onClick={() => filter("color", id)}>{id && <span className="color-dot" aria-hidden="true" />}{name}</button>)}</div>
     <div className="gallery-toolbar"><button className="filter-chip" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>Filters{filterCount ? " · " + filterCount : ""} <span aria-hidden="true">⌄</span></button><button className="text-button" onClick={() => { setSort("shuffle"); setSeed(crypto.randomUUID()); setOffset(0); }}>Shuffle cards ↝</button><div className="view-switch" aria-label="Collection layout"><button aria-pressed={view === "gallery"} onClick={() => setView("gallery")}>Gallery</button><button aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div></div>
     <div className="gallery-sort"><label>Sort by<select value={sort} onChange={(e) => { setSort(e.target.value); setOffset(0); }}><option value="name">Name</option><option value="price_asc">Price: Low to high</option><option value="price_desc">Price: High to low</option><option value="quantity">Most copies</option><option value="newest">Recently added</option><option value="mana">Mana value</option><option value="shuffle">Shuffled</option></select></label></div>
+    <details className="saved-collection-views"><summary>Saved collection views{savedViews.length ? ` · ${savedViews.length}` : ""}</summary><p className="fine">Keep favorite searches, filters, sorting and layout on this device. Bookmark this page to share the view.</p><form className="gallery-search" onSubmit={(event) => { event.preventDefault(); saveView(); }}><label className="sr-only" htmlFor="view-name">View name</label><input id="view-name" value={viewName} maxLength={60} placeholder="e.g. Blue cards for Commander" onChange={(event) => setViewName(event.target.value)} /><button className="button secondary" disabled={!viewName.trim()}>Save view</button></form><div className="saved-view-list">{savedViews.map((item) => <span key={item.name}><button onClick={() => loadView(item.value)}>{item.name}</button><button aria-label={`Remove saved view ${item.name}`} onClick={() => { const next = savedViews.filter((value) => value.name !== item.name); setSavedViews(next); remember(settingsKey + ".saved", next); }}>×</button></span>)}</div></details>
     {priceFiltered && <div className="active-price-filter"><span>{filters.min_price && filters.max_price ? `${money(filters.min_price)}–${money(filters.max_price)}` : filters.min_price ? `${money(filters.min_price)} and up` : `Up to ${money(filters.max_price)}`} per copy</span><button type="button" className="text-button" aria-label="Clear price filter" onClick={clearPrice}>Clear ×</button></div>}
     {filtersOpen && <form className="price-range-filter" onSubmit={(e) => { e.preventDefault(); applyPrice(); }}><h3>Price range</h3><p className="fine">USD per copy from {providers[provider]}. Only copies with a listed price are included.</p><div className="form-grid">
       <label>Minimum price ($)<input type="number" inputMode="decimal" min="0" step="0.01" placeholder="No minimum" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); setPriceError(""); }} /></label>
@@ -115,15 +210,18 @@ function AccountGallery({ session }: { session: Session }) {
     </div><button className="text-button" onClick={clearFilters}>Clear search & filters</button></div>}
     {backgroundError.error && <ErrorNotice error={backgroundError.error} onDismiss={backgroundError.dismiss} />}
     <div className="gallery-result-note" role="status">{loading ? "Finding your cards…" : data?.cards ? `${data.cards.toLocaleString()} printings${search ? " matching “" + search + "”" : " to explore"}` : "No cards in this view"}</div>
+    <div className="collection-selection-toolbar"><button className="button secondary" aria-pressed={selectionMode} onClick={() => { setSelectionMode(!selectionMode); setSelection([]); }}>{selectionMode ? "Done selecting" : "Select cards"}</button>{selectionMode && <><button className="text-button" disabled={loading} onClick={() => setSelection((current) => [...new Set([...current, ...(data?.items.map((item) => item.printing.id) || [])])].slice(0, 100))}>Select this page</button><button className="text-button" disabled={!selection.length} onClick={() => setSelection([])}>Clear selection</button><span className="fine" role="status">{selection.length} / 100 selected</span><button className="button primary" disabled={!selection.length} onClick={() => setOrganizing(true)}>Organize selected</button></>}</div>
     {!loading && data?.cards === 0 && <div className="gallery-empty"><span aria-hidden="true">✧</span><h3>{filterCount || search ? "Try another discovery" : "A collection worth exploring"}</h3><p>{filterCount || search ? "Clear a filter or try a different card name or ability." : "Import your card list or add cards from a scan. Their artwork, details and locations will be waiting here."}</p>{(filterCount > 0 || search) && <button className="button secondary" onClick={clearFilters}>Show all my cards</button>}</div>}
-    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{data?.items.map((item) => <li className="collection-card" key={item.printing.id}><button className="gallery-card" disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number} onClick={() => setSelected(item.printing.id)}>
-      <CardArt url={item.printing.image_url} name={item.printing.name} /><div className="gallery-card-info"><div className="gallery-card-title"><strong>{item.printing.name}</strong><span className="quantity-badge">×{item.quantity.toLocaleString()}</span></div><span className="gallery-card-set">{item.printing.set_code.toUpperCase()} · #{item.printing.collector_number} <span className={"rarity-dot rarity-" + item.printing.rarity} title={item.printing.rarity} /></span>
+    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{data?.items.map((item) => { const sheen = ownedSheen(item); return <li className="collection-card" data-selected={selection.includes(item.printing.id)} key={item.printing.id}>{selectionMode && <label className="collection-select"><input type="checkbox" aria-label={`Select ${item.printing.name}`} checked={selection.includes(item.printing.id)} disabled={!selection.includes(item.printing.id) && selection.length >= 100} onChange={(event) => setSelection((current) => event.target.checked ? [...current, item.printing.id] : current.filter((id) => id !== item.printing.id))} /><span>Select</span></label>}<button className="gallery-card" disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number + (sheen ? " · Includes " + sheen.description : "")} onClick={(event) => setSelected(item.printing.id, event.currentTarget)}>
+      <div className="card-finish-art" data-owned-finish={sheen?.finish}><CardArt url={item.printing.image_url} name={item.printing.name} />{sheen && <span className="card-finish-label" aria-hidden="true" title={"Includes " + sheen.description}><span>✧</span>{sheen.label}</span>}</div><div className="gallery-card-info"><div className="gallery-card-title"><strong>{item.printing.name}</strong><span className="quantity-badge">×{item.quantity.toLocaleString()}</span></div><span className="gallery-card-set">{item.printing.set_code.toUpperCase()} · #{item.printing.collector_number} <span className={"rarity-dot rarity-" + item.printing.rarity} title={item.printing.rarity} /></span>
         <span className="gallery-card-price">{item.price_min ? money(item.price_min) + (item.price_max !== item.price_min ? "–" + money(item.price_max) : "") : item.pricing_issues?.unknown_finish ? "Finish not set" : item.pricing_issues?.custom_value ? "Custom value" : "No price available"}<small>{item.price_min ? item.priced_copies < item.quantity ? "per priced copy" : "per copy" : item.pricing_issues?.unknown_finish ? "Normal, foil or etched?" : item.pricing_issues?.custom_value ? "Altered or misprinted" : "No quote from " + providers[shownProvider]}</small></span><span className="gallery-card-location"><Icon name="pin" /><span>{item.locations[0]?.name}{item.location_count > 1 ? ` +${item.location_count - 1}` : ""}</span></span>
-      </div></button></li>)}</ul>
+      </div></button></li>; })}</ul>
     <div className="pagination">{offset > 0 && <button className="button secondary" disabled={loading} onClick={() => setOffset(Math.max(0, offset - 40))}>Previous cards</button>}{data?.next_offset != null && <button className="button secondary" disabled={loading} onClick={() => setOffset(data.next_offset!)}>More cards</button>}</div>
     <Locations locations={locations} session={session} onSaved={refresh} />
     <DataUpdates />
     <p className="fine gallery-credit">Card imagery © Wizards of the Coast · Card data and images via Scryfall</p>
-    {card && <CardDetail key={card.printing.id} card={card} binder={filters.binder} locations={locations} session={session} onSaved={refresh} onCorrected={async () => { await refresh(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} />}
+    {selected && !card && <div className="message" role="status">{cardError ? <><ErrorNotice error={cardError} onDismiss={() => setSelected(null)} /><button className="text-button" onClick={() => setCardRetry((value) => value + 1)}>Retry opening card</button><button className="text-button" onClick={() => setSelected(null)}>Close card</button></> : "Opening card details…"}</div>}
+    {organizing && <BulkCollection ids={selection} binder={filters.binder} locations={locations} session={session} onClose={() => setOrganizing(false)} onSaved={async (copies) => { setNotice(`${copies} copies updated. Import history and notes are preserved.`); setSelection([]); try { await refresh(); } catch (error) { backgroundError.failed(error as Error); } }} />}
+    {card && <CardDetail key={card.printing.id} card={card} origin={cardFlight?.cardKey === card.printing.id ? cardFlight.origin : null} binder={filters.binder} locations={locations} session={session} onSaved={refresh} onCorrected={async () => { await refresh(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} />}
   </section>;
 }

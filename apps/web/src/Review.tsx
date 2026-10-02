@@ -7,9 +7,20 @@ import CropEditor from "./ScanCropEditor";
 import ScanFinishes from "./ScanFinishes";
 import { Icon } from "./Icon";
 import type { Batch, Region, ReviewState } from "./scanTypes";
+import ImageViewer, { type ViewerImage } from "./ImageViewer";
+import { navigation } from "./navigation";
+import { readDraft, removeDraft, writeDraft } from "./recovery";
+import "./scan-qol.css";
 
 type CardDraft = { version: number; choice: Printing | null; editing: boolean; finish: string; condition: string };
+type SavedReview = { schema: 1; cards: [string, CardDraft][]; current: string | null; binder: string; binderDirty: boolean; selected: string[]; bulkFinish: string; bulkCondition: string; bulkBinder: string };
+type ReviewFilter = "all" | "pending" | "unmatched" | "finish";
 const range = (min: string | null, max: string | null) => min === max ? money(min) : money(min) + "–" + money(max);
+const savedPrinting = (item: Region) => item.lot?.printing || item.confirmed_printing || item.candidates[0]?.printing || null;
+const finishConflict = (item: Region) => item.state !== "IGNORED" && item.finish !== "unknown" && !!savedPrinting(item) && !savedPrinting(item)!.finishes.includes(item.finish);
+function validSavedReview(value: SavedReview | null): value is SavedReview {
+  return !!value && value.schema === 1 && Array.isArray(value.cards) && value.cards.every((entry) => Array.isArray(entry) && typeof entry[0] === "string" && entry[1] && typeof entry[1].version === "number" && typeof entry[1].finish === "string" && typeof entry[1].condition === "string" && (!entry[1].choice || typeof entry[1].choice.id === "string" && Array.isArray(entry[1].choice.finishes))) && Array.isArray(value.selected) && value.selected.every((id) => typeof id === "string") && typeof value.binder === "string" && typeof value.bulkBinder === "string";
+}
 
 export default function Review({ scanId, photo, session, editable, onEdit, onStateChange, processing = false, progress, onChange }: {
   scanId: string; photo: string | null; session: Session; editable: boolean; onEdit: () => void;
@@ -48,10 +59,23 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
   const approvalKey = useRef<{ body: string; key: string } | null>(null);
   const orientationKey = useRef<{ body: string; key: string } | null>(null);
   const drafts = useRef(new Map<string, CardDraft>());
+  const recoveryKey = `review:${session.owner_id}:${scanId}`;
+  const [recovery, setRecovery] = useState<SavedReview | null>(() => { const saved = readDraft<SavedReview>(recoveryKey); return validSavedReview(saved) ? saved : null; });
+  const [localSaved, setLocalSaved] = useState<boolean | null>(null);
+  const [filter, setFilter] = useState<ReviewFilter>("all");
+  const [order, setOrder] = useState("photo");
+  const [viewer, setViewer] = useState<{ images: ViewerImage[]; initialIndex?: number } | null>(null);
+  const [referenceFailed, setReferenceFailed] = useState(false);
+  const [referenceFallback, setReferenceFallback] = useState(false);
+  const [referenceAttempt, setReferenceAttempt] = useState(0);
+  const hadEditor = useRef(editable);
   const regions = data?.items || [];
   const region = regions.find((r) => r.id === regionId) || regions.find((r) => r.state === "NEEDS_REVIEW") || regions[0];
   const regionIndex = regions.indexOf(region);
   const pending = regions.filter((r) => r.state === "NEEDS_REVIEW");
+  const unmatched = pending.filter((r) => !r.candidates.length && !!r.recognition.status);
+  const conflicts = regions.filter(finishConflict);
+  const visibleRegions = regions.filter((item) => filter === "all" || filter === "pending" && item.state === "NEEDS_REVIEW" || filter === "unmatched" && unmatched.includes(item) || filter === "finish" && finishConflict(item)).slice().sort((a, b) => order === "strength" ? (a.candidates[0]?.match_score ?? -1) - (b.candidates[0]?.match_score ?? -1) || regions.indexOf(a) - regions.indexOf(b) : regions.indexOf(a) - regions.indexOf(b));
   const printing = choice || region?.lot?.printing || region?.confirmed_printing || region?.candidates?.[0]?.printing || null;
   const displayedEstimate = !choice || choice.id === (region?.lot?.printing.id || region?.confirmed_printing?.id || region?.candidates?.[0]?.printing.id) ? region?.estimate : null;
   const summary = data?.summary;
@@ -69,6 +93,29 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
   }));
   const saving = busy || foilState.busy || cropState.busy;
   const finishPending = !!data?.finishes && (!data.finishes.confirmed || foilState.dirty);
+  useEffect(() => { setReferenceFailed(false); setReferenceFallback(false); }, [printing?.id, region?.id]);
+  function clearRecovery() {
+    removeDraft(recoveryKey); removeDraft(`foils:${session.owner_id}:${scanId}`);
+    removeDraft(`crop:${session.owner_id}:${scanId}:new`);
+    for (const item of regions) removeDraft(`crop:${session.owner_id}:${scanId}:${item.id}`);
+  }
+  const clearRecoveryRef = useRef(clearRecovery); clearRecoveryRef.current = clearRecovery;
+  // An approved in-app departure means discard; a reload leaves recovery intact.
+  useEffect(() => () => {
+    if (navigation.route.page !== "batches" || navigation.route.batch !== scanId || navigation.route.view !== "edit") clearRecoveryRef.current();
+  }, [recoveryKey]);
+  useEffect(() => {
+    if (hadEditor.current && !editable) { clearRecovery(); setRecovery(null); setLocalSaved(null); }
+    hadEditor.current = editable;
+  }, [editable]);
+  useEffect(() => {
+    if (!editable || !data || recovery) return;
+    const cards = new Map(drafts.current);
+    if (regionId && region) cards.set(regionId, { version: region.version, choice, editing, finish, condition });
+    const changedCards = [...cards].filter(([id, draft]) => { const item = regions.find((row) => row.id === id); return item && changed(item, draft); });
+    if (!changedCards.length && !binderDirty && !selectedRegions.length) { removeDraft(recoveryKey); setLocalSaved(null); return; }
+    setLocalSaved(writeDraft(recoveryKey, { schema: 1, cards: changedCards, current: regionId, binder, binderDirty, selected: [...selected], bulkFinish, bulkCondition, bulkBinder } satisfies SavedReview));
+  }, [editable, data, recovery, regionId, choice, editing, finish, condition, binder, binderDirty, selected, bulkFinish, bulkCondition, bulkBinder]);
   useLayoutEffect(() => { onStateChange({ dirty, busy: saving }); }, [dirty, saving, onStateChange]);
   useEffect(() => () => onStateChange({ dirty: false, busy: false }), [onStateChange]);
   useEffect(() => {
@@ -123,11 +170,42 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
   function chooseRegion(item: Region, scroll = false, preserve = true) {
     if (editable && preserve && regionId && region) drafts.current.set(regionId, { version: region.version, choice, editing, finish, condition });
     const saved = drafts.current.get(item.id);
-    const draft = saved?.version === item.version ? saved : undefined;
+    const draft = saved;
+    if (draft && draft.version !== item.version) {
+      // Keep deliberate user choices when recognition or another tab changed a
+      // version. The next explicit save uses the current version after review.
+      draft.version = item.version;
+      setNotice("This card changed on the server. Your unfinished choices are kept; check them before saving.");
+    }
     setRegionId(item.id); setChoice(draft?.choice || null); setEditing(draft?.editing || false);
-    setFinish(draft?.finish || item.lot?.finish || item.finish || "unknown");
+    const draftPrinting = draft?.choice || savedPrinting(item);
+    const nextFinish = draft?.finish || item.lot?.finish || item.finish || "unknown";
+    setFinish(nextFinish !== "unknown" && draftPrinting && !draftPrinting.finishes.includes(nextFinish) ? "unknown" : nextFinish);
     setCondition(draft?.condition || item.lot?.condition || "ungraded"); setError("");
     if (scroll) window.setTimeout(() => detail.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
+  }
+  function restoreReview() {
+    if (!recovery || !data) return;
+    let changedVersions = 0;
+    drafts.current.clear();
+    for (const [id, draft] of recovery.cards) {
+      const item = regions.find((row) => row.id === id && row.state !== "IGNORED");
+      if (!item) continue;
+      if (item.version !== draft.version) changedVersions++;
+      drafts.current.set(id, { ...draft, version: item.version, editing: draft.editing || !!item.lot });
+    }
+    setBinder(recovery.binder); setBinderDirty(recovery.binderDirty);
+    setSelected(new Set(recovery.selected.filter((id) => pending.some((item) => item.id === id))));
+    setBulkFinish(recovery.bulkFinish || "keep"); setBulkCondition(recovery.bulkCondition || "ungraded"); setBulkBinder(recovery.bulkBinder);
+    const item = regions.find((row) => row.id === recovery.current) || regions.find((row) => drafts.current.has(row.id)) || region;
+    if (item) chooseRegion(item, false, false);
+    setRecovery(null); setNotice(changedVersions ? `Recovered your choices. ${changedVersions} ${changedVersions === 1 ? "card has" : "cards have"} changed on the server; check the current matches before saving.` : "Unfinished choices recovered. Approve or save each card when you are ready.");
+  }
+  function openComparison(initialIndex = 0) {
+    const images: ViewerImage[] = [];
+    if (region?.crop_url) images.push({ src: region.crop_url, label: "Your photo" });
+    if (printing?.image_url) images.push({ src: `/api/v1/scans/${scanId}/reference/${printing.id}/image`, fallback: printing.image_url, label: "Catalog reference" });
+    if (images.length) setViewer({ images, initialIndex: Math.min(initialIndex, images.length - 1) });
   }
   function nextPending(items: Region[], afterId: string) {
     const index = items.findIndex((r) => r.id === afterId);
@@ -181,6 +259,8 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
   function toggle(id: string) { setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
 
   return <div className="review">
+    {recovery && <section className="scan-recovery" aria-label="Recovered review draft"><div><strong>Your unfinished review is available</strong><p>Saved on this device for this account. Check the latest matches before saving; no cards were approved by this draft.</p></div><div className="actions"><button className="button primary" disabled={saving || !data} onClick={() => editable ? restoreReview() : onEdit()}>{editable ? "Restore review draft" : "Edit to recover draft"}</button><button className="text-button" disabled={saving} onClick={() => { removeDraft(recoveryKey); setRecovery(null); }}>Discard review draft</button></div></section>}
+    {localSaved !== null && <p className="scan-local-status" role="status">{localSaved ? "Unfinished choices saved on this device. Approve or save to update your collection." : "This browser could not save a recovery draft. Keep this page open until you save your choices."}</p>}
     {data && !!summary?.cards && <section className="batch-next-steps" aria-label="Batch next steps" data-complete={!processing && !pending.length && !finishPending || undefined}>
       <div className="batch-next-heading"><span className="eyebrow">{processing ? "WHILE WE SCAN" : finishPending || pending.length ? "YOUR NEXT STEPS" : "ALL SET"}</span>
         <h3>{processing ? "Your cards are taking shape" : finishPending || pending.length ? "Finish your batch" : "Batch complete"}</h3>
@@ -216,11 +296,16 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
       <progress max={Math.max(1, summary?.regions || 1)} value={summary?.checked || 0} aria-label="Card identification progress" />
       <p className="fine">You can close this page. Results and approvals are saved on the server.</p></div>}
     {editable && data?.finishes && <div ref={foilSection} className="scan-finish-section" tabIndex={-1}><ScanFinishes scanId={scanId} session={session} data={data} processing={processing} openRequest={foilOpenRequest} disabled={busy || cropState.busy} onStateChange={setFoilState} onRefresh={refresh} onSaved={async () => {
-      const updated = await refresh(); drafts.current.clear();
+      const updated = await refresh();
+      for (const [id, draft] of drafts.current) {
+        const saved = updated.items.find((item) => item.id === id);
+        if (!saved || saved.state === "IGNORED") { drafts.current.delete(id); continue; }
+        drafts.current.set(id, { ...draft, version: saved.version, finish: saved.lot?.finish || saved.finish });
+      }
       const current = updated.items.find((r) => r.id === region?.id);
-      if (current) setFinish(current.finish);
+      if (current) setFinish(current.finish !== "unknown" && choice && !choice.finishes.includes(current.finish) ? "unknown" : current.finish);
       setNotice(deckOnly ? "Foil and nonfoil labels saved for these deck photos." : "Foil and nonfoil labels saved. Imported copies and price estimates are updated."); onChange?.();
-    }} />
+    }} onReviewCard={(id) => { const item = regions.find((row) => row.id === id); if (item) { chooseRegion(item, true); setEditing(true); } }} />
       {!processing && !finishPending && pending.length > 0 && <button className="button primary review-after-foils" disabled={saving} onClick={() => goToStep("cards")}>Next: review {pending.length} {pending.length === 1 ? "match" : "matches"} <Icon name="arrow" /></button>}
     </div>}
     {editable && <div className="scan-tools"><label>Cards in this photo<input type="number" inputMode="numeric" min={1} max={32} value={String(expected)}
@@ -238,7 +323,10 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
       <div className="scan-gallery-heading"><h3 ref={galleryHeading} tabIndex={-1}><span className="eyebrow">{editable ? "REVIEW MATCHES" : "BATCH GALLERY"}</span>Your scanned cards</h3>{editable && <button className="text-button" disabled={busy} onClick={() => setSelected(new Set(regions.filter((r) => r.state === "NEEDS_REVIEW" && r.candidates?.length).map((r) => r.id)))}>Select suggestions</button>}
         {editable && selected.size > 0 && <button className="text-button" onClick={() => setSelected(new Set())}>Clear selection</button>}</div>
       <p className="scan-gallery-help">{pending.length ? deckOnly ? "Tap a card to check its match. Matched cards are ready for your deck preview." : "Tap a card to check its match. Cards marked Imported are already in your collection." : "Tap any card to see its details or make a correction."}</p>
-      <div className="scan-gallery" aria-label="Scanned cards">{regions.map((item, i) => {
+      <div className="scan-queue-tools"><div className="scan-queue-filters" role="group" aria-label="Filter scanned cards">{([["all", "All cards", regions.length], ["pending", "Needs review", pending.length], ["unmatched", "No match", unmatched.length], ["finish", "Finish conflicts", conflicts.length]] as const).map(([value, label, count]) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label} <span>{count}</span></button>)}</div><label className="scan-queue-sort">Card order<select value={order} onChange={(event) => setOrder(event.target.value)}><option value="photo">Order in photo</option><option value="strength">Lowest match strength first</option></select></label></div>
+      {!visibleRegions.length && <p className="scan-filter-empty" role="status">No cards in this view. <button className="text-button" onClick={() => setFilter("all")}>Show all cards</button></p>}
+      <div className="scan-gallery" aria-label="Scanned cards">{visibleRegions.map((item) => {
+        const i = regions.indexOf(item);
         const suggested = item.candidates?.[0];
         const name = item.lot?.printing.name || item.confirmed_printing?.name || suggested?.printing.name || (item.recognition?.status ? "Choose a match" : "Identifying…");
         return <div className={"scan-tile" + (item.id === regionId ? " current" : "")} key={item.id}>
@@ -248,6 +336,7 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
             <span className="scan-tile-number">{i + 1}</span><strong>{name}</strong>
             <span className={"scan-match-state " + (item.state === "COMMITTED" ? "imported" : "")}>{item.state === "COMMITTED" ? deckOnly ? item.recognition.auto_confirmed ? "✓ Auto-matched" : "✓ Matched" : item.recognition.auto_imported ? "✓ Auto-imported" : "✓ Imported" : item.state === "IGNORED" ? "Ignored" : suggested ? `${suggested.match_score > (summary?.auto_add_threshold ?? .88) ? "✓ " : ""}${Math.round(suggested.match_score * 100)}% match` : item.recognition?.status ? "Needs a match" : "Reading card…"}</span>
             {item.finish && item.finish !== "unknown" && <span className={"scan-finish " + item.finish}>{item.finish === "etched" ? "Etched foil" : item.finish === "foil" ? "Foil" : "Nonfoil"}</span>}
+            {finishConflict(item) && <span className="scan-finish-conflict">Finish unavailable for this printing</span>}
             {item.state === "NEEDS_REVIEW" && <span className="scan-review-prompt">Review match <span aria-hidden="true">→</span></span>}
           </button></div>;
       })}</div>
@@ -262,10 +351,10 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
 </div>
         {!processing && pending.length === 0 && <p className="saved" role="status">✓ All cards reviewed.{data?.finishes && !data.finishes.confirmed ? " Finish by confirming the foil cards above." : ""}</p>}
         {notice && <p className="message success" role="status">{notice}</p>}
-        <div className="scan-comparison"><figure>{region.crop_url && <img src={region.crop_url} alt="Your scanned card" />}<figcaption>Your photo</figcaption>
+        <div className="scan-comparison"><figure>{region.crop_url && <button className="scan-photo-enlarge" aria-label="Enlarge your scanned card" onClick={() => openComparison()}><img src={region.crop_url} alt="Your scanned card" /><span>Enlarge ↗</span></button>}<figcaption>Your photo</figcaption>
           {editable && region.crop_url && <button className="text-button scan-photo-flip" disabled={saving || !!cropEditor} onClick={flipPhoto}>Flip photo 180°</button>}</figure>
-          <figure>{printing?.image_url ? <img key={printing.id} src={choice ? `/api/v1/scans/${scanId}/reference/${printing.id}/image` : printing.image_url} alt={printing.name + " catalog reference"} loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <div className="scan-reference-empty">{printing ? "Artwork unavailable" : "Finding a suggestion"}</div>}<figcaption>{choice ? "Selected printing" : region.lot || region.confirmed_printing ? "Saved printing" : "Suggested printing"}</figcaption></figure></div>
-        {printing && <div className="scan-suggested"><h3>{printing.name}</h3><p>{printing.set_name || printing.set_code.toUpperCase()} · #{printing.collector_number} · {printing.language.toUpperCase()} · <span className="rarity-text">{printing.rarity}</span></p>
+          <figure>{printing?.image_url ? referenceFailed ? <div className="scan-reference-missing" role="status">Artwork could not be loaded.<button className="text-button" onClick={() => { setReferenceFailed(false); setReferenceFallback(false); setReferenceAttempt((value) => value + 1); }}>Retry artwork</button></div> : <button className="scan-photo-enlarge" aria-label="Enlarge catalog reference" onClick={() => openComparison(region.crop_url ? 1 : 0)}><img key={`${printing.id}-${referenceAttempt}-${referenceFallback}`} src={referenceFallback ? printing.image_url : `/api/v1/scans/${scanId}/reference/${printing.id}/image`} alt={printing.name + " catalog reference"} loading="lazy" onError={() => { if (!referenceFallback) setReferenceFallback(true); else setReferenceFailed(true); }} /><span>Compare ↗</span></button> : <div className="scan-reference-empty">{printing ? "Artwork unavailable" : "Finding a suggestion"}</div>}<figcaption>{choice ? "Selected printing" : region.lot || region.confirmed_printing ? "Saved printing" : "Suggested printing"}</figcaption></figure></div>
+        {printing && <div className="scan-suggested"><h3>{printing.display_name || printing.name}</h3>{printing.display_name && printing.display_name !== printing.name && <p>{printing.name}</p>}<p>{printing.set_name || printing.set_code.toUpperCase()} · #{printing.collector_number} · {printing.language.toUpperCase()} · <span className="rarity-text">{printing.rarity}</span></p>
           {displayedEstimate && <p>{range(displayedEstimate.min, displayedEstimate.max)} <span className="fine">estimated · {providers[provider]}</span></p>}</div>}
         {region.state === "NEEDS_REVIEW" && <>
           {!choice && region.candidates?.[0] && <div className="scan-confidence"><strong>{Math.round(region.candidates[0].match_score * 100)}% match strength</strong><p>{region.candidates[0].evidence.join(" · ")}</p>
@@ -307,5 +396,6 @@ export default function Review({ scanId, photo, session, editable, onEdit, onSta
     {!region && notice && <p className="message success" role="status">{notice}</p>}
     {backgroundError.error && <ErrorNotice error={backgroundError.error} onDismiss={backgroundError.dismiss} />}
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
+    {viewer && <ImageViewer {...viewer} onClose={() => setViewer(null)} />}
   </div>;
 }

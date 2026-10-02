@@ -1,10 +1,12 @@
 """Local deck-list parsing and collection comparison; never changes inventory."""
 
+import json
 import re
 from collections import Counter, defaultdict
 
 from sqlalchemy import func, or_, select
 
+from scanner.card_search import card_names, card_names_in
 from scanner.catalog import printing_json
 from scanner.csv_formats import infer_mapping, read_csv, read_text, resolve
 from scanner.models import Binder, InventoryLot, Printing
@@ -199,19 +201,8 @@ def deck_name_index(db, names):
         include(printing, [printing.name, *printing.name.split(" // ")])
     unresolved = names - indexed.keys()
     if unresolved:
-        aliases = [Printing.source_json["printed_name"].astext]
-        for face in (0, 1):
-            aliases.extend(
-                Printing.source_json["card_faces"][face][field].astext
-                for field in ("name", "printed_name")
-            )
-        for printing in db.scalars(
-            select(Printing).where(or_(*(func.lower(alias).in_(unresolved) for alias in aliases)))
-        ):
-            source = printing.source_json or {}
-            include(printing, [source.get("printed_name")])
-            for face in source.get("card_faces", []):
-                include(printing, [face.get("name"), face.get("printed_name")])
+        for printing in db.scalars(select(Printing).where(card_names_in(unresolved))):
+            include(printing, card_names(printing.name, printing.source_json))
     return indexed
 
 
@@ -334,6 +325,7 @@ def preview_list(
         ),
     )
     rows, cached, resolved = [], {}, {}
+    occurrences = Counter()
     for index, raw in enumerate(source):
 
         def value(field, raw=raw):
@@ -349,23 +341,36 @@ def preview_list(
             values["set_code"].lower(),
             values["language"].lower(),
         )
-        error, printing = None, None
+        identity_error, printing = None, None
         count = (
             int(quantity) if quantity.isascii() and quantity.isdigit() and len(quantity) <= 6 else 0
         )
-        if not 1 <= count <= 100_000:
-            error = "Quantity must be a whole number from 1 to 100,000. Edit the source list and preview again."
-        elif section is None:
-            error = "Section must be Mainboard, Sideboard or Commander. Edit the source list and preview again."
-        elif any(len(item) > 255 for item in values.values()):
-            error = "Card identifiers are too long. Edit the source list and preview again."
+        quantity_error = (
+            "Quantity must be a whole number from 1 to 100,000. Correct the quantity below."
+            if not 1 <= count <= 100_000
+            else None
+        )
+        section_error = (
+            "Section must be Mainboard, Sideboard or Commander. Choose a section below."
+            if section is None
+            else None
+        )
+        if any(len(item) > 255 for item in values.values()):
+            identity_error = (
+                "Card identifiers are too long. Edit the source list and preview again."
+            )
         else:
             cache_key = tuple(values.items())
             if cache_key not in cached:
                 cached[cache_key] = resolve_deck_card(db, values, name_index)
-            printing, error = cached[cache_key]
+            printing, identity_error = cached[cache_key]
         if printing:
             resolved[printing.id] = printing
+        source_key = json.dumps(
+            {**values, "quantity": quantity, "section": value("section") or "main"},
+            sort_keys=True,
+        )
+        occurrences[source_key] += 1
         rows.append(
             {
                 "line": int(raw.get("source_line", index + 2)),
@@ -373,7 +378,13 @@ def preview_list(
                 "quantity": count,
                 "section": section,
                 "printing": printing_json(printing) if printing else None,
-                "error": error,
+                "error": quantity_error or section_error or identity_error,
+                "quantity_error": quantity_error,
+                "section_error": section_error,
+                "identity_error": identity_error,
+                # Source identity deliberately excludes line numbers so inserting
+                # a different source row does not lose reviewed choices.
+                "source_key": f"{source_key}:{occurrences[source_key]}",
                 "can_choose": bool(1 <= count <= 100_000 and section),
             }
         )
@@ -390,6 +401,10 @@ def preview_list(
     arranged = automatic and all(1 <= row["quantity"] <= 100_000 for row in rows)
     if arranged:
         rows = commander_layout(rows, 2 if section_mode == "two_commanders" else 1)
+        # One source line may be split between mainboard and extras. Keep each
+        # split independently reviewable when the same source is previewed again.
+        for row in rows:
+            row["source_key"] += f":{row['section']}:{row['quantity']}"
     return {
         "items": rows,
         "unresolved": sum(bool(row["error"]) for row in rows),

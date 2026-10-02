@@ -7,8 +7,9 @@ import re
 import uuid
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
+from scanner.card_search import card_name_matches, card_names
 from scanner.models import Printing
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -398,7 +399,7 @@ def resolve(db, values):
         if values["collector_number"]:
             query = query.where(Printing.collector_number == values["collector_number"])
         if values["name"]:
-            query = query.where(func.lower(Printing.name) == values["name"].lower())
+            query = query.where(card_name_matches(values["name"], exact=True))
         matches = db.scalars(query.limit(2)).all()
         if len(matches) != 1:
             return (
@@ -412,10 +413,7 @@ def resolve(db, values):
                 None,
                 f"{field.replace('_', ' ').capitalize()} conflicts with the supplied printing ID.",
             )
-    names = {printing.name.casefold(), printing.source_json.get("printed_name", "").casefold()}
-    names.update(
-        face.get("name", "").casefold() for face in printing.source_json.get("card_faces", [])
-    )
+    names = {name.casefold() for name in card_names(printing.name, printing.source_json)}
     if values["name"] and values["name"].casefold() not in names:
         return None, "Card name conflicts with the supplied printing ID."
     if values["finish"] != "unknown" and values["finish"] not in printing.finishes:

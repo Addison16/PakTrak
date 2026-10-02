@@ -1,6 +1,30 @@
 # Implementation and validation status
 
-September 23, 2026 — current source build, not a release qualification report.
+October 2, 2026 — current source build, not a release qualification report.
+
+## October 2 source publication review
+
+The combined source update passed **444 backend tests**, **six backup extraction regressions**, Ruff, shell syntax checks and read-only Alembic schema comparison. A complete disposable backup/restore drill passed after hardening archive containment; it retained valid links, database/photo/broker data, installed images, ownership and permissions, and refused overwrites. Private configuration, backups and local test artifacts remain outside Git.
+
+Photo recovery now stores portable bytes and MIME type without invalidating older Blob/File rows. Chromium and ephemeral WebKit checks confirmed exact JPEG hashes, MIME types and sizes after reload and resumed upload, preservation of a newer tab's pending photo, and failed-upload recovery. Ownership, expiry and conditional deletion checks passed. Banner artwork fallback now retains an early image error and resets when the selected URL changes.
+
+The production TypeScript/Vite build, **143 selected Chromium browser checks** across the initial run and targeted reruns, and **19 opening/landing/navigation checks on the final source** passed. **62 of 64 selected WebKit checks** passed after the compatibility fixes. Two strict twelve-card back-visibility timing checks remain failing in headless WebKit: the software-rendered scatter has long frame gaps, so the test cannot establish 160 ms of continuous visibility under its 75 ms sampling-gap limit. Natural WebKit phone-sized and desktop captures show the actual backs with correct orientation and geometry; simpler shadow/layer experiments did not reliably resolve the timing result. Physical-device animation smoothness remains unqualified. The strict assertions remain in place.
+
+The frontend was rebuilt and deployed as `index-BPkgz3Au.js`. Public readiness and **six public-origin opening/landing/cancellation smoke checks** passed after deployment.
+
+## October 1 deck presentation update
+
+Implemented and deployed sculpted deck cases, selectable finishes and emblems, commander-default artwork banners, gallery presentation, owned foil treatments, and measured card transitions from decks and collections into the detail viewer. Deck openings show actual Magic backs during a readable on-screen part of the scatter, then land face-up at the matching cards. Surface fades preserve the 3D faces and thin edges. Fixed duplicate deck-value panels and interrupted-route cleanup.
+
+Validation: the production TypeScript/Vite build and **19 focused Chromium deck-opening checks** passed, covering natural back visibility, rendered artwork pixels, precise landing, navigation, interrupted animations, light/dark layouts, and reduced motion. **Six public-origin smoke checks** passed after deployment. Earlier card-arrival verification passed **16 local and 16 public checks** for deck/collection entry points, sizing, face changes, focus, and cancellation. Natural phone-sized and desktop captures show real backs rather than mirrored fronts. These are browser/emulation checks, not physical-device qualification. The published web bundle is `index-pzValY5R.js`.
+
+## September 30 quality of life update
+
+Implemented and deployed draft/photo recovery, precise scan inspection and issue filters, persistent catalog filters/artwork, saved collection views, independent card links, bulk organization, partial moves with source-preserving undo, inline import repairs and attention navigation, deck recovery/undo/live ownership/duplication/copying, and verified backup/restore scripts. See [the feature guide](QOL.md).
+
+Validation: **443 backend tests**, the complete Ruff check, Alembic schema comparison and migration down/up checks passed in isolated services. **42 mocked deck browser tests**, **30 palette/layout checks** across five themes at 320, 390 and 1280 pixels, and focused scan/camera/collection regression tests passed in Chromium. Six collection/import regressions also passed in WebKit. These browser checks cover durable recovery, preserving another tab’s newer photo, retained repairs after invalidating a preview, exact bulk previews and card links outside the current page; they do not qualify physical phone hardware.
+
+The backup restore drill recovered separate application/identity PostgreSQL databases, photos/filer links, broker data, matching credentials, installed images, file permissions and ownership into disposable projects. Checksums and refusal of existing destinations were verified. A private production backup was verified before deployment. The running migration is `04c691e84ab2`; the published web bundle is `index-CyF4WIV3.js`. Docker startup, nginx checks, local/public readiness, published assets and an anonymous live phone-sized browser check passed. Partial-copy splits prevent destructive schema downgrade; use the pre-upgrade backup if a downgrade is necessary.
 
 ## Implemented
 
@@ -200,13 +224,13 @@ The September 19 palette correction removes the page/banner fade, gives interact
 
 ## Gates still open
 
-M0 is partial: independent clean-host installation, actual oldest-target phone capture/HTTPS paths, complete redistribution review, and coordinated backup/restore evidence remain. Local OCR/retrieval/artwork matching now works on an inspected 15-card development photo. Calibration, a held-out photographed-pack benchmark and a qualified supported-device/count matrix remain incomplete; the single development case is not a general 15-card or 16–24-card accuracy claim.
+M0 is partial: independent clean-host installation, actual oldest-target phone capture/HTTPS paths, and complete redistribution review remain. Coordinated backup/restore passed a local disposable restore drill; independent clean-host recovery qualification remains open. Local OCR/retrieval/artwork matching now works on an inspected 15-card development photo. Calibration, a held-out photographed-pack benchmark and a qualified supported-device/count matrix remain incomplete; the single development case is not a general 15-card or 16–24-card accuracy claim.
 
-M2 now includes suggestions, approval/correction, manual region drawing/editing, ignore/restore, source-specific scan deletion and durable partial recognition. Explicit splitting/merging, targeted replacement close-ups and partial-lot location moves remain. Generic CSV/text transfers are implemented; representative real-world files, large-limit performance measurements, and destination import checks remain outstanding. Synthetic tests do not certify universal interoperability.
+M2 now includes suggestions, approval/correction, manual region drawing/editing, ignore/restore, source-specific scan deletion and durable partial recognition. Explicit scan-region splitting/merging and targeted replacement close-ups remain. Partial-lot location moves are implemented with preserved source history and import undo. Generic CSV/text transfers are implemented; representative real-world files, large-limit performance measurements, and destination import checks remain outstanding. Synthetic tests do not certify universal interoperability.
 
 The owner’s September 19 direction enables automatic additions using match strength strictly above 0.88, superseding the earlier calibrated-probability prerequisite. The score is server-computed and recorded with its policy/threshold in the audit event. Calibration and independent benchmark gates remain open for accuracy claims; the active similarity rule does not satisfy those evaluation milestones.
 
-M5 remains open: complete image/transitive-dependency notices and SBOMs, implement account/data deletion and coordinated backup/restore, add generated frontend response contracts, harden operations and security, and qualify devices and the privacy lifecycle. The owner authorized publishing the current source; PolyForm Noncommercial 1.0.0, the required notice, bundled-font notices, contribution/security guidance and issue templates are present. This source-publication work does not publish container images or declare release qualification complete.
+M5 remains open: complete image/transitive-dependency notices and SBOMs, implement account/data deletion, add generated frontend response contracts, harden operations and security, and qualify devices and the privacy lifecycle. The owner authorized publishing the current source; PolyForm Noncommercial 1.0.0, the required notice, bundled-font notices, contribution/security guidance and issue templates are present. This source-publication work does not publish container images or declare release qualification complete.
 
 ## Request diagnostics and sign-in recovery
 

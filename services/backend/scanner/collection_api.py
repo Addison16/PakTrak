@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from scanner import csv_formats as formats
 from scanner import gallery, storage
 from scanner.auth import DB, Identity
-from scanner.card_search import split_collector_search
+from scanner.card_search import card_name_matches, split_collector_search
 from scanner.catalog import printing_json
 from scanner.crop_orientation import display_rotation, oriented_crop
 from scanner.models import (
@@ -229,15 +229,25 @@ def import_detail(import_id: uuid.UUID, identity: Identity, db: DB):
 
 
 @router.get("/imports/{import_id}/rows")
-def import_rows(import_id: uuid.UUID, identity: Identity, db: DB, offset: int = Query(0, ge=0)):
+def import_rows(
+    import_id: uuid.UUID,
+    identity: Identity,
+    db: DB,
+    offset: int = Query(0, ge=0),
+    attention: bool = False,
+    focus: int | None = Query(None, ge=1),
+):
     owned(db, ImportBatch, import_id, identity.owner_id)
+    condition = [ImportRow.import_id == import_id]
+    unresolved = ImportRow.state.in_(["UNRESOLVED", "INVALID"])
+    if attention:
+        condition.append(unresolved)
+    if focus is not None:
+        condition.append(ImportRow.row_number == focus)
     rows = db.scalars(
-        select(ImportRow)
-        .where(ImportRow.import_id == import_id)
-        .order_by(ImportRow.row_number)
-        .offset(offset)
-        .limit(41)
+        select(ImportRow).where(*condition).order_by(ImportRow.row_number).offset(offset).limit(41)
     ).all()
+    visible = rows[:40]
     return {
         "items": [
             {
@@ -248,9 +258,28 @@ def import_rows(import_id: uuid.UUID, identity: Identity, db: DB, offset: int = 
                 "raw_fields": row.raw_fields,
                 "normalized": row.normalized,
             }
-            for row in rows[:40]
+            for row in visible
         ],
-        "next_offset": offset + 40 if len(rows) > 40 else None,
+        "next_offset": offset + 40 if len(rows) > 40 and focus is None else None,
+        "previous_issue": db.scalar(
+            select(func.max(ImportRow.row_number)).where(
+                ImportRow.import_id == import_id,
+                unresolved,
+                ImportRow.row_number < (focus or (rows[0].row_number if rows else 1)),
+            )
+        ),
+        "next_issue": db.scalar(
+            select(func.min(ImportRow.row_number)).where(
+                ImportRow.import_id == import_id,
+                unresolved,
+                ImportRow.row_number > (focus or (visible[-1].row_number if visible else 0)),
+            )
+        ),
+        "attention_count": db.scalar(
+            select(func.count())
+            .select_from(ImportRow)
+            .where(ImportRow.import_id == import_id, unresolved)
+        ),
     }
 
 
@@ -619,7 +648,7 @@ def collection_conditions(db, owner_id, binder_id, q):
         condition.append(InventoryLot.binder_id == binder_id)
     search_text, collector_number = split_collector_search(q)
     if search_text:
-        condition.append(Printing.name.icontains(search_text, autoescape=True))
+        condition.append(card_name_matches(search_text))
     if collector_number:
         condition.append(func.lower(Printing.collector_number) == collector_number.lower())
     return condition
@@ -743,6 +772,8 @@ class CardCorrection(StrictModel):
     expected_version: int = Field(ge=1)
     printing_id: uuid.UUID
     finish: Literal["unknown", "nonfoil", "foil", "etched"]
+    condition: Literal["ungraded", "NM", "LP", "MP", "HP", "damaged"] | None = None
+    notes: str | None = Field(default=None, max_length=4096)
 
 
 @router.post("/collection/{lot_id}/details")
@@ -762,7 +793,9 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
     )
     if lot is None:
         raise HTTPException(404, "Collection resource not found.")
-    digest = fingerprint(data.model_dump())
+    # Optional condition/notes fields must not invalidate receipts created before
+    # this API gained those fields.
+    digest = fingerprint(data.model_dump(exclude_none=True))
     operation_key = f"details:{lot.id}:{hashlib.sha256(key.encode()).hexdigest()}"
     previous = db.scalar(
         select(InventoryEvent).where(InventoryEvent.operation_key == operation_key)
@@ -782,8 +815,18 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         raise HTTPException(
             422, "That finish is not available for this printing. Choose its finish."
         )
-    before = {"printing_id": str(lot.printing_id), "finish": lot.finish, "version": lot.version}
+    before = {
+        "printing_id": str(lot.printing_id),
+        "finish": lot.finish,
+        "version": lot.version,
+        "condition": lot.condition,
+        "notes": lot.notes,
+    }
     lot.printing_id, lot.finish = data.printing_id, data.finish
+    if data.condition is not None:
+        lot.condition = data.condition
+    if data.notes is not None:
+        lot.notes = data.notes
     lot.version += 1
     if lot.source_observation_id:
         row = db.get(Observation, lot.source_observation_id)
@@ -795,6 +838,8 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         "finish": lot.finish,
         "quantity": lot.quantity_remaining,
         "version": lot.version,
+        "condition": lot.condition,
+        "notes": lot.notes,
     }
     db.add(
         InventoryEvent(
@@ -809,6 +854,8 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
                     "printing_id": str(lot.printing_id),
                     "finish": lot.finish,
                     "version": lot.version,
+                    "condition": lot.condition,
+                    "notes": lot.notes,
                 },
                 "result": result,
             },
@@ -862,6 +909,80 @@ def edit_quantity(lot_id: uuid.UUID, data: LotEdit, key: Key, identity: Identity
 class MoveLot(StrictModel):
     binder_id: uuid.UUID
     expected_version: int = Field(ge=1)
+    quantity: int | None = Field(default=None, ge=1, le=100_000)
+
+
+def relocate_lot(db, lot, destination, quantity, operation_key):
+    """Move copies without changing their original import/scan provenance."""
+    if quantity < 1 or quantity > lot.quantity_remaining:
+        raise HTTPException(
+            409, "The selected quantity is no longer available. Refresh these copies."
+        )
+    if destination == lot.binder_id:
+        raise HTTPException(422, "Choose a different storage location.")
+    before = lot.binder_id
+    moved = lot
+    if quantity < lot.quantity_remaining:
+        if lot.source_observation_id:
+            raise HTTPException(
+                422, "A scanned region represents one physical copy and cannot be split."
+            )
+        moved = InventoryLot(
+            owner_id=lot.owner_id,
+            printing_id=lot.printing_id,
+            binder_id=destination,
+            quantity_remaining=quantity,
+            finish=lot.finish,
+            condition=lot.condition,
+            notes=lot.notes,
+            purchase_price=lot.purchase_price,
+            purchase_currency=lot.purchase_currency,
+            misprint=lot.misprint,
+            altered=lot.altered,
+            source_metadata=dict(lot.source_metadata or {}),
+            source_import_row_id=lot.source_import_row_id,
+            source_observation_id=lot.source_observation_id,
+            split_parent_id=lot.split_parent_id or lot.id,
+            created_at=lot.created_at,
+        )
+        lot.quantity_remaining -= quantity
+        db.add(moved)
+        db.flush()
+        db.add(
+            InventoryEvent(
+                lot_id=moved.id,
+                operation_key=operation_key + ":child",
+                kind="SPLIT_MOVE",
+                delta=quantity,
+                detail={"from_lot_id": str(lot.id), "from_binder_id": str(before)},
+            )
+        )
+    else:
+        lot.binder_id = destination
+    lot.version += 1
+    result = {
+        "id": str(lot.id),
+        "moved_lot_id": str(moved.id),
+        "binder_id": str(destination),
+        "quantity_moved": quantity,
+        "quantity": lot.quantity_remaining,
+        "version": lot.version,
+    }
+    db.add(
+        InventoryEvent(
+            lot_id=lot.id,
+            operation_key=operation_key,
+            kind="MOVE",
+            delta=-quantity if moved is not lot else 0,
+            detail={
+                "from_binder_id": str(before),
+                "to_binder_id": str(destination),
+                "moved_lot_id": str(moved.id),
+                "result": result,
+            },
+        )
+    )
+    return result
 
 
 @router.post("/collection/{lot_id}/move")
@@ -874,34 +995,31 @@ def move_lot(lot_id: uuid.UUID, data: MoveLot, key: Key, identity: Identity, db:
         if batch.state in {"UNDOING", "UNDONE"}:
             raise HTTPException(409, "This import is being undone or was undone.")
     lot = owned(db, InventoryLot, lot_id, identity.owner_id, True)
-    digest = fingerprint(data.model_dump())
+    digest = fingerprint(data.model_dump(exclude_none=True))
+    operation_key = f"move:{lot.id}:{hashlib.sha256(key.encode()).hexdigest()[:32]}"
     previous = db.scalar(
-        select(InventoryEvent).where(InventoryEvent.operation_key == f"move:{lot.id}:{key}")
+        select(InventoryEvent).where(
+            InventoryEvent.operation_key.in_([operation_key, f"move:{lot.id}:{key}"])
+        )
     )
     if previous:
         if previous.detail.get("request_hash") != digest:
             raise HTTPException(409, "Request key belongs to a different move.")
-        return {"id": str(lot.id), "binder_id": str(lot.binder_id), "version": lot.version}
+        return previous.detail.get("result") or {
+            "id": str(lot.id),
+            "binder_id": str(lot.binder_id),
+            "version": lot.version,
+        }
     owned(db, Binder, data.binder_id, identity.owner_id)
     if lot.version != data.expected_version or lot.quantity_remaining == 0:
         raise HTTPException(409, "These cards changed. Refresh before moving them.")
-    db.add(
-        InventoryEvent(
-            lot_id=lot.id,
-            operation_key=f"move:{lot.id}:{key}",
-            kind="MOVE",
-            delta=0,
-            detail={
-                "request_hash": digest,
-                "from_binder_id": str(lot.binder_id),
-                "to_binder_id": str(data.binder_id),
-            },
-        )
+    result = relocate_lot(
+        db, lot, data.binder_id, data.quantity or lot.quantity_remaining, operation_key
     )
-    lot.binder_id = data.binder_id
-    lot.version += 1
+    event = db.scalar(select(InventoryEvent).where(InventoryEvent.operation_key == operation_key))
+    event.detail = {**event.detail, "request_hash": digest}
     db.commit()
-    return {"id": str(lot.id), "binder_id": str(lot.binder_id), "version": lot.version}
+    return result
 
 
 @router.get("/scans/{scan_id}/observations")
@@ -999,7 +1117,11 @@ def decide(
         db.commit()
         return {"state": row.state}
     digest = fingerprint(data.model_dump())
-    existing = db.scalar(select(InventoryLot).where(InventoryLot.source_observation_id == row.id))
+    existing = db.scalar(
+        select(InventoryLot).where(
+            InventoryLot.source_observation_id == row.id, InventoryLot.split_parent_id.is_(None)
+        )
+    )
     if existing:
         event = db.scalar(
             select(InventoryEvent).where(InventoryEvent.operation_key == f"add:{row.id}")

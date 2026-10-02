@@ -1,6 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { cameraPage, cameraStats, openCamera, takePhoto } from "./camera-fixture";
 import { cancelBrowserBack, navigate } from "./navigation";
+
+async function hasRecoveryPhoto(page: Page): Promise<boolean> {
+  return page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const read = db.transaction("photos").objectStore("photos").get("camera-fixture");
+      read.onsuccess = () => { db.close(); resolve(!!read.result); };
+      read.onerror = () => { db.close(); reject(read.error); };
+    };
+  }));
+}
 
 test.afterEach(async ({ page }, info) => {
   if (info.status === info.expectedStatus) return;
@@ -108,7 +121,9 @@ test("retake releases the previous preview and closing a photo protects it from 
   await expect(page.getByRole("button", { name: "Capture photo", exact: true })).toBeEnabled();
   expect((await cameraStats(page)).stopped).toBe(1);
   expect((await cameraStats(page)).active).toBe(1);
-  expect((await cameraStats(page)).revoked).toBe(1);
+  // Retaking releases the camera preview and the separate recovery preview.
+  await expect.poll(async () => (await cameraStats(page)).revoked).toBe(2);
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(false);
   await takePhoto(page);
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.keyboard.press("Escape");
@@ -133,7 +148,7 @@ test("failed uploads retain the same photo and receipt, and only server acceptan
   await page.keyboard.press("Escape");
   await expect(page.locator(".camera-dialog")).toBeVisible();
   await expect(page.getByText(/Upload complete\. You can close this page/)).toHaveCount(0);
-  expect(mock.creates).toHaveLength(2); expect(mock.creates[1]).toEqual(mock.creates[0]);
+  await expect.poll(() => mock.creates.length).toBe(2); expect(mock.creates[1]).toEqual(mock.creates[0]);
   await expect.poll(async () => { const sent = (await cameraStats(page)).sent; return sent.length === 2 && sent.every((item: any) => item.hash !== null); }).toBe(true);
   const sent = (await cameraStats(page)).sent; expect(sent).toHaveLength(2); expect(sent[0]).toEqual(sent[1]);
   mock.release();
@@ -212,14 +227,80 @@ test("browser history closes the camera and protects an unuploaded photo", async
   await expect(page.locator(".camera-dialog")).toHaveCount(0);
   expect((await cameraStats(page)).active).toBe(0);
   await openCamera(page); await takePhoto(page);
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(true);
   await cancelBrowserBack(page);
   await expect(page).toHaveURL(/overlay=camera$/);
   await expect(page.getByRole("button", { name: "Upload & scan", exact: true })).toBeVisible();
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(true);
   page.once("dialog", (dialog) => dialog.accept());
   await page.evaluate(() => history.back());
   await expect(page.locator(".camera-dialog")).toHaveCount(0);
   expect((await cameraStats(page)).active).toBe(0);
   expect(mock.creates).toHaveLength(0);
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(false);
+  await expect(page.getByLabel("Unfinished photo", { exact: true })).toHaveCount(0);
+});
+
+test("qol recovery resumes a captured photo after reload with its original foil count", async ({ page }) => {
+  const mock = await cameraPage(page);
+  await page.getByLabel("How many cards are foil?", { exact: true }).fill("4");
+  await openCamera(page); await takePhoto(page);
+  const original = await page.locator(".camera-photo-scroll img").evaluate(async (image: HTMLImageElement) => {
+    const photo = await fetch(image.src).then(response => response.blob());
+    const hash = await crypto.subtle.digest("SHA-256", await photo.arrayBuffer());
+    return { size: photo.size, type: photo.type, hash: [...new Uint8Array(hash)].map(value => value.toString(16).padStart(2, "0")).join("") };
+  });
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(true);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await page.getByRole("button", { name: "Close camera", exact: true }).click();
+  const recovery = page.getByLabel("Unfinished photo", { exact: true });
+  await expect(recovery).toContainText("4 foils");
+  expect(mock.creates).toHaveLength(0);
+  await recovery.getByRole("button", { name: "Resume upload", exact: true }).click();
+  await expect(page.getByText(/Upload complete\. You can close this page/)).toBeVisible();
+  expect(mock.creates).toHaveLength(1);
+  expect(mock.creates[0].body.foil_count).toBe(4);
+  await expect.poll(async () => (await cameraStats(page)).sent[0]).toEqual(original);
+  await expect.poll(() => hasRecoveryPhoto(page)).toBe(false);
+});
+
+test("qol recovery accepting a photo preserves a newer pending photo from another tab", async ({ page }) => {
+  const mock = await cameraPage(page);
+  await openCamera(page); await takePhoto(page);
+  mock.holdAcceptance();
+  await page.getByRole("button", { name: "Upload & scan", exact: true }).click();
+  await expect(page.locator(".camera-upload")).toContainText("Waiting for server acceptance…");
+  await expect.poll(() => mock.creates.length).toBe(1);
+  const newerSavedAt = await page.evaluate(() => new Promise<number>((resolve, reject) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result, transaction = db.transaction("photos", "readwrite"), photos = transaction.objectStore("photos");
+      let savedAt = 0;
+      const read = photos.get("camera-fixture");
+      read.onsuccess = () => {
+        savedAt = read.result.savedAt + 60_000;
+        photos.put({ ...read.result, filename: "other-tab-photo.jpg", savedAt, foilCount: 1 });
+      };
+      transaction.oncomplete = () => { db.close(); resolve(savedAt); };
+      transaction.onabort = transaction.onerror = () => { db.close(); reject(transaction.error); };
+    };
+  }));
+  mock.release();
+  await expect(page.getByText(/Upload complete\. You can close this page/)).toBeVisible();
+  await expect(page.locator(".camera-dialog")).toHaveCount(0);
+  const remaining = await page.evaluate(() => new Promise<{ savedAt: number; filename: string; foilCount: number } | null>((resolve, reject) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result, read = db.transaction("photos").objectStore("photos").get("camera-fixture");
+      read.onsuccess = () => { db.close(); resolve(read.result ? { savedAt: read.result.savedAt, filename: read.result.filename, foilCount: read.result.foilCount } : null); };
+      read.onerror = () => { db.close(); reject(read.error); };
+    };
+  }));
+  expect(remaining).toEqual({ savedAt: newerSavedAt, filename: "other-tab-photo.jpg", foilCount: 1 });
+  expect(mock.creates).toHaveLength(1);
 });
 
 

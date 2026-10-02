@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -416,6 +417,25 @@ class InventoryLot(Base):
         CheckConstraint(
             "condition IN ('ungraded','NM','LP','MP','HP','damaged')", name="lot_valid_condition"
         ),
+        CheckConstraint(
+            "split_parent_id IS NULL OR split_parent_id <> id", name="lot_not_own_parent"
+        ),
+        CheckConstraint(
+            "split_parent_id IS NULL OR source_observation_id IS NULL",
+            name="lot_scan_cannot_split",
+        ),
+        Index(
+            "lot_original_import_source",
+            "source_import_row_id",
+            unique=True,
+            postgresql_where=text("split_parent_id IS NULL"),
+        ),
+        Index(
+            "lot_original_scan_source",
+            "source_observation_id",
+            unique=True,
+            postgresql_where=text("split_parent_id IS NULL"),
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -433,10 +453,13 @@ class InventoryLot(Base):
     altered: Mapped[bool | None] = mapped_column(Boolean)
     source_metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
     source_import_row_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("import_rows.id"), unique=True
+        ForeignKey("import_rows.id"), index=True
     )
     source_observation_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("observations.id"), unique=True
+        ForeignKey("observations.id"), index=True
+    )
+    split_parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("inventory_lots.id", ondelete="CASCADE"), index=True
     )
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

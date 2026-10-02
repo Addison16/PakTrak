@@ -10,7 +10,7 @@
 .deck-value-total > strong { color: var(--forest); font-size: clamp(30px, 6vw, 42px); font-weight: 750; line-height: 1.2; letter-spacing: -.045em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .deck-value-total > span { color: var(--muted); font-size: 12px; }
 .deck-value-coverage { font-size: 13px; margin: 10px 0 18px; }
-.deck-value-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 16px 0; border-block: 1px solid var(--line); }
+.deck-value-sections { display: flex; flex-wrap: wrap; gap: 14px 24px; padding: 16px 0; border-block: 1px solid var(--line); }
 .deck-value-sections > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .deck-value-sections span, .deck-value-sections small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .deck-value-sections strong { font-size: 16px; color: var(--forest); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
@@ -21,4 +21,7 @@
 .deck-value-breakdown .text-button { text-align: left; overflow-wrap: anywhere; }
 .deck-value-breakdown small { display: block; color: var(--muted); font-size: 11px; }
 .deck-value-note { margin-bottom: 0; }
+.deck-detail .deck-availability { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0 8px; }
+.deck-detail .deck-availability span { display: inline-flex; align-items: baseline; gap: 5px; padding: 0; border: 0; border-radius: 0; font-size: 12px; }
+.deck-detail .deck-availability strong { font-size: 16px; font-weight: 600; }
 @media (max-width: 550px) { .deck-value { padding: 16px 12px; } .deck-value-controls { grid-template-columns: minmax(0, 1fr); gap: 12px; } }

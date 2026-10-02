@@ -10,6 +10,10 @@ The [PakTrak camera](docs/CAMERA.md) includes a selector for available cameras, 
 
 Durable server-side photo identification, suggested-printing review, crop correction, reversible scan batches, collections, saved decks, and CSV/text import and export are implemented. Server-computed matches above 88% strength import automatically; the remaining suggestions have guided review. Enter a foil count before upload, then select foil cards in the batch to label finishes. See [scan batches](docs/SCANNING.md).
 
+The [quality of life guide](docs/QOL.md) covers draft recovery, scan precision, saved collection views, bulk organization, partial moves, import repair and deck editing. Verified backup and restore scripts are documented in [operations](docs/OPERATIONS.md#upgrades-and-backups).
+
+Decks have customizable cases, commander artwork banners and gallery layouts. Opening a case scatters cards with visible fronts, real Magic backs and thin edges before they settle into the deck. Selecting a card from a deck or collection spins it from its thumbnail into the detail viewer; reduced-motion preferences skip the transitions.
+
 The [latest changes](CHANGELOG.md) include photo-to-deck scanning, deck values from three pricing sources, deck legality and token checklists, camera selection, account controls, and account-preserving hostname changes.
 
 ## Run with Docker
@@ -56,6 +60,8 @@ Use the header **Menu** button to open navigation from any signed-in screen. Col
 Your browser's **Back/Forward** controls and supported phone swipe-back gesture follow the screens you visit, including decks, batches, card previews and user accounts. Back closes an open menu first; unfinished edits retain their discard warnings. See [browser navigation](docs/NAVIGATION.md).
 
 Choose **Menu → Appearance → Auto, Light or Dark**. Auto is the default and follows the device's current appearance, including changes while the app is open. Manual choices are remembered in this browser and shared with its other PakTrak tabs and sign-in/registration pages. The signed-out welcome screen also has the selector.
+
+Under **Color theme**, choose **Forest** (the original green and cream), **Ocean** (blue), **Amethyst** (violet), **Ember** (terracotta), or **Slate** (neutral). Each palette has light and dark versions, and its preview follows your appearance mode. Colors apply immediately throughout the app and sign-in pages, stay in sync across tabs, and are remembered independently of Auto/Light/Dark. The same controls are available in **My account → Appearance**. Card artwork keeps its original colors.
 
 **Menu → My account** shows your profile, scan usage, password-change link and other-device sign-out. **Administration → User management** lets admins reset user passwords, suspend/restore users, end sessions, pause scans and set lifetime card limits. A reset provides a temporary password to share privately, ends existing sign-ins and requires a new password at the next login. Members start unlimited on approval; admins can raise a cap or restore unlimited without resetting usage. See [account controls](docs/ACCOUNTS.md).
 

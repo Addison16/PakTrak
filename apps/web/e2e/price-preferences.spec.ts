@@ -52,15 +52,16 @@ async function accountApi(context: BrowserContext, preference: Source) {
     if (path === "/api/v1/binders") return json({ items: [] });
     if (path === "/api/v1/collection/filters") return json({ sets: [] });
     if (path === "/api/v1/data/status") return json({ feeds: [] });
-    if (path === "/api/v1/collection/cards") {
+    if (path === "/api/v1/collection/cards" || /^\/api\/v1\/collection\/cards\/printing-[0-2]$/.test(path)) {
       const provider = url.searchParams.get("provider") || "tcgplayer";
       const sort = url.searchParams.get("sort") || "name";
-      state.queries.push({ provider, sort });
       const prices: Record<string, (string | null)[]> = { tcgplayer: ["1.00", "9.00", null], cardkingdom: ["10.00", "2.00", null], manapool: ["8.00", "4.00", null] };
       const items = ["Alpha", "Beta", "No quote"].map((name, index) => ({
         printing: { id: "printing-" + index, name, set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil"], rarity: "common", image_url: null },
         quantity: 1, location_count: 0, locations: [], value: prices[provider][index], price_min: prices[provider][index], price_max: prices[provider][index], priced_copies: prices[provider][index] == null ? 0 : 1,
       }));
+      if (path !== "/api/v1/collection/cards") return json(items.find(item => path.endsWith("/" + item.printing.id)));
+      state.queries.push({ provider, sort });
       if (sort === "price_asc" || sort === "price_desc") items.sort((a, b) => a.price_min == null ? 1 : b.price_min == null ? -1 : (Number(a.price_min) - Number(b.price_min)) * (sort === "price_asc" ? 1 : -1));
       return json({ copies: 3, cards: 3, items, next_offset: null, valuation: { provider, amount: "12.00", priced_copies: 2, unpriced_copies: 1, feed: null } });
     }
@@ -219,7 +220,11 @@ test("browser history closes card details and keeps collection searches, sorting
   await page.evaluate(() => history.forward());
   await expect(page.getByRole("dialog", { name: "Alpha", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close card details", exact: true }).click();
-  await expect(page).toHaveURL(/#\/collection$/);
+  await expect.poll(() => page.evaluate(() => {
+    const url = new URL(location.hash.slice(1), location.origin);
+    const filters = new URLSearchParams(url.searchParams.get("filters") || "");
+    return { path: url.pathname, card: url.searchParams.get("card"), query: filters.get("q"), sort: filters.get("sort") };
+  })).toEqual({ path: "/collection", card: null, query: "Alpha", sort: "price_asc" });
   await navigate(page, "Batches");
   await page.evaluate(() => history.back());
   await expect(search).toHaveValue("Alpha");

@@ -285,7 +285,10 @@ def commit_import(claimed):
                 return
             for row in rows:
                 existing = db.scalar(
-                    select(InventoryLot.id).where(InventoryLot.source_import_row_id == row.id)
+                    select(InventoryLot.id).where(
+                        InventoryLot.source_import_row_id == row.id,
+                        InventoryLot.split_parent_id.is_(None),
+                    )
                 )
                 if not existing:
                     add_lot(

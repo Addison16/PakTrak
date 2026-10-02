@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import String, and_, func, literal_column, or_, select, true
 
 from scanner.auth import DB, Identity
-from scanner.card_search import split_collector_search
+from scanner.card_search import card_name_matches, split_collector_search
 from scanner.catalog import printing_json
 from scanner.data_sync import FEEDS, PROVIDERS, trusted_url
 from scanner.models import Binder, CardPrice, DataFeed, InventoryLot, Printing, now
@@ -62,8 +62,11 @@ def collection_cards(
     seed,
     min_price=None,
     max_price=None,
+    printing_id=None,
 ):
     condition = [InventoryLot.owner_id == owner_id, InventoryLot.quantity_remaining > 0]
+    if printing_id:
+        condition.append(InventoryLot.printing_id == printing_id)
     if binder_id:
         if not db.scalar(
             select(Binder.id).where(Binder.id == binder_id, Binder.owner_id == owner_id)
@@ -75,7 +78,7 @@ def collection_cards(
         # Rules text searches include both faces without downloading the catalog.
         condition.append(
             or_(
-                Printing.name.icontains(search_text, autoescape=True),
+                card_name_matches(search_text),
                 Printing.source_json["oracle_text"].astext.icontains(search_text, autoescape=True),
                 func.jsonb_path_query_array(
                     Printing.source_json, literal_column("'$.card_faces[*].oracle_text'::jsonpath")
@@ -125,6 +128,8 @@ def collection_cards(
         ),
         "custom_value": or_(InventoryLot.misprint.is_(True), InventoryLot.altered.is_(True)),
     }
+    # These are owned copies in this view, never the finishes a printing offers.
+    finishes = ("nonfoil", "foil", "etched", "unknown")
     holdings = (
         select(
             InventoryLot.printing_id,
@@ -139,6 +144,13 @@ def collection_cards(
             func.min(CardPrice.amount).filter(priced).label("price_min"),
             func.max(CardPrice.amount).filter(priced).label("price_max"),
             func.max(InventoryLot.created_at).label("added_at"),
+            *(
+                func.coalesce(
+                    func.sum(InventoryLot.quantity_remaining).filter(InventoryLot.finish == finish),
+                    0,
+                ).label("finish_" + finish)
+                for finish in finishes
+            ),
             *(
                 func.coalesce(func.sum(InventoryLot.quantity_remaining).filter(condition), 0).label(
                     name
@@ -170,6 +182,10 @@ def collection_cards(
             func.min(holdings.c.price_min).label("price_min"),
             func.max(holdings.c.price_max).label("price_max"),
             func.max(holdings.c.added_at).label("added_at"),
+            *(
+                func.sum(holdings.c["finish_" + finish]).label("finish_" + finish)
+                for finish in finishes
+            ),
             *(func.sum(holdings.c[name]).label(name) for name in issues),
         )
         .group_by(holdings.c.printing_id)
@@ -227,6 +243,7 @@ def collection_cards(
             page.c.priced_copies,
             page.c.price_min,
             page.c.price_max,
+            *(page.c["finish_" + finish] for finish in finishes),
             *(page.c[name] for name in issues),
             summary.c.copies,
             summary.c.cards,
@@ -263,6 +280,9 @@ def collection_cards(
                 "priced_copies": int(row.priced_copies),
                 "price_min": str(row.price_min) if row.price_min is not None else None,
                 "price_max": str(row.price_max) if row.price_max is not None else None,
+                "finish_counts": {
+                    finish: int(getattr(row, "finish_" + finish)) for finish in finishes
+                },
                 "pricing_issues": {
                     "unknown_finish": int(row.unknown_finish),
                     "custom_value": int(row.custom_value),
@@ -317,6 +337,31 @@ def filters(identity: Identity, db: DB):
         .order_by(Printing.set_code)
     ).all()
     return {"sets": [{"code": code, "name": name or code.upper()} for code, name in sets]}
+
+
+@router.get("/collection/cards/{printing_id}")
+def owned_collection_card(
+    printing_id: uuid.UUID, identity: Identity, db: DB, provider: Provider = "tcgplayer"
+):
+    result = collection_cards(
+        db,
+        identity.owner_id,
+        offset=0,
+        binder_id=None,
+        q="",
+        provider=provider,
+        color="",
+        rarity="",
+        card_type="",
+        set_code="",
+        finish="",
+        sort="name",
+        seed="",
+        printing_id=printing_id,
+    )
+    if not result["items"]:
+        raise HTTPException(404, "This card is not in your collection.")
+    return result["items"][0]
 
 
 @router.get("/collection/printings/{printing_id}")

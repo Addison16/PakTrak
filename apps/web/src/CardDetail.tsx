@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { money, request, type CollectionCard as Card, type DataFeed, type Location, type Printing, type Session } from "./api";
 import CollectionCard from "./CollectionCard";
+import CardArrival, { type CardFlightOrigin } from "./CardArrival";
 
 type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text?: string; flavor_text?: string; artist?: string; power?: string; toughness?: string; loyalty?: string; defense?: string; image_url: string | null };
 type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
@@ -12,16 +13,33 @@ export function CardArt({ url, name, eager = false }: { url?: string | null; nam
   return <div className="card-art">{url && !failed ? <img src={url} alt={name} loading={eager ? "eager" : "lazy"} decoding="async" width={488} height={680} onError={() => setFailed(true)} /> : <div className="art-placeholder"><span aria-hidden="true">✧</span><strong>{name}</strong><small>Artwork unavailable</small></div>}</div>;
 }
 
-export default function CardDetail({ card, binder, locations, session, onSaved, onCorrected, onClose }: { card: Card; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected: () => Promise<void>; onClose: () => void }) {
+export default function CardDetail({ card, origin, binder, locations, session, onSaved, onCorrected, onClose }: { card: Card; origin?: CardFlightOrigin | null; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected: () => Promise<void>; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const art = useRef<HTMLDivElement>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [faceIndex, setFaceIndex] = useState(0);
   const [finish, setFinish] = useState(card.printing.finishes[0] || "nonfoil");
   const [error, setError] = useState("");
   useEffect(() => {
-    dialog.current?.showModal();
+    const modal = dialog.current;
+    const launcher = origin?.source.closest<HTMLElement>("button") || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    modal?.showModal();
     const old = document.body.style.overflow; document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = old; };
+    return () => {
+      document.body.style.overflow = old;
+      // Removing an open dialog during Back navigation leaves focus on body.
+      // Only restore a visible launcher when another control has not taken it.
+      let attempts = 0;
+      const restoreLauncher = () => {
+        const focused = document.activeElement;
+        if (!launcher?.isConnected || !launcher.getClientRects().length || (focused !== document.body && !modal?.contains(focused))) return;
+        launcher.focus({ preventScroll: true });
+        // Give the browser's native top layer a frame to release focus if its
+        // cleanup follows React's unmount effects.
+        if (document.activeElement !== launcher && ++attempts < 3) requestAnimationFrame(restoreLauncher);
+      };
+      restoreLauncher();
+    };
   }, []);
   useEffect(() => {
     let stopped = false;
@@ -31,7 +49,7 @@ export default function CardDetail({ card, binder, locations, session, onSaved, 
   const face = detail?.faces[faceIndex];
   return <dialog ref={dialog} className="card-dialog" aria-labelledby="card-detail-title" onClose={onClose} onClick={(event) => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close(); } }}>
     <div className="dialog-heading"><span className="eyebrow">In your collection</span><button autoFocus className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
-    <div className="card-detail-layout"><div className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} name={face?.name || card.printing.name} eager />
+    <div className="card-detail-layout"><div ref={art} className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} name={face?.name || card.printing.name} eager />
       {detail && detail.faces.length > 1 && <button className="button secondary" onClick={() => setFaceIndex((faceIndex + 1) % detail.faces.length)}>View {faceIndex === 0 ? "other" : "front"} face</button>}
       {face?.artist && <p className="fine artist-credit">Illustrated by {face.artist}</p>}
     </div><div className="detail-copy"><h2 id="card-detail-title">{face?.name || card.printing.name}</h2><p className="detail-type">{face?.type_line || card.printing.type_line}</p>
@@ -59,5 +77,6 @@ export default function CardDetail({ card, binder, locations, session, onSaved, 
     </section>}
     <section aria-label="Owned copies"><h3>Your copies & locations</h3><ul className="plain-list holdings"><CollectionCard card={card} binder={binder} locations={locations} session={session} onSaved={onSaved} onCorrected={onCorrected} /></ul></section>
     {detail && <details><summary>Format legality</summary><div className="legality-grid">{Object.entries(detail.legalities).filter(([name]) => ["standard", "pioneer", "modern", "legacy", "vintage", "commander", "pauper", "brawl"].includes(name)).map(([name, value]) => <div key={name}><span>{name}</span><span className={value === "legal" ? "legal" : ""}>{value.replaceAll("_", " ")}</span></div>)}</div><p className="fine">Card information and legality from Scryfall’s saved catalog.</p></details>}
+    <CardArrival origin={origin} cardKey={faceIndex === 0 ? card.printing.id : `${card.printing.id}:face:${faceIndex}`} targetRef={art} dialogRef={dialog} />
   </dialog>;
 }

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "admin" | "account";
-export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean };
+export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean; collectionQuery?: string };
 type Entry = { paktrak: 1; chain: string; index: number; route: Route; y: number };
 type Guard = (from: Route, to: Route) => boolean;
 const pages: Page[] = ["scan", "batches", "collection", "transfers", "decks", "admin", "account"];
@@ -22,6 +22,7 @@ function parse(): Route {
   if (route.page === "scan") { route.targetDeck = identifier(params.get("deck")); if (route.targetDeck && params.get("collection") === "1") route.collect = true; }
   if (route.page === "decks" && route.view === "scan") route.fromBatch = identifier(params.get("batch"));
   if (route.page === "collection" || route.deck) route.card = identifier(params.get("card"));
+  if (route.page === "collection" && (params.get("filters")?.length || 0) <= 2400) route.collectionQuery = params.get("filters") || undefined;
   if (params.get("overlay") === "menu") route.overlay = "menu";
   if (params.get("overlay") === "camera" && route.page === "scan") route.overlay = "camera";
   return route;
@@ -37,17 +38,18 @@ function hash(route: Route) {
   if (route.fromBatch) params.set("batch", route.fromBatch);
   if (route.card) params.set("card", route.card);
   if (route.overlay) params.set("overlay", route.overlay);
+  if (route.page === "collection" && route.collectionQuery) params.set("filters", route.collectionQuery);
   const query = params.toString();
   return "#/" + path + (query ? "?" + query : "");
 }
 const same = (a: Route, b: Route) => hash(a) === hash(b);
-export const sameScreen = (a: Route, b: Route) => same({ ...a, overlay: undefined, card: undefined }, { ...b, overlay: undefined, card: undefined });
+export const sameScreen = (a: Route, b: Route) => same({ ...a, overlay: undefined, card: undefined, collectionQuery: undefined }, { ...b, overlay: undefined, card: undefined, collectionQuery: undefined });
 function isEntry(value: unknown): value is Entry {
   const item = value as Entry | null;
   return !!item && item.paktrak === 1 && typeof item.chain === "string" && Number.isSafeInteger(item.index) && item.index >= 0 && !!item.route && pages.includes(item.route.page);
 }
 
-// Only navigation identifiers enter browser history, never account data, drafts,
+// Navigation identifiers and collection filters enter browser history, never drafts,
 // session tokens or the temporary password shown after an administrator reset.
 const saved = isEntry(history.state) ? history.state : null;
 let current: Entry = { paktrak: 1, chain: saved?.chain || crypto.randomUUID(), index: saved?.index || 0, route: parse(), y: saved?.y || 0 };

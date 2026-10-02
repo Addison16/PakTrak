@@ -1,84 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { cancelBrowserBack, navigate } from "./navigation";
 
-const printings = Array.from({ length: 7 }, (_, index) => ({ id: `deck-card-${index}`, name: `Fixture Card ${index + 1}`, set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil", "foil"], image_url: `/api/v1/card-images/deck-card-${index}/0/grid` }));
-
-async function fixture(page: Page, boxes = false) {
-  const saved: any = { id: "saved-deck", name: "Friday night", notes: "Bring blue sleeves", format: "commander", match_mode: "exact", version: 1,
-    cards: [{ printing_id: printings[0].id, quantity: 4, section: "main" }, { printing_id: printings[1].id, quantity: 1, section: "commander" }, { printing_id: printings[2].id, quantity: 1, section: "sideboard" }] };
-  const empty: any = { ...saved, id: "empty-deck", name: "Next idea", cards: [], notes: "" };
-  const decks = [saved, empty];
-  if (boxes) decks.splice(0, 2,
-    { ...saved, colors: ["W", "U"] },
-    { ...saved, id: "partners", name: "Partners in adventure", colors: ["W", "U", "B", "R", "G"], cards: [{ printing_id: printings[3].id, quantity: 1, section: "commander" }, { printing_id: printings[4].id, quantity: 1, section: "commander" }, { printing_id: printings[5].id, quantity: 98, section: "main" }] },
-    { ...saved, id: "red-deck", name: "Red hot spells", format: "modern", colors: ["R"], cards: [{ printing_id: printings[0].id, quantity: 60, section: "main" }] },
-    empty,
-    { ...saved, id: "no-commander", name: "Still brewing", colors: ["G"], cards: [{ printing_id: printings[5].id, quantity: 20, section: "main" }] },
-    { ...saved, id: "long-name", name: "A very long green deck name with Supercalifragilisticexpialidocious", format: "casual", colors: ["G"], cards: [{ printing_id: printings[6].id, quantity: 40, section: "main" }] },
-  );
-  const calls: { method: string; path: string; body: any; key: string | undefined }[] = [];
-  const receipts = new Map<string, string>();
-  let loseResponse = false;
-  function detail(deck: any) {
-    const remaining: Record<string, number> = { [printings[0].id]: 2 };
-    const cards = deck.cards.map((card: any) => {
-      const printing = printings.find((p) => p.id === card.printing_id)!;
-      const available = Math.min(card.quantity, remaining[printing.id] || 0);
-      remaining[printing.id] = (remaining[printing.id] || 0) - available;
-      return { ...card, printing, owned: printing.id === printings[0].id ? 2 : 0, available, missing: card.quantity - available, locations: printing.id === printings[0].id ? [{ id: "red", name: "Red binder", quantity: 2 }] : [] };
-    });
-    const previews = [...new Set<string>(deck.cards.map((card: any) => card.printing_id))].map((id) => ({ ...printings.find((p) => p.id === id)!, section: deck.cards.find((card: any) => card.printing_id === id).section, art_url: `/api/v1/card-images/${id}/0/art` }));
-    const covers = deck.format === "commander" ? previews.filter((card) => card.section === "commander").slice(0, 2) : previews.filter((card) => card.section === "main").slice(0, 1);
-    return { ...deck, cards, colors: deck.colors || (deck.cards.length ? ["U"] : []), colors_known: true, cover_cards: covers, copies: cards.reduce((sum: number, card: any) => sum + card.quantity, 0), owned_copies: cards.reduce((sum: number, card: any) => sum + card.available, 0), missing_copies: cards.reduce((sum: number, card: any) => sum + card.missing, 0), missing_cards: cards.filter((card: any) => card.missing > 0).map((card: any) => ({ printing: card.printing, quantity: card.missing })), preview_cards: previews.slice(0, 6), unique_printings: previews.length, updated_at: "2026-09-19T12:00:00Z" };
-  }
-  await page.route("**/api/**", async (route) => {
-    const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
-    const body = req.postData() ? JSON.parse(req.postData()!) : null;
-    const key = req.headers()["idempotency-key"];
-    calls.push({ method, path, body, key });
-    if (path.startsWith("/api/v1/card-images/")) return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="12" fill="#244d46"/><rect x="10" y="10" width="220" height="316" rx="8" fill="#f2e7d3"/><rect x="20" y="60" width="200" height="170" fill="#7a9b93"/><text x="20" y="42" font-size="18">Fixture card</text></svg>' });
-    let json: any = {}, status = 200;
-    if (path === "/api/auth/session") json = { owner_id: "deck-fixture", display_name: "Deck collector", csrf_token: "deck-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
-    else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };
-    else if (path === "/api/v1/capabilities") json = { max_upload_bytes: 104857600 };
-    else if (path === "/api/v1/scans") json = { items: [], next_offset: null };
-    else if (path === "/api/v1/decks" && method === "GET") json = { items: (url.searchParams.get("offset") === "20" ? [empty] : decks).map(detail), next_offset: url.searchParams.get("offset") === "20" ? null : 20 };
-    else if (path === "/api/v1/decks" && method === "POST") { const deck = { ...body, id: "created-deck", version: 1, cards: body.cards || [] }; decks.unshift(deck); json = detail(deck); }
-    else if (path === "/api/v1/decks/import-preview") {
-      json = { items: body.content.split("\n").filter(Boolean).map((line: string, index: number) => {
-        const [quantity, id, section = "main"] = line.split(" ");
-        const printing = printings.find((p) => p.id === id) || null;
-        return { line: index + 1, name: id, quantity: Number(quantity), section, printing, error: printing ? null : "Card not found.", can_choose: true };
-      }) };
-    } else if (path === "/api/v1/decks/tokens") {
-      json = { items: [], missing_details: 0 };
-    } else if (path === "/api/v1/decks/legality") {
-      json = { format: body.format, status: "not_checked", issues: [], counts: { commander: 0, main: 0, sideboard: 0 }, catalog_updated_at: null, checked_at: "2026-09-20T12:00:00Z", rules_version: "fixture", checks: [], limitations: [] };
-    } else if (path.startsWith("/api/v1/decks/")) {
-      const deck = decks.find((item) => path === "/api/v1/decks/" + item.id);
-      if (!deck) { status = 404; json = { detail: "Deck not found" }; }
-      else if (method === "GET") json = detail(deck);
-      else {
-        expect(req.headers()["x-csrf-token"]).toBe("deck-csrf");
-        if (receipts.has(key!)) { expect(receipts.get(key!)).toBe(JSON.stringify(body)); json = detail(deck); }
-        else if (body.expected_version !== deck.version) { status = 409; json = { detail: "This deck changed. Reload it before saving." }; }
-        else {
-          receipts.set(key!, JSON.stringify(body)); Object.assign(deck, body, { version: deck.version + 1 }); json = detail(deck);
-          if (loseResponse) { loseResponse = false; status = 503; json = { detail: "Response interrupted. Retry your save." }; }
-        }
-      }
-    } else if (path === "/api/v1/catalog/search") json = { items: printings, next_offset: null, filters: { sets: [], rarities: [], languages: [] } };
-    else { status = 500; json = { detail: "Unexpected fixture request: " + path }; }
-    await route.fulfill({ status, json });
-  });
-  await page.goto("/"); await navigate(page, "Decks");
-  return { calls, saved, decks, loseNextResponse: () => { loseResponse = true; } };
-}
+import { fixture, printings } from "./deck-fixture";
 
 async function openSaved(page: Page) { await page.getByRole("button", { name: /Friday night/ }).click(); }
 
 for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 1280]) {
-  test(`${mode} deck boxes keep three columns and commander covers at ${width}px`, async ({ page }) => {
+  test(`${mode} deck boxes keep spacious columns and commander covers at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 }); await page.emulateMedia({ colorScheme: mode });
     const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
     await fixture(page, true);
@@ -87,12 +15,15 @@ for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 12
     const rectangles = await boxes.locator(".deck-box").evaluateAll((elements) => elements.map((el) => {
       const { x, y, width, height } = el.getBoundingClientRect(); return { x, y, width, height };
     }));
-    expect(Math.abs(rectangles[0].y - rectangles[2].y)).toBeLessThan(1);
-    expect(Math.abs(rectangles[3].y - rectangles[5].y)).toBeLessThan(1);
-    expect(rectangles[3].y).toBeGreaterThan(rectangles[0].y + rectangles[0].height);
-    expect(rectangles[1].x).toBeGreaterThan(rectangles[0].x + rectangles[0].width);
-    expect(rectangles[2].x).toBeGreaterThan(rectangles[1].x + rectangles[1].width);
-    expect(rectangles[0].width).toBeGreaterThan(70);
+    const columns = width < 600 ? 2 : 3;
+    for (let index = 1; index < rectangles.length; index++) {
+      if (index % columns === 0) expect(rectangles[index].y).toBeGreaterThan(rectangles[index - columns].y + rectangles[index - columns].height);
+      else {
+        expect(Math.abs(rectangles[index].y - rectangles[index - 1].y)).toBeLessThan(1);
+        expect(rectangles[index].x).toBeGreaterThan(rectangles[index - 1].x + rectangles[index - 1].width);
+      }
+    }
+    expect(rectangles[0].width).toBeGreaterThan(90);
     const commander = page.getByRole("button", { name: /Friday night.*Commander: Fixture Card 2/ });
     await expect(commander).toHaveAttribute("data-deck-colors", "WU");
     await expect(commander.locator("img")).toHaveAttribute("src", "/api/v1/card-images/deck-card-1/0/art");
@@ -124,6 +55,152 @@ test("deck box remains named and keyboard accessible when artwork fails", async 
   await expect(box.locator(".deck-box-mark")).toBeVisible();
   await box.focus(); await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeVisible();
+});
+
+for (const mode of ["light", "dark"] as const) for (const [width, height] of [[320, 844], [390, 844], [1280, 844], [700, 390], [1280, 1800]]) test(`${mode} deck opening loads immediately and hands focus to the layout at ${width}x${height}`, async ({ page }) => {
+  await page.setViewportSize({ width, height });
+  await page.emulateMedia({ colorScheme: mode, reducedMotion: "no-preference" });
+  const mock = await fixture(page);
+  let started = false;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/decks/saved-deck", async (route) => { started = true; await gate; await route.fallback().catch(() => {}); });
+  await openSaved(page);
+  await expect(page).toHaveURL(/#\/decks\/saved-deck$/);
+  await expect.poll(() => started).toBe(true);
+  const opening = page.locator(".deck-opening");
+  await expect(opening).toBeVisible();
+  await expect(opening.locator(".deck-opening-card")).toHaveCount(6);
+  await expect(opening.locator(".eyebrow")).toHaveText("OPENING DECK");
+  await page.screenshot({ path: `../../artifacts/deck-boxes/opening-${mode}-${width}x${height}-${test.info().project.name}.png`, animations: "disabled" });
+  const cards = await opening.locator(".deck-opening-card").evaluateAll((elements) => elements.map((element) => getComputedStyle(element).transform));
+  expect(new Set(cards).size).toBe(6);
+  const caption = await opening.locator(".deck-opening-caption").boundingBox();
+  expect(caption!.y + caption!.height).toBeLessThanOrEqual(height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  release();
+  await expect(opening).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeFocused();
+  await expect(page.locator(".deck-gallery").first()).toBeVisible();
+  expect(mock.calls.filter((call) => call.method === "GET" && call.path === "/api/v1/decks/saved-deck")).toHaveLength(1);
+  await page.getByRole("button", { name: "Close deck", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Friday night.*Commander:/ })).toBeFocused();
+});
+
+test("a full deck throws twelve tumbling cards across both sides of the screen", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page, true);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/v1/decks/partners", async route => { await gate; await route.fallback().catch(() => {}); });
+  await page.getByRole("button", { name: /Partners in adventure/ }).click();
+  const flights = page.locator(".deck-opening-card");
+  await expect(flights).toHaveCount(12);
+  const journey = await flights.evaluateAll(elements => new Promise<{ left: number; right: number; transforms: number }>(resolve => {
+    let left = Infinity, right = -Infinity;
+    const transforms = new Set<string>(), start = performance.now();
+    const sample = () => {
+      for (const element of elements) {
+        const rect = element.getBoundingClientRect();
+        left = Math.min(left, rect.left); right = Math.max(right, rect.right);
+        transforms.add(getComputedStyle(element).transform);
+      }
+      if (performance.now() - start < 1050) requestAnimationFrame(sample);
+      else resolve({ left, right, transforms: transforms.size });
+    };
+    sample();
+  }));
+  expect(journey.left).toBeLessThan(128);
+  expect(journey.right).toBeGreaterThan(1152);
+  expect(journey.transforms).toBeGreaterThan(30);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  release();
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Partners in adventure", exact: true })).toBeFocused();
+});
+
+test("reduced motion opens a deck by keyboard without a presentation or navigation delay", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await fixture(page);
+  const box = page.getByRole("button", { name: /Friday night.*Commander:/ });
+  await box.focus(); await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeFocused();
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close deck", exact: true }).click();
+  await expect(box).toBeFocused();
+});
+
+test("browser Back cancels an opening and ignores a late deck response", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page);
+  let started = false;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/decks/saved-deck", async (route) => { started = true; await gate; await route.fallback().catch(() => {}); });
+  await openSaved(page);
+  await expect.poll(() => started).toBe(true);
+  await expect(page.locator(".deck-opening")).toBeVisible();
+  await page.evaluate(() => history.back());
+  await expect(page).toHaveURL(/#\/decks$/);
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Friday night.*Commander:/ })).toBeFocused();
+  release();
+  await expect(page.getByRole("heading", { name: "Your decks", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Deck overview", exact: true })).toHaveCount(0);
+});
+
+test("an opening failure exposes the error and keeps the shelf reachable", async ({ page }) => {
+  await fixture(page);
+  await page.route("**/api/v1/decks/saved-deck", (route) => route.fulfill({ status: 503, json: { detail: "Deck temporarily unavailable" } }));
+  await openSaved(page);
+  await expect(page.getByRole("alert")).toContainText("Deck temporarily unavailable");
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await page.getByRole("button", { name: /Back to decks/ }).click();
+  await expect(page.getByRole("button", { name: /Friday night.*Commander:/ })).toBeFocused();
+});
+
+test("an empty deck opens its lid without inventing card previews", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/decks/empty-deck", async (route) => { await gate; await route.fallback().catch(() => {}); });
+  await page.getByRole("button", { name: /Next idea/ }).click();
+  await expect(page.locator(".deck-opening")).toBeVisible();
+  await expect(page.locator(".deck-opening-card")).toHaveCount(0);
+  release();
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Next idea", exact: true })).toBeFocused();
+});
+
+test("enabling reduced motion during an opening dismisses the motion and preserves the request", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/decks/saved-deck", async (route) => { await gate; await route.fallback().catch(() => {}); });
+  await openSaved(page);
+  await expect(page.locator(".deck-opening")).toBeVisible();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  release();
+  await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeFocused();
+});
+
+test("resizing during an opening dismisses the presentation and keeps the deck usable", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/v1/decks/saved-deck", async (route) => { await gate; await route.fallback().catch(() => {}); });
+  await openSaved(page);
+  await expect(page.locator(".deck-opening")).toBeVisible();
+  await page.setViewportSize({ width: 700, height: 390 });
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  release();
+  await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("deck quantities can be cleared, replaced with 30 and retried without adding copies twice", async ({ page }) => {
@@ -305,6 +382,7 @@ for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 12
 test("replace and add imports use owned editions, preserve deck details and merge section quantities", async ({ page }) => {
   const mock = await fixture(page); await openSaved(page);
   await page.getByRole("button", { name: "Import deck list", exact: true }).click();
+  await page.getByRole("combobox", { name: "Collection matching", exact: true }).selectOption("any");
   await expect(page.getByRole("region", { name: "Deck overview", exact: true })).toHaveCount(0);
   await page.getByRole("textbox", { name: "Paste deck list", exact: true }).fill("2 deck-card-0 main\n1 deck-card-0 main\n1 deck-card-0 sideboard\n1 Unknown main");
   await page.getByRole("button", { name: "Preview deck list", exact: true }).click();
@@ -472,14 +550,15 @@ for (const theme of ["light", "dark"] as const) test(`${theme} gallery opens rea
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("importing into an exact deck defaults to owned versions and opens their gallery", async ({ page }) => {
+test("importing into an exact deck preserves matching and can switch to owned versions", async ({ page }) => {
   const mock = await fixture(page); await openSaved(page);
   await page.route("**/api/v1/decks/import-preview", (route) => {
     expect(route.request().postDataJSON().match_mode).toBe("any");
     return route.fulfill({ json: { items: [{ line: 1, name: printings[0].name, quantity: 2, section: "main", printing: printings[0], collection_match: true, owned: 2, error: null, can_choose: true }] } });
   });
   await page.getByRole("button", { name: "Import deck list", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Collection matching", exact: true })).toHaveValue("any");
+  await expect(page.getByRole("combobox", { name: "Collection matching", exact: true })).toHaveValue("exact");
+  await page.getByRole("combobox", { name: "Collection matching", exact: true }).selectOption("any");
   await page.getByRole("textbox", { name: "Paste deck list", exact: true }).fill("2 Fixture Card 1 (ALT) 27");
   await page.getByRole("button", { name: "Preview deck list", exact: true }).click();
   await expect(page.locator(".deck-import-preview")).toContainText("Using an edition you own");
@@ -495,6 +574,7 @@ test("importing into an exact deck defaults to owned versions and opens their ga
 test("changing import matching clears the old preview and exact matching remains explicit", async ({ page }) => {
   const mock = await fixture(page); await openSaved(page);
   await page.getByRole("button", { name: "Import deck list", exact: true }).click();
+  await page.getByRole("combobox", { name: "Collection matching", exact: true }).selectOption("any");
   await page.getByRole("textbox", { name: "Paste deck list", exact: true }).fill("2 deck-card-0 main");
   await page.getByRole("button", { name: "Preview deck list", exact: true }).click();
   await page.getByRole("combobox", { name: "Collection matching", exact: true }).selectOption("exact");
@@ -510,10 +590,82 @@ test("changing editions does not report cards added or removed in a name-matched
   await openSaved(page);
   await page.route("**/api/v1/decks/import-preview", (route) => route.fulfill({ json: { items: [{ line: 1, name: printings[0].name, quantity: 4, section: "main", printing: { ...printings[3], name: printings[0].name }, error: null, can_choose: true }] } }));
   await page.getByRole("button", { name: "Import deck list", exact: true }).click();
+  await page.getByRole("combobox", { name: "Collection matching", exact: true }).selectOption("any");
   await page.getByRole("textbox", { name: "Paste deck list", exact: true }).fill("4 Fixture Card 1 (ALT) 4");
   await page.getByRole("button", { name: "Preview deck list", exact: true }).click();
   await expect(page.locator(".deck-import-impact")).toContainText("4 → 4 cards");
   await expect(page.locator(".deck-import-impact")).toContainText("0 copies added · 0 copies removed");
+});
+
+test("QOL deck drafts recover quantities, notes and matching after reload", async ({ page }) => {
+  const mock = await fixture(page); await openSaved(page);
+  await page.getByRole("button", { name: "Edit deck", exact: true }).click();
+  const row = page.locator(".deck-card-row").filter({ hasText: "Fixture Card 1" });
+  await row.getByRole("spinbutton", { name: "Copies in deck", exact: true }).fill("9");
+  await page.getByRole("textbox", { name: "Deck notes", exact: true }).fill("Remember my new sleeves");
+  await page.getByRole("combobox", { name: "Compare with my collection", exact: true }).selectOption("any");
+  const storageKey = "paktrak.draft.paktrak:deck-draft:deck-fixture:saved-deck";
+  await expect.poll(() => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "null")?.value?.notes, storageKey)).toBe("Remember my new sleeves");
+  expect(mock.saved.cards[0].quantity).toBe(4);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Restore deck draft", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Restore deck draft", exact: true }).click();
+  await expect(row.getByRole("spinbutton", { name: "Copies in deck", exact: true })).toHaveValue("9");
+  await expect(page.getByRole("textbox", { name: "Deck notes", exact: true })).toHaveValue("Remember my new sleeves");
+  await expect(page.getByRole("combobox", { name: "Compare with my collection", exact: true })).toHaveValue("any");
+  await expect(row).toContainText("Need 9 · Have 2 · Missing 7");
+  await page.getByRole("button", { name: "Save deck", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save deck", exact: true })).toBeDisabled();
+  expect(mock.saved.cards[0].quantity).toBe(9);
+  expect(mock.saved.notes).toBe("Remember my new sleeves");
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), storageKey)).toBeNull();
+});
+
+test("QOL quantity steppers and undo keep the live owned copies accurate", async ({ page }) => {
+  const mock = await fixture(page); await openSaved(page);
+  await page.getByRole("button", { name: "Edit deck", exact: true }).click();
+  const row = page.locator(".deck-card-row").filter({ hasText: "Fixture Card 1" });
+  const quantity = row.getByRole("spinbutton", { name: "Copies in deck", exact: true });
+  const increase = row.getByRole("button", { name: "Add one copy of Fixture Card 1 in Mainboard", exact: true });
+  const undo = page.getByRole("button", { name: /Undo last edit/ });
+  await expect(undo).toBeDisabled();
+  await increase.click();
+  await expect(quantity).toHaveValue("5");
+  await expect(row).toContainText("Need 5 · Have 2 · Missing 3");
+  await expect(row).toContainText("Red binder (2)");
+  await undo.click();
+  await expect(quantity).toHaveValue("4");
+  await expect(row).toContainText("Need 4 · Have 2 · Missing 2");
+  await expect(undo).toBeDisabled();
+  await increase.click();
+  await expect(quantity).toHaveValue("5");
+  await expect(row).toContainText("Need 5 · Have 2 · Missing 3");
+  expect(mock.calls.some((call) => call.path === "/api/v1/decks/collection-preview" && call.body.cards.some((card: any) => card.printing_id === printings[0].id && card.quantity === 5))).toBe(true);
+  expect(mock.saved.cards[0].quantity).toBe(4);
+  expect(mock.calls.some((call) => call.method !== "GET" && call.path.startsWith("/api/v1/collection"))).toBe(false);
+});
+
+test("QOL full deck copy has a selectable fallback and duplicate preserves the saved build", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("Fixture clipboard blocked"); } } }));
+  const mock = await fixture(page); await openSaved(page);
+  await page.locator(".deck-export > summary").click();
+  await page.getByRole("button", { name: "Copy deck list", exact: true }).click();
+  const copiedList = page.getByRole("textbox", { name: "Full deck list to copy", exact: true });
+  await expect(copiedList).toHaveValue("Commander\n1 Fixture Card 2 (TST) 2\n\nMainboard\n4 Fixture Card 1 (TST) 1\n\nSideboard\n1 Fixture Card 3 (TST) 3\n");
+  await copiedList.focus();
+  expect(await copiedList.evaluate((element) => (element as HTMLTextAreaElement).selectionEnd)).toBe((await copiedList.inputValue()).length);
+  await page.getByRole("button", { name: "Duplicate deck", exact: true }).click();
+  await page.getByRole("textbox", { name: "Name for the duplicate", exact: true }).fill("Friday night experiment");
+  await page.getByRole("button", { name: "Create duplicate", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Friday night experiment", exact: true })).toBeVisible();
+  const created = mock.calls.find((call) => call.method === "POST" && call.path === "/api/v1/decks");
+  expect(created?.key).toBeTruthy();
+  expect(created?.body).toMatchObject({ name: "Friday night experiment", notes: "Bring blue sleeves", format: "commander", match_mode: "exact", cards: mock.saved.cards });
+  expect(mock.saved.name).toBe("Friday night");
+  await expect(page.locator(".deck-card-row").filter({ hasText: "Fixture Card 1" })).toContainText("Need 4 · Have 2 · Missing 2");
+  expect(mock.calls.some((call) => call.method !== "GET" && call.path.startsWith("/api/v1/collection"))).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 function legality(format = "commander", issues: any[] = []) {

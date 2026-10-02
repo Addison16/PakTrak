@@ -1,0 +1,46 @@
+.deck-box-light {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(ellipse at var(--box-light-x, 50%) var(--box-light-y, 30%), #fff9de30, #fff9de0a 36%, transparent 68%);
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+.deck-box-front > .deck-box-light { mix-blend-mode: screen; }
+.deck-box-lid-top > .deck-box-light { background: radial-gradient(ellipse at var(--box-light-x, 50%) 100%, #fff9de3b, transparent 75%); }
+.deck-box-clasp::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent, #fff9de70 48%, transparent 72%);
+  background-size: 180% 100%;
+  background-position: var(--box-light-x, 50%) 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .deck-box-button[data-box-light="active"]:not(:disabled) .deck-box-case {
+    transform: rotateX(calc(-11deg + var(--box-turn-x, 0deg))) rotateY(calc(-25deg + var(--box-turn-y, 0deg))) translateY(-6px);
+    transition-duration: 100ms;
+  }
+  .deck-box-button[data-box-light="active"] .deck-box-light,
+  .deck-box-button[data-box-light="active"] .deck-box-clasp::after { opacity: 1; }
+  .deck-box-button[data-box-light="active"] .deck-box-front {
+    box-shadow: inset 1px 1px #fff9de38, inset -2px -2px #00000066, 0 1px 0 #00000080;
+  }
+  .deck-box-button[data-box-light="active"]:not(:disabled):active .deck-box-case {
+    transform: rotateX(calc(-10deg + var(--box-turn-x, 0deg))) rotateY(calc(-24deg + var(--box-turn-y, 0deg))) translateY(2px) scale(.985);
+    transition-duration: 100ms;
+  }
+}
+@media (hover: none) and (prefers-reduced-motion: no-preference) {
+  .deck-box-button:not(:disabled):active .deck-box-case {
+    transform: rotateX(-8deg) rotateY(-21deg) translateY(3px) scale(.975);
+    transition-duration: 100ms;
+  }
+  .deck-box-button:not(:disabled):active .deck-box-light { opacity: .55; }
+}

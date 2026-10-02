@@ -16,9 +16,10 @@ from collections import defaultdict
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from scanner.card_images import load_image
+from scanner.card_search import card_names
 from scanner.db import session_factory
 from scanner.image_enhancement import (
     EXTRA_SECONDS,
@@ -30,8 +31,8 @@ from scanner.image_enhancement import (
 from scanner.image_enhancement import VERSION as ENHANCEMENT_VERSION
 from scanner.models import Printing, now
 
-VERSION = "tesseract-sift-v1"
-ENHANCED_VERSION = "tesseract-sift-cpu-enhanced-v1"
+VERSION = "tesseract-sift-v2"
+ENHANCED_VERSION = "tesseract-sift-cpu-enhanced-v2"
 logger = logging.getLogger(__name__)
 _catalog = None
 _catalog_at = 0
@@ -53,13 +54,20 @@ def catalog_index():
                     Printing.set_code,
                     Printing.collector_number,
                     Printing.language,
+                    func.jsonb_build_object(
+                        "printed_name",
+                        Printing.source_json["printed_name"],
+                        "flavor_name",
+                        Printing.source_json["flavor_name"],
+                        "card_faces",
+                        Printing.source_json["card_faces"],
+                    ).label("source_names"),
                 )
             ):
-                if row.language != "en":
-                    continue
                 record = dict(row._mapping)
-                for name in row.name.split(" // "):
-                    by_name[normalized(name)].append(record)
+                source = record.pop("source_names")
+                for name in {normalized(name) for name in card_names(row.name, source)} - {""}:
+                    by_name[name].append(record)
         _catalog, _catalog_at = dict(by_name), time.monotonic()
     return _catalog
 

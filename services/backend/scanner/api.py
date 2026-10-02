@@ -24,6 +24,7 @@ from scanner.auth import router as auth_router
 from scanner.card_images import router as card_images_router
 from scanner.catalog import router as catalog_router
 from scanner.collection_api import router as collection_router
+from scanner.collection_bulk import router as collection_bulk_router
 from scanner.deck_scans import router as deck_scans_router
 from scanner.decks_api import router as decks_router
 from scanner.diagnostics import (
@@ -64,6 +65,7 @@ app.include_router(auth_router)
 app.include_router(accounts_router)
 app.include_router(catalog_router)
 app.include_router(collection_router)
+app.include_router(collection_bulk_router)
 app.include_router(decks_router)
 app.include_router(deck_scans_router)
 app.include_router(gallery_router)

@@ -68,7 +68,7 @@ main { max-width: 904px; margin: 0 auto; padding: 32px 32px 20px; }
   align-items: center;
   gap: 24px;
   padding: 38px 40px;
-  border: 1px solid #2d5147;
+  border: 1px solid var(--hero-bg);
   border-radius: 24px;
   color: #fbf6ec;
   background: var(--hero-bg);
@@ -586,39 +586,6 @@ details p { font-size: 14px; }
 .deck-list #decks-title { font-family: "Fraunces", Georgia, serif; font-size: clamp(29px, 4vw, 40px); font-weight: 400; line-height: 1.15; letter-spacing: -.04em; }
 .deck-list > .section-heading { margin-bottom: 12px; }
 .deck-list > .actions { margin: 22px 0; }
-.deck-list-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 26px; margin-top: 32px !important; }
-.history .deck-list-rows > li { min-width: 0; border: 0; }
-.deck-box-button { display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 10px; text-align: left; color: var(--ink); background: transparent; }
-.deck-box { display: block; position: relative; width: 100%; aspect-ratio: 3 / 4.2; isolation: isolate; filter: drop-shadow(0 2px 1px #07151130) drop-shadow(0 9px 7px #07151124); transition: transform .2s ease; }
-.deck-box-front { position: absolute; inset: 0; overflow: hidden; border: 1px solid #131711b3; border-radius: 5px 5px 8px 8px; background: linear-gradient(115deg, #ffffff12, #ffffff00 42%, #00000020), var(--deck-paint); box-shadow: inset 1px 1px #f5e3b752, inset -1px -2px #00000045; }
-.deck-box-front::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(#f5edd52b .5px, transparent .75px); background-size: 3px 3px; opacity: .4; pointer-events: none; }
-.deck-box-front::after { content: ""; position: absolute; inset: 3px; border: 1px solid #ead8a82b; border-radius: 3px 3px 5px 5px; pointer-events: none; }
-.deck-box-seam { position: absolute; inset: 0 0 auto; height: 12%; display: grid; place-items: center; border-bottom: 1px solid #060e0c73; background: linear-gradient(#00000010, #0000002b); box-shadow: 0 1px #f2d7a42b; }
-.deck-box-stamp { display: flex; align-items: center; justify-content: center; gap: 5px; color: #f2dfb3; opacity: .85; text-shadow: 0 1px 1px #00000070; }
-.deck-box-stamp > span { font-size: clamp(6px, 1.4vw, 10px); font-weight: 600; letter-spacing: .19em; line-height: 1; text-transform: uppercase; }
-.deck-box-stamp svg { width: clamp(9px, 2vw, 17px); height: clamp(9px, 2vw, 17px); stroke-width: 3; }
-.deck-box-cover { position: absolute; inset: 16% 6% 16%; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid #e2c999a6; border-radius: 4px; background: linear-gradient(135deg, #0415113d, #00000016); box-shadow: 0 0 0 1px #0b151199, 0 2px 3px #00000045; }
-.deck-box-cover::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 1px 3px #00000050; pointer-events: none; }
-.deck-box-cover[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: #c7ac7c; }
-.deck-box-image { display: block; position: relative; min-width: 0; min-height: 0; }
-.deck-box-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; }
-.deck-box-mark { position: absolute; inset: 0; display: grid; place-items: center; color: #e8d3a6b3; }
-.deck-box-mark::before { content: ""; position: absolute; width: 64%; aspect-ratio: 1; border: 1px solid #f2ddb630; transform: rotate(45deg); border-radius: 4px; }
-.deck-box-mark svg { width: 64%; height: 64%; max-width: 94px; filter: drop-shadow(0 1px 1px #00000055); }
-.deck-box-colors { position: absolute; bottom: 4.8%; left: 7%; right: 7%; display: flex; justify-content: center; align-items: center; gap: 3%; }
-.deck-mana-pip { display: grid; place-items: center; width: clamp(10px, 2.5vw, 19px); aspect-ratio: 1; flex-shrink: 0; border: 1px solid #f3e3b663; border-radius: 50%; background-image: linear-gradient(145deg, #ffffff30, #00000012); box-shadow: 0 1px 2px #00000080, inset 0 1px #ffffff60; }
-.deck-mana-pip svg { display: block; width: 78%; height: 78%; }
-.deck-box-label { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; width: 100%; }
-.deck-box-label strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 16px; line-height: 1.35; min-height: 2.7em; font-weight: 600; letter-spacing: -.02em; }
-.deck-box-meta { display: flex; flex-direction: column; gap: 4px; width: 100%; border-top: 1px solid var(--line); padding-top: 8px; }
-.deck-box-format, .deck-box-count { color: var(--muted); font-size: 11px; line-height: 1.5; }
-.deck-box-format { font-size: 10px; font-weight: 600; letter-spacing: .065em; text-transform: uppercase; overflow-wrap: anywhere; }
-.deck-box-count { font-variant-numeric: tabular-nums; }
-.deck-box-button:not(:disabled):active .deck-box { transform: translateY(1px) scale(.985); }
-@media (hover: hover) { .deck-box-button:not(:disabled):hover .deck-box { transform: translateY(-4px) rotate(-.6deg); } .deck-box-button:not(:disabled):hover strong { color: var(--forest); } }
-@media (prefers-reduced-motion: reduce) { .deck-box { transition: none; } .deck-box-button:not(:disabled):is(:hover, :active) .deck-box { transform: none; } }
-@media (min-width: 700px) { .deck-box-meta { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 6px; } }
-@media (max-width: 480px) { .panel.deck-list { padding-inline: 15px; } .deck-list-rows { gap: 28px 10px; } .deck-box-button { gap: 12px; } .deck-box-label strong { font-size: 12px; } .deck-box-label { gap: 6px; } .deck-box-meta { gap: 3px; padding-top: 7px; } .deck-box-format { font-size: 10px; letter-spacing: .035em; } .deck-box-count { font-size: 11px; } .deck-box-stamp { gap: 3px; } }
 .deck-format { text-transform: capitalize; max-width: none; }
 .deck-create, .deck-import-operation, .deck-import-impact { margin: 22px 0; padding: 16px; border: 1px solid var(--control-border); border-radius: 12px; background: var(--surface-muted); }
 .deck-import-operation { padding-top: 10px; }

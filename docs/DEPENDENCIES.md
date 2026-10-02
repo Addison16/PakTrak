@@ -6,7 +6,7 @@ Reviewed September 18, 2026. This is an implementation inventory and release gat
 
 The owner explicitly chose **source-available, commercial reuse prohibited**. Original PakTrak files use [PolyForm Noncommercial 1.0.0](../LICENSE), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). Do not describe the project as OSI open-source. A project-level restriction does not replace dependency licenses, provider terms, card-art rights, or users' rights in their photos/collections.
 
-The source repository includes the project license and full notices for its bundled fonts. Before distributing built images, assemble the required dependency, bundled-library, and container-base notices/source offers for those images. The current stack avoids a mandatory paid recognition API and bundles the packaged English Tesseract OCR data when building the server image. Provider card images are cached at runtime and are not bundled for distribution.
+The source repository includes the project license and full notices for its bundled fonts. Before distributing built images, assemble the required dependency, bundled-library, and container-base notices/source offers for those images. The current stack avoids a mandatory paid recognition API and bundles the packaged English Tesseract OCR data when building the server image. Provider card-face images are cached at runtime. The decorative classic Magic card back is bundled separately and attributed in the interface asset section below.
 
 ## Python application dependencies
 
@@ -45,6 +45,8 @@ Container images and build tools are pinned by digest in [Compose](../compose.ya
 ## Bundled typography and interface assets
 
 DM Sans and Fraunces are bundled as unmodified Latin WOFF2 subsets, each under the SIL Open Font License 1.1. Their copyright notices, full license texts, download URLs, and checksums are included in [the font directory](../apps/web/public/fonts/README.md). These assets retain their own licenses independently of the application's source-available license. The browser and login theme load fonts from this installation, with system fallback for other scripts; there are no runtime requests to a font service. The PakTrak mark, card-and-trail illustration, and interface icons are original SVG/CSS in the repository. Home-screen PNGs are rendered from the mark; [the brand guide](BRAND.md) records their source and regeneration command. These decorative assets contain no third-party card artwork.
+
+Card transitions also use an unmodified classic Magic card-back image downloaded from Scryfall and served locally. Its source URL, checksum, and Wizards of the Coast attribution are recorded in [the card asset directory](../apps/web/public/cards/README.md). This third-party image retains separate rights from the software and original PakTrak branding.
 
 The login theme extends Keycloak's bundled theme without copying its authentication templates. Its configuration follows the [Keycloak theme guide](https://www.keycloak.org/ui-customization/themes); repeat login, registration, and password validation checks when updating the pinned provider.
 

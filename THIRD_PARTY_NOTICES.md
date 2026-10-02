@@ -25,7 +25,9 @@ The login theme extends Keycloak's bundled theme without vendoring its authentic
 
 Magic: The Gathering and its trademarks and artwork belong to their respective rights holders, including Wizards of the Coast and card artists. PakTrak is unofficial and is not endorsed by Wizards of the Coast, Scryfall or the pricing providers.
 
-Scryfall metadata/artwork, TCGplayer estimates supplied through Scryfall, Card Kingdom retail references and ManaPool listing prices are retrieved at runtime and keep their provider terms. No downloaded card catalog, card artwork, real collection export or private scan photo is bundled in the repository. See [card data and pricing](docs/CARD_DATA.md) for provider references, caching and price meanings.
+Scryfall metadata/card-face artwork, TCGplayer estimates supplied through Scryfall, Card Kingdom retail references and ManaPool listing prices are retrieved at runtime and keep their provider terms. No downloaded card catalog, card-face artwork, real collection export or private scan photo is bundled in the repository. See [card data and pricing](docs/CARD_DATA.md) for provider references, caching and price meanings.
+
+Decorative card transitions use an unmodified classic Magic: The Gathering card-back image from Scryfall. The image and Magic marks are © Wizards of the Coast and retain separate rights from PakTrak's software license. Its source URL, retrieval date, dimensions and checksum are recorded in [the card asset directory](apps/web/public/cards/README.md).
 
 The test image files are original synthetic transport/geometry/codec fixtures described in [tests/fixtures/README.md](tests/fixtures/README.md). They contain no real card artwork or personal collection data.
 

@@ -84,6 +84,31 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
   return { calls, rows, scan, finish: () => { processing = false; } };
 }
 
+test("alternate printed names remain visible when finding and selecting a batch card", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  const mock = await fixture(page, 1, 0, [], true, 0, 0);
+  const card = { ...printing(0), id: "esper-printing", name: "Nature's Claim", display_name: "Search for the Frozen Esper", set_code: "fca", collector_number: "47", set_name: "FINAL FANTASY: Through the Ages", rarity: "uncommon" };
+  await page.route("**/api/v1/catalog/search?*", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q");
+    return route.fulfill({ json: { items: query === "Search for the Frozen Esper #47" ? [card] : [], next_offset: null, filters: { sets: [{ code: "fca", name: card.set_name }], rarities: ["uncommon"], languages: ["en"] } } });
+  });
+  await page.getByRole("button", { name: "Edit card / printing", exact: true }).click();
+  const picker = page.locator(".printing-picker");
+  await picker.getByRole("searchbox", { name: "Find an exact printing", exact: true }).fill("Search for the Frozen Esper #47");
+  const choice = picker.locator(".printing-choice");
+  await expect(choice).toHaveCount(1);
+  await expect(choice.locator("strong")).toHaveText("Search for the Frozen Esper");
+  await expect(choice).toContainText("Nature's Claim");
+  await expect(choice).toContainText("(FCA) · #47");
+  await choice.click();
+  await expect(page.locator(".scan-suggested h3")).toHaveText("Search for the Frozen Esper");
+  await expect(page.locator(".scan-suggested")).toContainText("Nature's Claim");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  await page.getByRole("button", { name: "Approve & import", exact: true }).click();
+  expect(mock.calls.find((call) => call.path.endsWith("/approve"))!.body.items[0].printing_id).toBe(card.id);
+});
+
 for (const cardName of ["Plains", "Lightning Bolt"]) test(`collector-number shortcut narrows ${cardName} before explicit scan approval`, async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 844 });
   const mock = await fixture(page, 1, 0, [], true, 0, 0, cardName);
@@ -351,6 +376,95 @@ test("foil and crop drafts warn on exit and block closing during a save", async 
   await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
   await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Saved batches", exact: true })).toBeVisible();
+});
+
+test("qol recovery restores foil choices after reload without approving cards", async ({ page }) => {
+  const mock = await fixture(page, 3, 0, [], true, 0, 2);
+  await page.getByRole("button", { name: "Select foil cards", exact: true }).click();
+  await page.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
+  await page.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
+  await expect(page.getByText("Unfinished foil choices saved on this device.", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await page.getByRole("button", { name: "Restore foil choices", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+  await page.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Change foil cards", exact: true })).toBeVisible();
+  const saved = mock.calls.find((call) => call.path.endsWith("/finishes"))!;
+  expect(saved.body.foil_ids).toEqual(["region-0", "region-2"]);
+  expect(mock.calls.filter((call) => call.path.endsWith("/approve"))).toHaveLength(0);
+  expect(await page.evaluate(() => localStorage.getItem("paktrak.draft.foils:scan-review-user:scan-review-fixture"))).toBeNull();
+});
+
+test("qol recovery saving foils preserves another card printing and condition draft", async ({ page }) => {
+  const mock = await fixture(page, 3);
+  await page.getByRole("combobox", { name: "Condition", exact: true }).selectOption("LP");
+  await page.getByRole("button", { name: "Edit card / printing", exact: true }).click();
+  await page.locator(".printing-picker .printing-choice").click();
+  await page.getByRole("button", { name: "Next card", exact: true }).click();
+  await page.getByRole("button", { name: "Select foil cards", exact: true }).click();
+  await page.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Change foil cards", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Review card 1: Fixture Card 1", exact: true }).click();
+  await expect(page.getByRole("combobox", { name: "Condition", exact: true })).toHaveValue("LP");
+  await expect(page.locator(".scan-suggested")).toContainText("#99");
+  await page.getByRole("button", { name: "Approve & import", exact: true }).click();
+  const approved = mock.calls.find((call) => call.path.endsWith("/approve"))!;
+  expect(approved.body.condition).toBe("LP");
+  expect(approved.body.items[0].printing_id).toBe("alternate-printing");
+});
+
+test("qol recovery restores crop corners and allows precise zoomed keyboard adjustment", async ({ page }) => {
+  const mock = await fixture(page, 1);
+  await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
+  await page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByText("Unfinished corners saved on this device.", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
+  await page.getByRole("button", { name: "Restore outline", exact: true }).click();
+  const corner = page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true });
+  expect(Number(await corner.getAttribute("cx"))).toBeCloseTo(.052, 5);
+  await page.getByRole("button", { name: "+ Zoom in", exact: true }).click();
+  const canvas = page.locator(".crop-canvas"), viewport = page.locator(".crop-viewport");
+  expect((await canvas.boundingBox())!.width).toBeGreaterThan((await viewport.boundingBox())!.width);
+  await corner.focus(); await page.keyboard.press("Shift+ArrowRight");
+  await page.getByRole("button", { name: "Save outline & identify", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Card outline editor", exact: true })).toHaveCount(0);
+  const saved = mock.calls.find((call) => call.path.endsWith("/geometry"))!;
+  expect(saved.body.polygon[0][0]).toBeCloseTo(.072, 5);
+  expect(saved.body.expected_version).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("qol recovery scan filters retain physical numbers and image viewer fits on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  const mock = await fixture(page, 4, 0, [0]);
+  mock.rows[3].candidates = [];
+  mock.rows[3].recognition = { status: "NO_MATCH", reason: "No printing found." };
+  const gallery = page.getByLabel("Scanned cards", { exact: true });
+  await page.getByRole("button", { name: "Needs review 3", exact: true }).click();
+  await expect(gallery.locator(".scan-tile-number")).toHaveText(["2", "3", "4"]);
+  await page.getByRole("button", { name: "No match 1", exact: true }).click();
+  await expect(gallery.locator(".scan-tile-number")).toHaveText(["4"]);
+  await page.getByRole("button", { name: "All cards 4", exact: true }).click();
+  await page.getByRole("combobox", { name: "Card order", exact: true }).selectOption("strength");
+  await expect(gallery.locator(".scan-tile-number")).toHaveText(["4", "2", "3", "1"]);
+  await page.getByRole("button", { name: "Enlarge your scanned card", exact: true }).click();
+  const viewer = page.getByRole("dialog");
+  await expect(viewer.locator(".scan-viewer-viewport")).toHaveAttribute("data-fit", "true");
+  await viewer.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(viewer.locator(".scan-viewer-viewport")).not.toHaveAttribute("data-fit", "true");
+  await viewer.getByRole("button", { name: "Fit image", exact: true }).click();
+  await expect(viewer.locator(".scan-viewer-viewport")).toHaveAttribute("data-fit", "true");
+  await page.keyboard.press("Escape");
+  await expect(viewer).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Enlarge your scanned card", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("batch rows show distinct processing, review and empty states with pagination", async ({ page }) => {

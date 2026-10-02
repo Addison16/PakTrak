@@ -1,11 +1,41 @@
 # Changelog
 
+## Source publication checks — October 2, 2026
+
+- Keep unfinished photos recoverable in WebKit private contexts by storing bytes and MIME type, while continuing to read previously saved Blob/File photos.
+- Preserve failed banner-artwork fallback even when an image error arrives before the component's effects run.
+- Give selected back-facing cards a longer visible pass during deck opening.
+- Reject composed and forward archive links that escape a backup restoration destination, while preserving valid links, numeric ownership and permissions.
+- Update browser regressions for persistent collection URLs, individual-card lookups and asynchronous recovery saves; verify restored upload bytes, MIME type and size.
+
+## Deck presentation and card motion — October 1, 2026
+
+- Add sculpted deck cases, responsive lighting, commander-led banners, artwork layouts, and named case finishes and emblems.
+- Open decks with a card scatter that shows several real Magic card backs clearly before the cards land on their matching gallery positions. Separate surface fades from the 3D rotation to prevent mirrored fronts, while retaining thin card edges.
+- Lift cards from their actual deck or collection position into the detail viewer with a 3D spin, accurate landing, and focus restoration. Respect reduced motion and clean up interrupted transitions.
+- Show foil and etched treatments for owned finishes without changing card artwork.
+- Fix duplicated deck-value panels accumulating during refreshes and stale deck/import responses during navigation.
+
+## Quality of life upgrades — September 30, 2026
+
+- Recover unfinished photos, scan reviews, foil selections, crop corners, decks and deck imports on the same device.
+- Keep unrelated scan edits when saving foils; inspect enlarged images and zoomed crops with keyboard precision.
+- Filter scan issues without changing physical card numbers; retain printing filters and show artwork in search results.
+- Remember and bookmark collection views; organize selected printings together or move part of a copy group while preserving import provenance and undo.
+- Open collection card links independently of the current gallery page; edit condition and notes alongside finish.
+- Repair deck import quantities and sections inline, preserve reviewed choices when rebuilding previews, and navigate collection import issues directly.
+- Compare edited decks with live ownership, recover conflicting edits, undo recent changes, duplicate decks and copy their complete lists.
+- Add verified cold backups and restore into fresh projects, with a repeatable database/photo/configuration restore drill.
+
+See [the feature guide](docs/QOL.md) and [backup operations](docs/OPERATIONS.md#upgrades-and-backups).
+
 ## Unreleased — September 23, 2026
 
 This update collects the current PakTrak features and fixes. It is a source update, not a claim that physical-device qualification or every release gate is complete. See [validation status](docs/STATUS.md).
 
 ### Scanning and review
 
+- Fixed cards with alternate titles, such as Search for the Frozen Esper (Nature's Claim), being absent from manual search and scan suggestions. Shared name matching covers alternate/localized titles and every card face in catalog, collection and import searches; printing choices and scan review show both printed and canonical titles.
 - Docker workers process accepted uploads independently of the phone, with durable jobs, retries, progress and recoverable batches.
 - JPEG, PNG, WebP, HEIC/HEIF, AVIF, TIFF, BMP and still GIF uploads use server-side decoding. Camera capture saves JPEG by default; primary-photo handling accepts still JPEG/HEIF files with auxiliary images.
 - In-app camera selection, device-local camera preference, framing guides, available light/zoom controls, capture review and retakes.
@@ -38,6 +68,7 @@ This update collects the current PakTrak features and fixes. It is a source upda
 - Optional guest signup with a lifetime allowance of 100 scanned cards. Approval grants unlimited scanning by default and shows a membership welcome.
 - Personal account settings and administrator user management: approval, suspension, sign-out, scan pauses, lifetime caps and temporary password resets.
 - PakTrak branding, locally served fonts, light/dark/device appearance settings, a welcome tour, and browser Back/Forward navigation with unsaved-edit protection.
+- Added Ocean, Amethyst, Ember and Slate color themes alongside the original Forest palette. Theme previews follow light/dark/device mode; choices apply before rendering, persist in this browser, and sync across app tabs and sign-in pages.
 - Dismissible action errors, retry controls, and private administrator error logs with request references.
 
 ### Hostname recovery

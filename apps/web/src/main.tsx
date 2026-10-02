@@ -6,12 +6,13 @@ import { Icon } from "./Icon";
 import Onboarding from "./Onboarding";
 import MembershipWelcome from "./MembershipWelcome";
 import { useOnboarding } from "./useOnboarding";
-import Appearance from "./Appearance";
 import BatchList, { batchNeedsReview, batchStatus } from "./BatchList";
 import type { ReviewState, Scan } from "./scanTypes";
 import type { Deck } from "./deckTypes";
 import { photoAccept, photoFormatLabel, photoMime } from "./photoFormats";
 import "./style.css";
+import "./qol.css";
+import { readPendingPhoto, savePendingPhoto, removePendingPhoto, type PendingPhoto } from "./pendingPhoto";
 import { navigation, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
 
 const Collections = lazy(() => import("./Collections"));
@@ -21,7 +22,7 @@ const MyAccount = lazy(() => import("./MyAccount"));
 const Admin = lazy(() => import("./Admin"));
 const CameraCapture = lazy(() => import("./CameraCapture"));
 type AccountStatus = { setup_required: boolean; guest_signup_enabled: boolean };
-type Draft = { id?: string; key: string; filename: string; size: number; content_type: string; foil_count?: number; target_deck_id?: string; add_to_collection?: boolean };
+type Draft = { id?: string; key: string; filename: string; size: number; content_type: string; foil_count?: number; target_deck_id?: string; add_to_collection?: boolean; photo_saved_at?: number };
 
 function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
   session: Session; page: Page; onNavigate: (page: Page) => void; onLogout: () => void; onReplayTour: () => void;
@@ -100,7 +101,6 @@ function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
         {session.role === "admin" && <button type="button" aria-current={page === "admin" ? "page" : undefined} onClick={() => navigate("admin")}><Icon name="settings" />Administration</button>}
       </nav>
       <div className="menu-account">
-        <Appearance />
         <button type="button" className="menu-tour" onClick={() => { afterClose.current = onReplayTour; close(); }}><Icon name="spark" />Quick tour</button>
         <p><strong>{session.display_name}</strong><span>{session.role === "admin" ? "Administrator" : session.role === "guest" ? "Guest account" : "Member"}</span></p>
         <button type="button" className="menu-sign-out" onClick={() => { afterClose.current = onLogout; close(); }}>Sign out <Icon name="arrow" /></button>
@@ -138,6 +138,10 @@ function App() {
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [maxBytes, setMaxBytes] = useState(100 * 1024 * 1024);
   const [foilCountDraft, setFoilCountDraft] = useState<number | "">(0);
+  const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
+  const pendingPhotoRef = useRef<PendingPhoto | null>(null);
+  const [photoRecoveryError, setPhotoRecoveryError] = useState("");
+  const [pendingPreview, setPendingPreview] = useState("");
   const foilCount = foilCountDraft === "" ? 0 : foilCountDraft;
   const cameraOpen = route.overlay === "camera";
   const setCameraOpen = (open: boolean) => open ? navigation.go({ ...route, overlay: "camera" }) : navigation.route.overlay === "camera" && navigation.close({ ...navigation.route, overlay: undefined }, true);
@@ -147,6 +151,39 @@ function App() {
   const returnToBatch = useRef<{ id: string; y: number } | null>(null);
   const busyRef = useRef(false);
   const storageKey = session ? "scanner-upload:" + session.owner_id : "";
+
+  useEffect(() => {
+    let stopped = false; setPendingPhoto(null); pendingPhotoRef.current = null;
+    if (session) void readPendingPhoto(session.owner_id).then((photo) => { if (!stopped) { pendingPhotoRef.current = photo; setPendingPhoto(photo); } });
+    return () => { stopped = true; };
+  }, [session?.owner_id]);
+  useEffect(() => {
+    if (!pendingPhoto) { setPendingPreview(""); return; }
+    const url = URL.createObjectURL(pendingPhoto.file); setPendingPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingPhoto]);
+
+  async function keepPhoto(file: File) {
+    if (!session) return;
+    const value: PendingPhoto = { owner: session.owner_id, file, filename: file.name, savedAt: Date.now(), foilCount, targetDeck: route.targetDeck, collect: route.collect };
+    const saved = await savePendingPhoto(value);
+    pendingPhotoRef.current = value; setPendingPhoto(value);
+    setPhotoRecoveryError(saved ? "" : "This browser couldn’t save a recovery copy. Keep the photo or upload page open until server acceptance.");
+    return value;
+  }
+  async function discardPhoto(expectedSavedAt = pendingPhotoRef.current?.savedAt) {
+    if (!session) return;
+    if (expectedSavedAt !== undefined) await removePendingPhoto(session.owner_id, expectedSavedAt);
+    if (pendingPhotoRef.current?.savedAt === expectedSavedAt) { pendingPhotoRef.current = null; setPendingPhoto(null); }
+    setPhotoRecoveryError("");
+  }
+  async function resumePhoto() {
+    if (!pendingPhoto || busyRef.current) return;
+    const photo = pendingPhoto;
+    if (!navigation.go({ page: "scan", targetDeck: photo.targetDeck, collect: photo.collect })) return;
+    setFoilCountDraft(photo.foilCount);
+    await chooseFile(new File([photo.file], photo.filename, { type: photo.file.type }), photo);
+  }
 
   useEffect(() => {
     setScanDeck(null);
@@ -314,7 +351,7 @@ function App() {
           request<Scan>("/api/v1/scans/" + id).then((scan) => { if (selectedId.current === id) select(scan); }).catch(() => {});
         }
       }
-    } catch { localStorage.removeItem(storageKey); }
+    } catch { try { localStorage.removeItem(storageKey); } catch { /* Storage can be blocked. */ } }
   }, [storageKey]);
 
   useEffect(() => {
@@ -391,23 +428,24 @@ function App() {
     return () => window.removeEventListener("paktrak:refresh-sign-in", retry);
   }, [session?.owner_id]);
 
-  function saveDraft(value: Draft) { setDraft(value); localStorage.setItem(storageKey, JSON.stringify(value)); }
-  function clearDraft() { setDraft(null); localStorage.removeItem(storageKey); }
+  function saveDraft(value: Draft) { setDraft(value); try { localStorage.setItem(storageKey, JSON.stringify(value)); } catch { /* The photo can still upload when browser storage is disabled. */ } }
+  function clearDraft() { setDraft(null); try { localStorage.removeItem(storageKey); } catch { /* Server acceptance remains authoritative. */ } }
   function headers(key?: string) {
     return { "Content-Type": "application/json", "X-CSRF-Token": session!.csrf_token,
       ...(key ? { "Idempotency-Key": key } : {}) };
   }
 
-  async function accept(id: string, key: string) {
+  async function accept(id: string, key: string, photoSavedAt?: number) {
     await request("/api/v1/scans/" + id + "/finalize", { method: "POST", headers: headers(key) });
     // This message is shown only after the durable acceptance response, never at 100% bytes.
     setNotice("Upload complete. You can close this page or disconnect your phone. Results will be saved in Batches.");
     clearDraft();
+    if (photoSavedAt !== undefined) await discardPhoto(photoSavedAt);
     setFoilCountDraft(0);
     openBatch(await request<Scan>("/api/v1/scans/" + id), true);
   }
 
-  async function chooseFile(file: File | undefined): Promise<boolean> {
+  async function chooseFile(file: File | undefined, recovered?: PendingPhoto): Promise<boolean> {
     if (!file || !session || busyRef.current) return false;
     setError(""); setNotice(""); setProgress(null);
     if (session.scans_paused || session.scan_cards_remaining === 0) { setError(session.scans_paused ? "New scans are paused. Contact your administrator to resume scanning." : "Your lifetime scan allowance is used. Contact your administrator to raise the limit."); return false; }
@@ -418,13 +456,18 @@ function App() {
     if (file.size > maxBytes) { setError("Choose a photo smaller than " + Math.floor(maxBytes / 1024 / 1024) + " MB."); return false; }
     busyRef.current = true; setBusy(true);
     try {
+      const targetDeck = recovered ? recovered.targetDeck : route.targetDeck;
+      const collect = recovered ? recovered.collect : route.collect;
+      const plannedFoils = recovered ? recovered.foilCount : foilCount;
+      const photo = recovered || await keepPhoto(file);
       const same = draft && !selected?.accepted_at && draft.filename === file.name &&
-        draft.size === file.size && draft.content_type === contentType && draft.target_deck_id === route.targetDeck
-        && (!route.targetDeck || draft.add_to_collection === !!route.collect);
+        draft.size === file.size && draft.content_type === contentType && draft.target_deck_id === targetDeck
+        && (!targetDeck || draft.add_to_collection === !!collect);
       const pending: Draft = same ? { ...draft } : {
-        key: crypto.randomUUID(), filename: file.name, size: file.size, content_type: contentType, foil_count: foilCount,
-        ...(route.targetDeck ? { target_deck_id: route.targetDeck, add_to_collection: !!route.collect } : {}),
+        key: crypto.randomUUID(), filename: file.name, size: file.size, content_type: contentType, foil_count: plannedFoils,
+        ...(targetDeck ? { target_deck_id: targetDeck, add_to_collection: !!collect } : {}),
       };
+      pending.photo_saved_at = photo?.savedAt;
       saveDraft(pending);
       const scan = await request<Scan>("/api/v1/scans", {
         method: "POST", headers: headers(pending.key),
@@ -459,7 +502,7 @@ function App() {
       select(uploaded);
       if (uploaded.duplicate_scan_id && !uploaded.accepted_at) {
         setNotice("This photo matches an earlier batch. Check that batch before submitting it again.");
-      } else await accept(scan.id, pending.key);
+      } else await accept(scan.id, pending.key, pending.photo_saved_at);
       setOffset(0);
       return true;
     } catch (e) { setError(e as Error); return false; }
@@ -473,7 +516,7 @@ function App() {
   async function finishUpload() {
     if (!selected || busyRef.current) return;
     busyRef.current = true; setBusy(true); setError("");
-    try { await accept(selected.id, draft?.key || crypto.randomUUID()); }
+    try { await accept(selected.id, draft?.key || crypto.randomUUID(), draft?.photo_saved_at); }
     catch (e) { setError(e as Error); }
     finally { busyRef.current = false; setBusy(false); }
   }
@@ -481,7 +524,7 @@ function App() {
   async function logout() {
     try {
       const result = await request<{ logout_url: string }>("/api/auth/logout", { method: "POST", headers: headers() });
-      localStorage.removeItem(storageKey);
+      clearDraft();
       window.location.assign(result.logout_url);
     } catch (e) { setError(e as Error); }
   }
@@ -522,7 +565,6 @@ function App() {
           {accountStatus?.guest_signup_enabled && <p className="fine">Start as a guest with 100 card scans. An administrator can approve you as a standard member.</p>}
           {accountStatus && !accountStatus.guest_signup_enabled && <p className="fine">New account signup is currently closed.</p>}
         </>}
-        <div className="login-appearance"><Appearance /></div>
       </section> : <>
         {(session.role === "guest" || session.scans_paused || session.scan_card_limit !== null) && <div className="message account-allowance"><strong>{session.role === "guest" ? "Guest account" : "Card scan allowance"} · {session.scan_cards_used.toLocaleString()}{session.scan_card_limit !== null ? ` / ${session.scan_card_limit.toLocaleString()}` : ""} card scans used</strong><p>{session.scans_paused ? "New scans are paused. Your collection and decks are still available. Contact your administrator to resume scanning." : session.scan_cards_remaining === null ? "Unlimited card scans." : session.scan_cards_remaining > 0 ? `${session.scan_cards_remaining.toLocaleString()} card scans left in your lifetime allowance.` : "Your lifetime scan allowance is used. An administrator can raise the limit or restore unlimited scanning."}</p><button className="text-button" onClick={() => navigate("account")}>View my account</button></div>}
         {notice && <div className="message success" role="status">{notice}</div>}
@@ -553,7 +595,14 @@ function App() {
             <p>{progress === null ? "Waiting for server acceptance…" : "Uploading " + progress + "%"} Keep this page open until acceptance is confirmed.</p>
             {progress !== null && <progress value={progress} max={100} aria-label="Photo upload progress" />}
           </div>}
-          {draft && !busy && !selected?.uploaded && <p className="fine">Unfinished upload: {draft.filename}. Choose the same file to retry.</p>}
+          {pendingPhoto && !busy && !cameraOpen && <aside className="photo-recovery" aria-label="Unfinished photo">
+            <div className="photo-recovery-art">{pendingPreview && <img src={pendingPreview} alt="Your unfinished photo" />}</div>
+            <div className="photo-recovery-copy"><span className="eyebrow">PICK UP WHERE YOU LEFT OFF</span><h3>Your photo is still here.</h3><p>{pendingPhoto.filename} · {pendingPhoto.foilCount} foils{pendingPhoto.targetDeck ? " · Deck scan" : " · Collection scan"}</p><p className="fine">A recovery copy stays on this device until the server accepts it. Photos expire after 7 days.</p>
+              <div className="actions"><button className="button primary" disabled={!!session.scans_paused || session.scan_cards_remaining === 0} onClick={() => void resumePhoto()}>Resume upload <Icon name="arrow" /></button><button className="text-button" onClick={() => { if (window.confirm("Discard this unfinished photo from this device? Saved batches will be kept.")) { clearDraft(); void discardPhoto(); } }}>Discard photo</button></div>
+            </div>
+          </aside>}
+          {photoRecoveryError && <p className="message" role="status">{photoRecoveryError}</p>}
+          {draft && !pendingPhoto && !busy && !selected?.uploaded && <p className="fine">Unfinished upload: {draft.filename}. Choose the same file to retry.</p>}
           {scans.length > 0 && <div className="capture-batches-link"><span className="capture-batches-icon" aria-hidden="true"><Icon name="batches" /></span>
             <div><strong>{scans.some(batchNeedsReview) ? "Your scans are ready to review" : "Looking for an earlier scan?"}</strong><p>Check matches and choose foil cards in your saved batches.</p></div>
             <button className="button secondary" disabled={busy} onClick={() => navigate("batches")}>Review saved batches <Icon name="arrow" /></button></div>}
@@ -593,7 +642,7 @@ function App() {
       <footer><img src="/brand/paktrak-mark.svg" alt="" width="24" height="24" /><span><strong>PakTrak</strong> · Every card. In reach.</span></footer>
     </main>
     {session && cameraOpen && <Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture foilCount={foilCount} progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
-      onClose={() => setCameraOpen(false)} onUpload={chooseFile}
+      onClose={() => setCameraOpen(false)} onUpload={(file) => chooseFile(file)} onCapture={async (file) => { await keepPhoto(file); }} onDiscard={discardPhoto}
       onNativeCamera={() => { setCameraOpen(false); camera.current?.click(); }}
       onChoosePhoto={() => { setCameraOpen(false); picker.current?.click(); }} /></Suspense>}
     {session?.membership_welcome && <MembershipWelcome key={session.owner_id + session.approved_at} session={session} onDismiss={() => setSession((current) => current ? { ...current, membership_welcome: false } : current)} />}

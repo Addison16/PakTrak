@@ -11,7 +11,7 @@ async function fixture(page: Page) {
     function total(rows: any[]) { const copies = rows.reduce((n, r) => n + r.quantity, 0), priced_copies = rows.reduce((n, r) => n + (r.amount === null ? 0 : r.quantity), 0); return { copies, priced_copies, unpriced_copies: copies - priced_copies, amount: copies && !priced_copies ? null : String(rows.reduce((n, r) => n + Number(r.amount), 0)) }; }
     return { ...total(items), provider, currency: "USD", price_kind: "Fixture reference price", finish_preference: finish, fallback_copies: items.filter((i: any) => i.finish_fallback).reduce((n: number, r: any) => n + r.quantity, 0), sections: Object.fromEntries(["commander", "main", "sideboard"].map(section => [section, total(items.filter((r: any) => r.section === section))])), items, checked_at: "2026-09-22T16:00:00Z", feed: { name: provider === "tcgplayer" ? "scryfall" : provider, state: state.stale ? "ERROR" : "READY", progress: {}, stale: state.stale, error: state.stale ? "Temporary feed outage" : null, updated_at: state.stale ? "2026-09-18T16:00:00Z" : "2026-09-22T16:00:00Z" } };
   }
-  function detail() { const cards = deck.cards.map((c: any) => ({ ...c, printing: printings.find(p => p.id === c.printing_id), available: 0, owned: 0, missing: c.quantity, locations: [] })); return { ...deck, cards, copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), owned_copies: 0, missing_copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), missing_cards: cards.map((c: any) => ({ printing: c.printing, quantity: c.quantity })), valuation: valuation() }; }
+  function detail() { const cards = deck.cards.map((c: any) => ({ ...c, printing: printings.find(p => p.id === c.printing_id), available: 0, owned: 0, missing: c.quantity, locations: [] })); return { ...deck, cards, copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), owned_copies: 0, missing_copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), missing_cards: cards.map((c: any) => ({ printing: c.printing, quantity: c.quantity })), valuation: valuation(), tokens: { items: [], missing_details: 0 } }; }
   await page.route("**/api/**", async route => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method(), body = req.postData() ? req.postDataJSON() : null;
     state.calls.push({ path, method, body }); let json: any = {}, status = 200;
@@ -34,17 +34,71 @@ async function fixture(page: Page) {
   await page.goto("/"); await navigate(page, "Decks"); await page.getByRole("button", { name: /Friday deck/ }).click();
   const panel = page.getByRole("region", { name: "Deck value", exact: true });
   await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$17.00");
-  return { state, deck, panel };
+  await panel.locator(".deck-value-options > summary").click();
+  return { state, deck, panel, detail };
 }
+
+test("background account refreshes keep exactly one deck value and token panel", async ({ page }) => {
+  const keyErrors: string[] = [];
+  page.on("console", message => { if (message.type() === "error" && message.text().includes("same key")) keyErrors.push(message.text()); });
+  const { state, panel } = await fixture(page);
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  await page.clock.install();
+  for (let tick = 0; tick < 6; tick++) {
+    const reads = state.calls.filter(call => call.path === "/api/v1/scans").length;
+    await page.clock.runFor(2500);
+    await expect.poll(() => state.calls.filter(call => call.path === "/api/v1/scans").length).toBeGreaterThan(reads);
+    await expect(panel).toHaveCount(1);
+    await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveCount(1);
+    await expect(page.locator(".deck-tokens")).toHaveCount(1);
+  }
+  expect(keyErrors).toEqual([]);
+});
+
+test("switching decks hides the previous value while the next deck loads", async ({ page }) => {
+  const { panel, detail } = await fixture(page);
+  await expect(page.locator(".deck-opening")).toHaveCount(0);
+  const second = { ...detail(), id: "second-deck", name: "Second deck", valuation: { ...detail().valuation, amount: "37.00" } };
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/v1/decks/second-deck", async route => { await gate; await route.fulfill({ json: second }); });
+  await page.evaluate(() => { location.hash = "#/decks/second-deck"; });
+  await expect(page.getByText("Opening deck…", { exact: true })).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator(".deck-detail")).toHaveCount(0);
+  release();
+  await expect(page.getByRole("heading", { name: "Second deck", exact: true })).toBeVisible();
+  await expect(panel).toHaveCount(1);
+  await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$37.00");
+  await page.getByRole("button", { name: "Close deck", exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Your decks", exact: true })).toBeVisible();
+});
+
+test("the value breakdown omits empty deck sections", async ({ page }) => {
+  const { deck, panel } = await fixture(page);
+  deck.cards = deck.cards.filter((card: any) => card.section === "main");
+  await page.reload();
+  await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$1.00");
+  await panel.locator(".deck-value-options > summary").click();
+  await panel.locator(".deck-value-breakdown > summary").click();
+  const sections = panel.getByLabel("Value by deck section");
+  await expect(sections.locator(":scope > div")).toHaveCount(1);
+  await expect(sections).toContainText("Mainboard");
+});
 
 for (const mode of ["light", "dark"] as const) for (const width of [320, 390]) test(`${mode} deck value and partial-price breakdown fit ${width}px`, async ({ page }, info) => {
   await page.emulateMedia({ colorScheme: mode }); await page.setViewportSize({ width, height: 844 });
   const { panel } = await fixture(page);
   await expect(panel).toContainText("7 of 9 copies priced · 2 unpriced");
+  await expect(panel).toHaveCount(1);
+  await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveCount(1);
+  await expect(panel.getByLabel("Value by deck section")).not.toBeVisible();
+  await panel.locator(".deck-value-breakdown > summary").click();
   await expect(panel.getByLabel("Value by deck section")).toContainText("$10.00");
   await expect(panel.getByLabel("Value by deck section")).toContainText("$1.00");
   await expect(panel.getByLabel("Value by deck section")).toContainText("$6.00");
-  await panel.locator("summary").click(); await expect(panel.locator("li")).toHaveCount(4);
+  await expect(panel.locator("li")).toHaveCount(4);
   await panel.getByRole("checkbox", { name: "Only unpriced cards", exact: true }).check();
   await expect(panel.locator("li")).toHaveCount(1); await expect(panel.locator("li")).toContainText("No quote");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -62,7 +116,7 @@ test("switches all three sources, remembers the account choice and never changes
   }
   await panel.getByRole("combobox", { name: "Deck price source", exact: true }).selectOption("manapool");
   await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$51.00");
-  await page.reload(); await expect(panel.getByRole("combobox", { name: "Deck price source", exact: true })).toHaveValue("manapool");
+  await page.reload(); await panel.locator(".deck-value-options > summary").click(); await expect(panel.getByRole("combobox", { name: "Deck price source", exact: true })).toHaveValue("manapool");
   await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$51.00");
   expect(JSON.stringify(deck)).toBe(original);
   expect(state.calls.some(call => call.method !== "GET" && call.path.startsWith("/api/v1/collection"))).toBe(false);
@@ -128,6 +182,7 @@ test("a deck source change updates an already-open collection without waiting fo
   await navigate(page, "Collection");
   await expect(page.getByRole("combobox", { name: "Price source", exact: true })).toHaveValue("tcgplayer");
   await navigate(page, "Decks"); await page.getByRole("button", { name: /Friday deck/ }).click();
+  await panel.locator(".deck-value-options > summary").click();
   await panel.getByRole("combobox", { name: "Deck price source", exact: true }).selectOption("cardkingdom");
   await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveText("$34.00");
   await navigate(page, "Collection");

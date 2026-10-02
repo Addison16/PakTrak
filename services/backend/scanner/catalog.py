@@ -19,7 +19,7 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from scanner.auth import DB
-from scanner.card_search import split_collector_search
+from scanner.card_search import card_display_name, card_name_matches, split_collector_search
 from scanner.db import session_factory
 from scanner.models import CatalogSnapshot, Printing, now
 
@@ -44,6 +44,7 @@ def printing_json(printing):
     return {
         "id": str(printing.id),
         "name": printing.name,
+        "display_name": card_display_name(printing.name, raw),
         "set_code": printing.set_code,
         "collector_number": printing.collector_number,
         "language": printing.language,
@@ -57,7 +58,7 @@ def printing_json(printing):
         if source_image(printing, 0, "grid")
         else None,
         "catalog_snapshot_id": str(printing.snapshot_id),
-        "faces": [face.get("name") for face in printing.source_json.get("card_faces", [])],
+        "faces": [face.get("name") for face in printing.source_json.get("card_faces") or []],
     }
 
 
@@ -83,13 +84,8 @@ def search(
     facets: bool = False,
 ):
     q, inline_number = split_collector_search(q)
-    # Escape wildcard input. Search never exposes holdings, owners, or their photos.
-    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    name_match = (
-        func.lower(Printing.name) == q.lower()
-        if exact_name
-        else Printing.name.ilike(f"%{escaped}%", escape="\\")
-    )
+    # Treat wildcard input literally. Search exposes only public card metadata.
+    name_match = card_name_matches(q, exact=exact_name)
     condition = name_match
     try:
         condition = or_(Printing.id == uuid.UUID(q), name_match)

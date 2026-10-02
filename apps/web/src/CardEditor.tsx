@@ -8,6 +8,8 @@ const finishes: Record<string, string> = { nonfoil: "Normal / nonfoil", foil: "F
 function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved: () => Promise<void> }) {
   const [printing, setPrinting] = useState(lot.printing);
   const [finish, setFinish] = useState(lot.finish);
+  const [condition, setCondition] = useState(lot.condition);
+  const [notes, setNotes] = useState(lot.notes);
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -19,7 +21,7 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
   }
   async function save() {
     setBusy(true); setError("");
-    const data = { printing_id: printing.id, finish, expected_version: lot.version };
+    const data = { printing_id: printing.id, finish, condition, notes, expected_version: lot.version };
     const body = JSON.stringify(data);
     if (attempt.current.body !== body) attempt.current = { body, key: crypto.randomUUID() };
     try {
@@ -40,7 +42,9 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
       <div className="chosen-printing" aria-label="Selected printing"><span className="eyebrow">Selected printing</span><strong>{printing.name}</strong><p>{printing.set_name} ({printing.set_code.toUpperCase()}) · #{printing.collector_number}<br /><span className="rarity-text">{printing.rarity || "Rarity unavailable"}</span> · {printing.language.toUpperCase()}</p></div>
       <label>Card finish<select value={finish} onChange={(e) => setFinish(e.target.value)}>{!finish && <option value="" disabled>Choose a finish</option>}{[...printing.finishes, "unknown"].map((value) => <option key={value} value={value}>{finishes[value] || value}</option>)}</select></label>
       {!finish && <p className="fine">This printing does not have the previously recorded finish. Choose the finish on your copy.</p>}
-      <button type="button" className="button primary" disabled={!finish || (printing.id === lot.printing.id && finish === lot.finish)} onClick={() => void save()}>{busy ? "Saving…" : saved ? "Saved" : "Save card details"}</button>
+      <label>Condition<select value={condition} onChange={(e) => setCondition(e.target.value)}>{["ungraded", "NM", "LP", "MP", "HP", "damaged"].map((value) => <option key={value} value={value}>{value === "ungraded" ? "Ungraded" : value}</option>)}</select></label>
+      <label>Copy notes<textarea rows={3} maxLength={4096} placeholder="Binder page, box divider, or anything useful for finding these copies" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+      <button type="button" className="button primary" disabled={!finish || (printing.id === lot.printing.id && finish === lot.finish && condition === lot.condition && notes === lot.notes)} onClick={() => void save()}>{busy ? "Saving…" : saved ? "Saved" : "Save card details"}</button>
     </fieldset>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
   </div>;

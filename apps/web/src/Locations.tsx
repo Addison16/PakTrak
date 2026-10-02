@@ -1,5 +1,5 @@
 import ErrorNotice from "./ErrorNotice";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { mutation, request, type Location, type Lot, type Session } from "./api";
 
 function LocationForm({ location, session, onSaved }: { location?: Location; session: Session; onSaved: () => Promise<void> }) {
@@ -40,19 +40,27 @@ export default function Locations({ locations, session, onSaved }: { locations: 
 
 export function MoveCards({ lot, locations, session, onSaved }: { lot: Lot; locations: Location[]; session: Session; onSaved: () => Promise<void> }) {
   const [destination, setDestination] = useState(lot.binder_id);
+  const [quantity, setQuantity] = useState(String(lot.quantity));
+  const count = Number(quantity);
+  const valid = quantity.trim() && Number.isInteger(count) && count >= 1 && count <= lot.quantity;
+  const receipt = useRef<{ body: string; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | string>("");
   async function move() {
     setBusy(true); setError("");
     try {
-      await request("/api/v1/collection/" + lot.id + "/move", mutation(session, { binder_id: destination, expected_version: lot.version }));
+      const body = { binder_id: destination, quantity: count, expected_version: lot.version };
+      const encoded = JSON.stringify(body);
+      if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+      await request("/api/v1/collection/" + lot.id + "/move", mutation(session, body, receipt.current.key));
       await onSaved();
     } catch (e) { setError(e as Error); }
     finally { setBusy(false); }
   }
-  return <details><summary>Move to another location</summary><p>This moves all {lot.quantity} copies in this group.</p>
+  return <details><summary>Move to another location</summary><p>Choose how many of your {lot.quantity} copies to move. Their import history and notes stay attached.</p>
+    <label>Copies to move<input type="number" inputMode="numeric" min={1} max={lot.quantity} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></label>
     <label>Destination<select value={destination} onChange={(e) => setDestination(e.target.value)}>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-    <button className="button secondary" disabled={busy || destination === lot.binder_id} onClick={() => void move()}>Move {lot.quantity} copies</button>
+    <button className="button secondary" disabled={busy || !valid || destination === lot.binder_id} onClick={() => void move()}>Move {valid ? count : "selected"} {count === 1 ? "copy" : "copies"}</button>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
   </details>;
 }

@@ -6,6 +6,7 @@ import PrintingPicker from "./PrintingPicker";
 import Gallery from "./Gallery";
 import DataUpdates, { ProgressView } from "./DataUpdates";
 import type { WorkProgress } from "./api";
+import "./collection-qol.css";
 
 type Counts = { rows: number; copies: number };
 type Import = {
@@ -62,7 +63,7 @@ function RepairRow({ row, batch, session, onChange, onError }: { row: Row; batch
     finally { setBusy(false); }
   }
   return <details className="row-repair"><summary>Review this row</summary>
-    {row.state !== "INVALID" && <><PrintingPicker onSelect={(value) => { setPrinting(value); setFinish(value.finishes.includes(row.normalized.finish || "") ? row.normalized.finish! : "unknown"); }} />{printing && <div className="chosen-printing"><strong>{printing.name}</strong><p>{printing.set_code.toUpperCase()} · #{printing.collector_number} · {printing.language.toUpperCase()}</p><label>Finish<select value={finish} onChange={(e) => setFinish(e.target.value)}><option value="unknown">Unknown</option>{printing.finishes.map((value) => <option key={value}>{value}</option>)}</select></label><button className="button secondary" disabled={busy} onClick={() => void save(false)}>I own these cards — use this printing</button></div>}</>}
+    {row.state !== "INVALID" && <><PrintingPicker initialQuery={row.normalized.name || ""} onSelect={(value) => { setPrinting(value); setFinish(value.finishes.includes(row.normalized.finish || "") ? row.normalized.finish! : "unknown"); }} />{printing && <div className="chosen-printing"><strong>{printing.name}</strong><p>{printing.set_code.toUpperCase()} · #{printing.collector_number} · {printing.language.toUpperCase()}</p><label>Finish<select value={finish} onChange={(e) => setFinish(e.target.value)}><option value="unknown">Unknown</option>{printing.finishes.map((value) => <option key={value}>{value}</option>)}</select></label><button className="button secondary" disabled={busy} onClick={() => void save(false)}>I own these cards — use this printing</button></div>}</>}
     {row.state === "INVALID" && <p className="fine">Correct this row in the CSV or adjust its column mapping, then rebuild the preview.</p>}
     <button className="text-button" disabled={busy} onClick={() => void save(true)}>Exclude row {row.row_number}</button>
   </details>;
@@ -83,6 +84,9 @@ function CollectionTransfers({ session }: { session: Session }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [rowOffset, setRowOffset] = useState(0);
   const [rowNext, setRowNext] = useState<number | null>(null);
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [focusRow, setFocusRow] = useState<number | null>(null);
+  const [issues, setIssues] = useState({ previous: null as number | null, next: null as number | null, count: 0 });
   const [owned, setOwned] = useState(false);
   const [partial, setPartial] = useState(false);
   const [undoReady, setUndoReady] = useState(false);
@@ -113,10 +117,11 @@ function CollectionTransfers({ session }: { session: Session }) {
       if (selectedId) {
         const [batch, data] = await Promise.all([
           request<Import>("/api/v1/imports/" + selectedId),
-          request<{ items: Row[]; next_offset: number | null }>("/api/v1/imports/" + selectedId + "/rows?offset=" + rowOffset),
+          request<{ items: Row[]; next_offset: number | null; previous_issue: number | null; next_issue: number | null; attention_count: number }>("/api/v1/imports/" + selectedId + "/rows?" + new URLSearchParams({ offset: String(rowOffset), attention: String(attentionOnly), ...(focusRow ? { focus: String(focusRow) } : {}) })),
         ]);
         if (!isCurrent()) return;
         setSelected((current) => current?.id === batch.id && batch.revision >= current.revision ? batch : current); setRows(data.items); setRowNext(data.next_offset);
+        setIssues({ previous: data.previous_issue ?? null, next: data.next_issue ?? null, count: data.attention_count ?? 0 });
       }
     }
   }
@@ -130,7 +135,7 @@ function CollectionTransfers({ session }: { session: Session }) {
     void poll(); const timer = window.setInterval(() => void poll(), 3500);
     document.addEventListener("visibilitychange", poll); window.addEventListener("online", poll);
     return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); };
-  }, [binder, selectedId, revision, rowOffset, historyOffset, exportOffset]);
+  }, [binder, selectedId, revision, rowOffset, attentionOnly, focusRow, historyOffset, exportOffset]);
   useEffect(() => { setOwned(false); setPartial(false); setUndoReady(false); }, [selectedId, revision]);
 
   async function act(operation: () => Promise<void>) {
@@ -152,7 +157,7 @@ function CollectionTransfers({ session }: { session: Session }) {
       finally { if (picker.current) picker.current.value = ""; }
     });
   }
-  async function selectImport(id: string) { setSelected(await request<Import>("/api/v1/imports/" + id)); setRowOffset(0); setRows([]); }
+  async function selectImport(id: string) { setSelected(await request<Import>("/api/v1/imports/" + id)); setRowOffset(0); setRows([]); setFocusRow(null); setAttentionOnly(false); }
   async function confirmImport() {
     if (!selected) return;
     setSelected(await request<Import>("/api/v1/imports/" + selected.id + "/confirm", mutation(session, { expected_revision: selected.revision, owned_cards: owned, accept_partial: partial })));
@@ -186,6 +191,8 @@ function CollectionTransfers({ session }: { session: Session }) {
         {["PREVIEWING", "COMMITTING", "UNDOING"].includes(selected.state) && <p className="saved" role="status">Saved on the server. You can close this page.</p>}
         {selected.jobs.filter((job) => ["QUEUED", "RUNNING"].includes(job.state)).map((job) => <ProgressView key={job.id} value={job.progress} />)}
         {["REVIEW", "FAILED"].includes(selected.state) && <Mapping key={selected.id + ":" + selected.revision} batch={selected} session={session} onChange={setSelected} onError={setError} />}
+        <div className="import-attention-toolbar"><label className="checkbox"><input type="checkbox" checked={attentionOnly} onChange={(event) => { setAttentionOnly(event.target.checked); setRowOffset(0); setFocusRow(null); }} />Needs attention only · {issues.count}</label><button className="text-button" disabled={issues.previous === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.previous); setRowOffset(0); }}>Previous issue</button><button className="text-button" disabled={issues.next === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.next); setRowOffset(0); }}>Next issue</button>{focusRow && <button className="text-button" onClick={() => { setFocusRow(null); setRowOffset(Math.floor((focusRow - 1) / 40) * 40); }}>Show surrounding rows</button>}</div>
+        {!rows.length && attentionOnly && <p className="saved" role="status">No rows need attention in this import.</p>}
         {rows.length > 0 && <details open><summary>Review source rows</summary><ul className="plain-list import-rows">{rows.map((row) => <li key={row.id}>
           <div className="holding-title"><strong>{row.normalized.name || Object.values(row.raw_fields)[0] || "Unresolved card"}</strong><span className="badge">{row.state.toLowerCase()}</span></div>
           <p className="fine">Row {row.row_number} · {row.normalized.quantity ?? "?"} copies{row.normalized.set_code ? " · " + row.normalized.set_code.toUpperCase() : ""}{row.normalized.collector_number ? " #" + row.normalized.collector_number : ""}{row.normalized.language ? " · " + row.normalized.language : ""}{row.normalized.binder ? " · " + row.normalized.binder : ""} · {row.normalized.finish || "unknown finish"}</p>

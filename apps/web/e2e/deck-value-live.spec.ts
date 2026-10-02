@@ -28,6 +28,7 @@ test("a saved deck displays real cached values from all three sources without ch
     const deck = await creation.json();
     await page.goto(`/#/decks/${deck.id}`);
     const panel = page.getByRole("region", { name: "Deck value", exact: true });
+    await panel.locator(".deck-value-options > summary").click();
     for (const provider of ["tcgplayer", "cardkingdom", "manapool"]) {
       await panel.getByRole("combobox", { name: "Deck price source", exact: true }).selectOption(provider);
       await expect(panel.getByRole("combobox", { name: "Deck price source", exact: true })).toBeEnabled();
@@ -38,9 +39,9 @@ test("a saved deck displays real cached values from all three sources without ch
       await expect(panel).toContainText("6 of 6 copies priced");
       expect((await (await context.request.get("/api/auth/session")).json()).preferred_price_source).toBe(provider);
     }
-    await panel.locator("summary").click(); await expect(panel.locator("li")).toHaveCount(2);
+    await panel.locator(".deck-value-breakdown > summary").click(); await expect(panel.locator("li")).toHaveCount(2);
     await page.screenshot({ path: `../../artifacts/deck-value/live-${info.project.name}.png`, fullPage: true });
-    await page.reload(); await expect(panel.getByRole("combobox", { name: "Deck price source", exact: true })).toHaveValue("manapool");
+    await page.reload(); await panel.locator(".deck-value-options > summary").click(); await expect(panel.getByRole("combobox", { name: "Deck price source", exact: true })).toHaveValue("manapool");
     const latest = await (await context.request.get(`/api/v1/decks/${deck.id}`)).json();
     expect(latest.version).toBe(deck.version); expect(latest.copies).toBe(6); expect(latest.valuation.provider).toBe("manapool");
     expect((await (await context.request.get("/api/v1/collection")).json()).copies).toBe(0);

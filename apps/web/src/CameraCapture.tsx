@@ -17,9 +17,10 @@ type Props = {
   foilCount: number; progress: number | null; uploadError: string;
   onClose: () => void; onNativeCamera: () => void; onChoosePhoto: () => void;
   onUpload: (file: File) => Promise<boolean>;
+  onCapture?: (file: File) => Promise<void>; onDiscard?: () => Promise<void>;
 };
 
-export default function CameraCapture({ foilCount, progress, uploadError, onClose, onNativeCamera, onChoosePhoto, onUpload }: Props) {
+export default function CameraCapture({ foilCount, progress, uploadError, onClose, onNativeCamera, onChoosePhoto, onUpload, onCapture, onDiscard }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -55,8 +56,11 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
 
   useNavigationGuard((from, to) => {
     if (from.overlay !== "camera" || to.overlay === "camera") return true;
-    if (submitting.current) return false;
-    return !photo || window.confirm("Discard this photo? It hasn't finished uploading to your batches.");
+    if (submitting.current || capturing.current) return false;
+    if (!photo) return true;
+    if (!window.confirm("Discard this photo? It hasn't finished uploading to your batches.")) return false;
+    void onDiscard?.();
+    return true;
   });
 
   useEffect(() => {
@@ -177,10 +181,24 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
     stop.current(); setPhase("opening"); setCameraNotice(""); focusCameraChoice.current = true; setDeviceId(id);
   }
 
-  function close(action = onClose) {
-    if (submitting.current) return;
+  async function close(action = onClose) {
+    if (submitting.current || capturing.current) return;
     if (photo && !window.confirm("Discard this photo? It hasn't finished uploading to your batches.")) return;
+    if (photo) {
+      capturing.current = true; setTaking(true);
+      try { await onDiscard?.(); }
+      catch { setError("This photo could not be discarded yet. Please try again."); return; }
+      finally { capturing.current = false; setTaking(false); }
+    }
     stop.current(); action();
+  }
+
+  async function retake() {
+    if (submitting.current || capturing.current) return;
+    capturing.current = true; setTaking(true);
+    try { await onDiscard?.(); setPhoto(null); setError(""); setAttemptedUpload(false); }
+    catch { setError("This photo could not be discarded yet. Please try again."); }
+    finally { capturing.current = false; setTaking(false); }
   }
 
   function resize() {
@@ -199,6 +217,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
       if (token !== generation.current) return;
       stop.current(); setPhotoSize({ width: 0, height: 0 }); setEnlarged(false);
       setPhoto({ ...result, url: URL.createObjectURL(result.file) });
+      await onCapture?.(result.file);
     } catch (reason) {
       if (token === generation.current) setError((reason as Error).message);
     } finally { if (sequence === captureSequence.current) { capturing.current = false; setTaking(false); } }
@@ -234,10 +253,10 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
   const zoomStops = zoom && zoom.min > 0 && zoom.max > zoom.min ? [...new Set([zoom.min, 1, 2, 3].filter((value) => value >= zoom.min && value <= zoom.max).map((value) => Math.min(zoom.max, zoom.min + Math.round((value - zoom.min) / (zoom.step || .1)) * (zoom.step || .1))))] : [];
   const w = dimensions.width || 4, h = dimensions.height || 3;
 
-  return <dialog ref={dialog} className="camera-dialog" aria-labelledby="camera-title" onCancel={(event) => { event.preventDefault(); close(); }}>
+  return <dialog ref={dialog} className="camera-dialog" aria-labelledby="camera-title" onCancel={(event) => { event.preventDefault(); void close(); }}>
     <header className="camera-heading">
       <div><span className="eyebrow">PAKTRAK CAMERA</span><h2 ref={heading} tabIndex={-1} id="camera-title">{photo ? "Check your photo" : "Make every card clear."}</h2></div>
-      <button type="button" className="menu-close" aria-label="Close camera" disabled={uploading} onClick={() => close()}><Icon name="close" /></button>
+      <button type="button" className="menu-close" aria-label="Close camera" disabled={uploading || taking} onClick={() => void close()}><Icon name="close" /></button>
     </header>
     <div className="camera-stage">
       <video ref={video} hidden={!!photo} autoPlay muted playsInline aria-label="Live camera preview" onResize={resize} onLoadedData={resize} onPlaying={() => {
@@ -267,7 +286,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
         {uploadError && attemptedUpload && !uploading && <p className="camera-feedback" role="alert">{uploadError} Your captured photo is kept here so you can retry.</p>}
         {photoSize.width * photoSize.height > 60_000_000 && <p className="camera-feedback" role="alert">This photo is larger than the 60-megapixel limit. Use Phone camera and select a smaller photo size.</p>}
         {uploading && <div className="camera-upload" role="status"><p>{progress === null ? "Waiting for server acceptance…" : `Uploading ${progress}%…`} Keep this page open.</p>{progress !== null && <progress value={progress} max={100} aria-label="Camera photo upload progress" />}</div>}
-        <div className="camera-review-actions"><button className="button secondary" disabled={uploading} onClick={() => { setPhoto(null); setError(""); setAttemptedUpload(false); }}>Retake</button><button className="button primary" disabled={uploading || !photoSize.width || photoSize.width * photoSize.height > 60_000_000} onClick={() => void upload()}>{uploading ? "Uploading…" : "Upload & scan"}<Icon name="arrow" /></button></div>
+        <div className="camera-review-actions"><button className="button secondary" disabled={uploading || taking} onClick={() => void retake()}>Retake</button><button className="button primary" disabled={uploading || taking || !photoSize.width || photoSize.width * photoSize.height > 60_000_000} onClick={() => void upload()}>{uploading ? "Uploading…" : "Upload & scan"}<Icon name="arrow" /></button></div>
       </> : <>
         {(cameras.length > 0 || deviceId) && <div className="camera-device">
           <label htmlFor="camera-device">Camera</label>
@@ -288,10 +307,10 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
         <div className="camera-shutter-row">
           <button className="camera-side-control" aria-pressed={guides} onClick={() => setGuides(!guides)}><Icon name="frame" />Guides</button>
           <button className="camera-shutter" aria-label="Capture photo" disabled={!ready || taking || adjusting} onClick={() => void take()}><span>{taking ? "…" : <Icon name="camera" />}</span></button>
-          <button className="camera-side-control" onClick={() => close(onChoosePhoto)}><Icon name="image" />Library</button>
+          <button className="camera-side-control" disabled={taking} onClick={() => void close(onChoosePhoto)}><Icon name="image" />Library</button>
         </div>
       </>}
-      <div className="camera-native"><button className="text-button" disabled={uploading} onClick={() => close(onNativeCamera)}><Icon name="camera" />Phone camera <Icon name="arrow" /></button><p>{photo?.source === "frame" ? "This is a live-view photo. Use Phone camera for more detail." : !photo && !hasStillCamera ? "For full-resolution photos and large batches." : "More camera options and full-resolution photos."}</p></div>
+      <div className="camera-native"><button className="text-button" disabled={uploading || taking} onClick={() => void close(onNativeCamera)}><Icon name="camera" />Phone camera <Icon name="arrow" /></button><p>{photo?.source === "frame" ? "This is a live-view photo. Use Phone camera for more detail." : !photo && !hasStillCamera ? "For full-resolution photos and large batches." : "More camera options and full-resolution photos."}</p></div>
     </div>
   </dialog>;
 }

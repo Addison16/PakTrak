@@ -71,10 +71,33 @@ class DeckTokenCheck(StrictModel):
     cards: list[CardChoice] = Field(max_length=300)
 
 
+class DeckCollectionCheck(StrictModel):
+    cards: list[CardChoice] = Field(max_length=300)
+    match_mode: Literal["any", "exact"] = "any"
+
+
 class DeckValueCheck(StrictModel):
     cards: list[CardChoice] = Field(max_length=300)
     provider: Provider = "tcgplayer"
     finish_preference: FinishPreference = "nonfoil"
+
+
+@router.post("/collection-preview")
+def check_collection(data: DeckCollectionCheck, identity: Identity, db: DB):
+    """Compare a draft against this account's holdings without saving a deck."""
+    validate_cards(db, data.cards)
+    printings = {
+        card.id: card
+        for card in db.scalars(
+            select(Printing).where(Printing.id.in_({choice.printing_id for choice in data.cards}))
+        )
+    }
+    return compare_cards(
+        db,
+        identity.owner_id,
+        [(choice, printings[choice.printing_id]) for choice in data.cards],
+        data.match_mode,
+    )
 
 
 @router.post("/value")

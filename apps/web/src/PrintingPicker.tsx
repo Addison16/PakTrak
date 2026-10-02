@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { request, type Printing } from "./api";
 import { splitCollectorSearch } from "./cardSearch";
+import "./scan-qol.css";
 
 type Options = { sets: { code: string; name: string }[]; rarities: string[]; languages: string[] };
 
@@ -35,8 +36,8 @@ export default function PrintingPicker({ onSelect, initialPrinting, initialQuery
     setFilters({ ...filters, [key]: value }); setOffset(0);
   }
   return <div className="printing-picker">
-    <label>Find an exact printing<input type="search" value={query} maxLength={255} onChange={(e) => { setQuery(e.target.value); setOffset(0); setFilters({ set_code: "", rarity: "", language: initialPrinting?.language || "", collector_number: "" }); }} placeholder="e.g. Plains #287" autoComplete="off" aria-describedby={hintId} /></label>
-    <p className="fine" id={hintId}>Add <strong># and the collector number</strong> from the bottom of any card. Use <strong>Set / expansion</strong> to narrow the edition. Card names and Scryfall IDs also work.</p>
+    <label>Find an exact printing<input type="search" value={query} maxLength={255} onChange={(e) => { setQuery(e.target.value); setOffset(0); }} placeholder="e.g. Plains #287" autoComplete="off" aria-describedby={hintId} /></label>
+    <p className="fine" id={hintId}>Search by the name printed on the card or its original name. Add <strong># and the collector number</strong> to narrow it down. Use <strong>Set / expansion</strong> to choose the edition. Scryfall IDs also work.</p>
     {(initialPrinting || query.trim().length >= 2) && <><div className="form-grid">
       <label>Set / expansion<select value={filters.set_code} onChange={(e) => filter("set_code", e.target.value)}><option value="">All sets</option>{options.sets.map((set) => <option key={set.code} value={set.code}>{set.name} ({set.code.toUpperCase()})</option>)}</select></label>
       <label>Rarity<select value={filters.rarity} onChange={(e) => filter("rarity", e.target.value)}><option value="">All rarities</option>{options.rarities.map((rarity) => <option key={rarity} value={rarity}>{rarity[0].toUpperCase() + rarity.slice(1)}</option>)}</select></label>
@@ -44,7 +45,7 @@ export default function PrintingPicker({ onSelect, initialPrinting, initialQuery
       <label>Printing language<select value={filters.language} onChange={(e) => filter("language", e.target.value)}><option value="">All languages</option>{[...new Set([...options.languages, ...(initialPrinting ? [initialPrinting.language] : [])])].sort().map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}</select></label>
     </div><button type="button" className="text-button" onClick={() => { if (search.collectorNumber) setQuery(search.text); setFilters({ set_code: "", rarity: "", language: "", collector_number: "" }); setOffset(0); }}>Clear printing filters</button></>}
     {message && <p className="fine" role="status">{message}</p>}
-    <ul className="plain-list printing-options" aria-label="Matching printings" aria-busy={loading}>{results.map((card) => <li key={card.id}><button type="button" className="printing-choice" disabled={loading} aria-pressed={selectedId ? selectedId === card.id : undefined} onClick={() => onSelect(card)}><strong>{card.name}</strong><span>{card.set_name} ({card.set_code.toUpperCase()}) · #{card.collector_number} · <span className="rarity-text">{card.rarity}</span> · {card.language.toUpperCase()} · {card.finishes.join(" / ")}</span></button></li>)}</ul>
+    <ul className="plain-list printing-options" aria-label="Matching printings" aria-busy={loading}>{results.map((card) => <li key={card.id}><button type="button" className="printing-choice printing-choice-art" disabled={loading} aria-pressed={selectedId ? selectedId === card.id : undefined} onClick={() => onSelect(card)}>{card.image_url ? <img src={card.image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <span className="printing-art-placeholder" aria-hidden="true" />}<div><strong>{card.display_name || card.name}</strong>{card.display_name && card.display_name !== card.name && <span>{card.name}</span>}<span>{card.set_name} ({card.set_code.toUpperCase()}) · #{card.collector_number} · <span className="rarity-text">{card.rarity}</span> · {card.language.toUpperCase()} · {card.finishes.join(" / ")}</span></div></button></li>)}</ul>
     <div className="pagination">{offset > 0 && <button type="button" className="text-button" disabled={loading} onClick={() => setOffset(Math.max(0, offset - 20))}>Previous printings</button>}{next !== null && results.length > 0 && <button type="button" className="text-button" disabled={loading} onClick={() => setOffset(next)}>More printings</button>}</div>
   </div>;
 }

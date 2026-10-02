@@ -134,15 +134,73 @@ Look for JSON entries with `event` equal to `request_error` and an `id` matching
 sh scripts/test.sh
 sh scripts/test-browser.sh
 sh scripts/test-recovery.sh
+sh scripts/test-backup.sh
 ```
 
 Run these sequentially. The backend suite uses a separate database and bucket. Browser tests require a running stack, its generated local credentials, a populated catalog, and Linux host-network access. They create and remove their own identity accounts; their synthetic application records can remain in this development instance. Screenshots contain only test account data and are git-ignored.
 
 The recovery test deliberately interrupts this project's services, loses its task queue, and recreates containers while a browser is closed. It checks for active non-test jobs first. Run it on a development instance, never concurrently with builds, other tests, or real uploads/transfers. It preserves volumes; it does not simulate disk loss or prove a backup restore.
 
+The backup test creates separate temporary Docker projects and volumes, restores a real PostgreSQL installation, checks synthetic application/identity records and photo/broker files, and removes its own projects afterward. It leaves private artifacts for diagnosis on failure and does not stop the real installation. Allow space for the captured PostgreSQL image and temporary database volumes.
+
 ## Upgrades and backups
 
-This is a development build. A verified, coordinated backup/restore command and fresh-deployment restore test have not been implemented yet. Do not treat a collection CSV or container recreation as a full backup. Before upgrades or real collection use, retain a coordinated copy of PostgreSQL (including identity state), SeaweedFS data/filer metadata, `.env`, and generated provider configuration using your operator backup system. Stop app/worker/dispatcher/identity writes while making a consistent cold copy, or use a proven coordinated database/object backup method. Protect backup secrets and test restoration in an isolated deployment.
+Run a coordinated backup before upgrading:
+
+```sh
+sh scripts/backup.sh
+```
+
+The command saves the exact installed container images, then stops this project's containers, copies all three named volumes, and resumes only containers that were previously running. The maintenance pause lasts while the volumes and matching installation are copied; archive checksums and full verification then run with the installation available again. The backup contains application and identity PostgreSQL databases, SeaweedFS photos and filer metadata, Valkey persistence, `.env`, generated provider configuration, source, lockfiles, themes and the installed images. Build caches, dependencies, Git history, previous backups and test artifacts are excluded. A collection CSV is a separate export, not an installation backup.
+
+Backups default to `backups/paktrak-YYYYMMDDTHHMMSSZ/`. Each new directory is private (`0700`), its archives and SHA-256 manifest are owner-readable (`0600`), and successful completion verifies checksums and complete archive contents. Backups contain credentials and private photos; use encrypted storage and an off-machine copy. SHA-256 detects damage but does not authenticate an untrusted backup. These scripts need Docker and Compose; their Python helper runs in the pinned setup container with networking disabled, without a host Python installation.
+
+Useful options:
+
+```sh
+# Keep services stopped for the following upgrade.
+sh scripts/backup.sh --leave-stopped /private/backups/paktrak-before-upgrade
+# Back up a separately named installation.
+sh scripts/backup.sh --project my-collection --directory /srv/paktrak /private/backups/my-collection
+# Check an existing backup without stopping any services.
+sh scripts/verify-backup.sh /private/backups/paktrak-before-upgrade
+```
+
+`--without-images` omits image archives to reduce storage; that backup requires the matching images already installed or a compatible rebuild before startup. The default includes images so restoration does not depend on a registry or mutable image tags. Existing backup destinations are refused. Concurrent backups of one directory are refused, and paused containers or active one-off commands must finish first. Do not run deployment commands or an external container restart watchdog during the maintenance pause. On failure, the command resumes prior containers unless `--leave-stopped` was requested and retains its private partial directory for diagnosis. A hard power loss or `SIGKILL` can leave a stale `.paktrak-backup.lock`; inspect the installation and partial backup before removing it.
+
+### Restore into a fresh installation
+
+Restoration requires a new project name and an empty destination. It refuses existing containers, volumes and installation files; it has no option to overwrite a collection.
+
+```sh
+sh scripts/restore.sh /private/backups/paktrak-before-upgrade \
+  --target-dir /srv/paktrak-restored --project paktrak-restored
+```
+
+Restore checks all archives before extracting, preserves original database/file ownership, rejects archive paths and links that escape their destination, creates separate project volumes and loads the captured image IDs without changing existing image tags. It restores `.env` and generated credentials together. It does **not** start services. `.restore-incomplete.json` remains until extraction, volume restoration and image loading all finish; a failed restore can leave the new partial directory and volumes, which should be inspected and removed before starting a fresh attempt.
+
+Before starting alongside an existing installation, choose a free `HTTP_PORT` and bind address in the restored `.env`, and arrange a separate hostname/proxy if testing sign-in. The [hostname change procedure](#https-and-access-from-a-phone) applies to the restored copy. Then use the captured images and separately named volumes:
+
+```sh
+cd /srv/paktrak-restored
+docker compose -p paktrak-restored -f compose.yaml -f restore-compose.yaml up -d --no-build
+docker compose -p paktrak-restored -f compose.yaml -f restore-compose.yaml exec -T web nginx -t
+docker compose -p paktrak-restored -f compose.yaml -f restore-compose.yaml exec -T web nginx -s reload
+```
+
+The restore override pins the captured images and renames all volumes. Keep using both Compose files and the same `-p` name for this restored installation. For a later upgrade, take another coordinated backup, remove the `services` image pins from `restore-compose.yaml` while retaining its `volumes` section, build the new images, and start using those same Compose options. The normal start script assumes the original project configuration; do not use it unchanged for this alternate restore project.
+
+A disposable restore drill exercises PostgreSQL application and identity databases, photo/filer files, broker files, numeric ownership, symlinks, exact image loading and safeguards against overwriting existing destinations. This verifies the backup mechanism; an operator should additionally exercise their own restored catalog, sign-in and photo processing on an isolated deployment. It does not qualify a particular disk, phone or external proxy.
+
+### Scheduled backups
+
+Schedule the same command during a quiet maintenance window, for example with the installation owner's crontab:
+
+```cron
+15 3 * * 0 cd /srv/paktrak && sh scripts/backup.sh >> /private/paktrak-backup.log 2>&1
+```
+
+Create the log with `0600` permissions first, ensure that the scheduler can access Docker, monitor command failures and available space, and copy completed backup directories to encrypted remote storage. The script keeps every backup; choose and document retention outside the app, deleting only older successfully verified copies after confirming the remote copy. Periodically repeat a restore into a fresh project rather than relying only on a checksum check.
 
 Migrations run through the bootstrap service before the new API/workers start. The collection migration adds non-scan jobs that older workers cannot process; rolling back only the application image is unsafe. That migration deliberately refuses a destructive downgrade. Roll back using a coordinated pre-upgrade backup with its matching application version.
 
