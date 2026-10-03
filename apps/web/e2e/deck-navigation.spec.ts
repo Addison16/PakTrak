@@ -46,10 +46,9 @@ for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 12
   });
 }
 
-test("deck box remains named and keyboard accessible when artwork fails", async ({ page }) => {
-  await fixture(page);
-  await page.route("**/api/v1/card-images/deck-card-1/0/art", (route) => route.fulfill({ status: 503, body: "Temporary fixture outage" }));
-  await page.reload(); await navigate(page, "Decks");
+test("deck box remains named and keyboard accessible when artwork fails at first paint", async ({ page }) => {
+  // Fail the first image load, without a successful copy in the browser cache.
+  await fixture(page, false, "Invalid artwork fixture");
   const box = page.getByRole("button", { name: /Friday night.*Commander: Fixture Card 2/ });
   await expect(box.locator("img")).toHaveCount(0);
   await expect(box.locator(".deck-box-mark")).toBeVisible();

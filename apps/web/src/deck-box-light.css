@@ -4,20 +4,8 @@
   z-index: 4;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(ellipse at var(--box-light-x, 50%) var(--box-light-y, 30%), #fff9de30, #fff9de0a 36%, transparent 68%);
+  background: radial-gradient(ellipse at var(--box-light-x, 50%) var(--box-light-y, 30%), #f0f6ee20, #f0f6ee08 36%, transparent 68%);
   opacity: 0;
-  transition: opacity 320ms ease;
-}
-.deck-box-clasp::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(105deg, transparent, #fff9de70 48%, transparent 72%);
-  background-size: 180% 100%;
-  background-position: var(--box-light-x, 50%) 0;
-  opacity: 0;
-  pointer-events: none;
   transition: opacity 320ms ease;
 }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
@@ -25,10 +13,9 @@
     transform: rotate(calc(-.7deg + var(--box-turn-y, 0deg) * .16)) skewX(calc(var(--box-turn-x, 0deg) * .12)) translateY(-4px);
     transition-duration: 140ms;
   }
-  .deck-box-button[data-box-light="active"] .deck-box-light,
-  .deck-box-button[data-box-light="active"] .deck-box-clasp::after { opacity: 1; }
+  .deck-box-button[data-box-light="active"] .deck-box-light { opacity: 1; }
   .deck-box-button[data-box-light="active"] .deck-box-front {
-    box-shadow: inset 2px 1px #fff9de30, inset -3px -3px #00000050, inset 0 -7px #00000024;
+    box-shadow: inset 1px 1px #fff9de24, inset -2px -2px #00000040, inset 0 -4px #00000020;
   }
   .deck-box-button[data-box-light="active"]:not(:disabled):active .deck-box-case {
     transform: rotate(calc(-.5deg + var(--box-turn-y, 0deg) * .16)) skewX(calc(var(--box-turn-x, 0deg) * .12)) translateY(2px) scale(.985);

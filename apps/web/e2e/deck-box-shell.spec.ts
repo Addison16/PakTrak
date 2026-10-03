@@ -31,6 +31,29 @@ async function pixels(page: Page, points: { x: number; y: number }[]) {
 }
 
 for (const width of [390, 1280]) {
+  test(`slim fitted lids leave the commander prominent on the front at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await fixture(page, true);
+    await page.mouse.move(1, 1);
+    for (const id of ["saved-deck", "red-deck"]) {
+      const box = page.locator(`.deck-box-button[data-deck-id="${id}"]`);
+      await expect(box).toBeVisible();
+      const front = await box.locator(".deck-box-front").boundingBox();
+      const cap = await box.locator(".deck-box-cap-front").boundingBox();
+      const cover = await box.locator(".deck-box-cover").boundingBox();
+      if (!front || !cap || !cover) throw new Error("Case surfaces did not render");
+      expect(cap.height, "the closed lid must not dominate the front face").toBeLessThan(front.height * .08);
+      expect(front.height / front.width, "compact case proportions").toBeLessThan(1.5);
+      expect(cover.height, "the commander display stays prominent").toBeGreaterThan(front.height * .6);
+      expect(cover.width).toBeGreaterThan(front.width * .8);
+    }
+    const commander = page.locator('.deck-box-button[data-deck-id="saved-deck"]');
+    await expect(commander).toHaveAccessibleName(/Commander: Fixture Card 2/);
+    await expect(commander.locator('.deck-box-front .deck-box-image[title="Fixture Card 2"] img')).toHaveAttribute("src", "/api/v1/card-images/deck-card-1/0/art");
+    const partners = page.locator('.deck-box-button[data-deck-id="partners"]');
+    await expect(partners.locator(".deck-box-front .deck-box-image")).toHaveCount(2);
+  });
+
   test(`cards emerge above the rim and cannot paint through the front wall at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     const { opening, release } = await openHeld(page);
@@ -72,7 +95,6 @@ for (const width of [390, 1280]) {
     const { opening, release } = await openHeld(page);
     try {
       await opening.locator(".deck-opening-card").evaluateAll(elements => elements.forEach(element => { (element as HTMLElement).style.visibility = "hidden"; }));
-      await opening.locator(".deck-box-stamp, .deck-box-clasp").evaluateAll(elements => elements.forEach(element => { (element as HTMLElement).style.visibility = "hidden"; }));
       const lid = opening.locator(".deck-box-lid");
       for (const phase of [0, .25, .55, 1]) {
         const expected = await lid.evaluate((svg, phase) => {
@@ -99,7 +121,8 @@ for (const width of [390, 1280]) {
           });
         });
         expect(samples.length).toBeGreaterThan(0);
-        samples.push(...await opening.locator(".deck-box-body").first().evaluate(svg => [40, 85, 140].map(y => {
+        samples.push(...await opening.locator(".deck-box-body").first().evaluate(svg => [.28, .6, .87].map(ratio => {
+          const y = (svg as SVGSVGElement).viewBox.baseVal.height * ratio;
           const point = new DOMPoint(100, y).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
           return { x: point.x / point.w, y: point.y / point.w };
         })));
@@ -113,7 +136,6 @@ for (const width of [390, 1280]) {
       expect(lining).not.toBeNull();
       expect(lining!.height).toBeGreaterThan(front!.height * .3);
       expect(lining!.y).toBeLessThan(front!.y - front!.height * .25);
-      await expect(opening.locator(".deck-box-seam")).toBeHidden();
     } finally { release(); }
   });
 }

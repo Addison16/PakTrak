@@ -1,5 +1,13 @@
 # Changelog
 
+## Compact deck case redesign — October 3, 2026
+
+- Rebuild deck boxes with compact proportions, beveled corners, solid walls, and a slim fitted lid that opens around a rear hinge.
+- Enlarge the commander artwork window while preserving both partner commanders, featured cards, saved finishes, emblems, and mana colors.
+- Replace the oversized lid branding, clasp, and stitched trim with a matte surface, narrow seam, recessed artwork frame, and discreet branding.
+- Keep card flights behind the enclosure and seal grazing lid edges in WebKit. Preserve the missing-art placeholder when an image fails before the first effects run.
+- Add browser regressions for thin lids, prominent commander displays, compact proportions, and initial artwork failures; retain rendered-pixel seam and enclosure checks.
+
 ## Realistic deck case construction — October 3, 2026
 
 - Replace the sliding flat lid with a cap that rotates around a fixed rear hinge, including all four exterior walls, recessed lining, and thick edge rims.

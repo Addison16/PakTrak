@@ -30,7 +30,6 @@ function ManaMark({ color }: { color: string }) {
 function CoverArt({ card, commander, emblem }: { card: DeckCover; commander: boolean; emblem: CaseEmblem }) {
   const src = card.art_url || card.image_url;
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
   return <span className="deck-box-image" title={card.name}>
     <span className="deck-box-mark"><DeckEmblem emblem={emblem} commander={commander} /></span>
     {src && !failed && <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />}
@@ -53,14 +52,13 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation, openin
     <span className="deck-box-side"><span className="deck-box-side-panel"><DeckEmblem emblem={presentation.emblem} commander={commander} /><span>PakTrak</span></span></span>
     <span className="deck-box-front">
       <span className="deck-box-cover" data-count={covers.length}>{covers.length
-        ? covers.map((card) => <CoverArt key={card.id} card={card} commander={commander} emblem={presentation.emblem} />)
+        ? covers.map((card) => <CoverArt key={`${card.id}:${card.art_url || card.image_url || ""}`} card={card} commander={commander} emblem={presentation.emblem} />)
         : <span className="deck-box-mark"><DeckEmblem emblem={presentation.emblem} commander={commander} /></span>}</span>
-      <span className="deck-box-inlay" />
       <span className="deck-box-light" />
       <span className="deck-box-colors">{(colors.length ? colors : ["C"]).map((color) => <span key={color} className="deck-mana-pip" style={{ "--mana-tint": mana[color].pip } as CSSProperties}><ManaMark color={color} /></span>)}</span>
-      <span className="deck-box-foot"><span>{commander ? "COMMANDER" : deck.format}</span><span>{deck.copies || 0}</span></span>
+      <span className="deck-box-foot"><span className="deck-box-brand"><DeckEmblem emblem={presentation.emblem} commander={commander} /><span>PakTrak</span></span><span>{deck.copies || 0}</span></span>
     </span>
-    {!foreground && <DeckBoxLid commander={commander} emblem={presentation.emblem} opening={opening} />}
+    {!foreground && <DeckBoxLid commander={commander} opening={opening} />}
     </span>
   </span>;
 }
