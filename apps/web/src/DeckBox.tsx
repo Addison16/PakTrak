@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { DeckCover, DeckSummary } from "./deckTypes";
 import { caseAppearance, DeckEmblem, defaultPresentation, presentationCovers, useDeckPresentation, type CaseEmblem, type DeckPresentation } from "./deckPresentation";
-import { DeckBoxLid, DeckBoxShell } from "./DeckBoxShell";
+import { DeckBoxLid, DeckBoxShell, deckBoxFrontClip } from "./DeckBoxShell";
 import "./deck-box.css";
 import "./deck-box-light.css";
 
@@ -45,7 +45,7 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation, openin
   const covers = presentationCovers(deck, presentation);
   const colors = ["W", "U", "B", "R", "G"].filter((color) => deck.colors?.includes(color));
   const { paint, accent } = caseAppearance(deck, presentation);
-  return <span className="deck-box" data-format={deck.format} style={{ "--deck-paint": paint, "--deck-accent": accent } as CSSProperties} aria-hidden="true">
+  return <span className="deck-box" data-format={deck.format} style={{ "--deck-paint": paint, "--deck-accent": accent, "--deck-front-clip": deckBoxFrontClip } as CSSProperties} aria-hidden="true">
     <span className="deck-box-ground" />
     <span className="deck-box-case">
     <DeckBoxShell commander={commander} foreground={foreground} />

@@ -30,7 +30,7 @@ for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 12
     const partners = page.getByRole("button", { name: /Partners in adventure/ });
     await expect(partners.locator("img")).toHaveCount(2);
     await expect(partners.locator(".deck-mana-pip")).toHaveCount(5);
-    expect(await partners.locator(".deck-box-front").evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("linear-gradient");
+    expect(await partners.locator(".deck-box-shell-front").evaluate((el) => getComputedStyle(el).fill)).toContain("url(");
     const modern = page.getByRole("button", { name: /Red hot spells.*Featured card: Fixture Card 1/ });
     await expect(modern).toHaveAttribute("data-deck-colors", "R");
     await expect(modern.locator("img")).toHaveCount(1);

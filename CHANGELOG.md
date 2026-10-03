@@ -1,5 +1,12 @@
 # Changelog
 
+## Deck case edge refinement — October 3, 2026
+
+- Keep the compact proportions and prominent commander artwork while refining the lid, base, and corners.
+- Give the front and side walls one continuous beveled base, replace the dark bottom strip with softer material shading, and tighten the contact shadow.
+- Soften the lid's upper and lower edges and finger notch while preserving its slim profile and fixed rear hinge.
+- Align grain and pointer lighting with the physical front silhouette, keep cap joins opaque, and give artwork a dark backing to prevent pale edge flecks in WebKit.
+
 ## Compact deck case redesign — October 3, 2026
 
 - Rebuild deck boxes with compact proportions, beveled corners, solid walls, and a slim fitted lid that opens around a rear hinge.

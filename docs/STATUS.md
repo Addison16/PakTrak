@@ -2,6 +2,16 @@
 
 October 3, 2026 — current source build, not a release qualification report.
 
+## October 3 deck case edge refinement
+
+The approved compact shape and commander window remain the basis of the design. The front, sides, and base now share a continuous projected profile, replacing the mismatched HTML corners and dark bottom strip. The lid retains its seven-unit thickness and fixed rear hinge, with subtle upper and lower bevels and a softer curved finger notch. Front and side shading now use one consistent matte material, and a tighter two-part contact shadow grounds the case.
+
+Grain and pointer lighting are clipped to the same physical front profile without placing artwork inside a separate clipping layer. Artwork has an opaque dark backing so pale case finishes cannot show through its edges in WebKit. Shared cap-face strokes seal grazing joins throughout the opening, and the foreground walls still conceal emerging cards.
+
+The production TypeScript/Vite build and **72 selected Chromium/WebKit regression cases** passed across the initial run and focused reruns, covering phone/desktop proportions, commander and partner displays, rendered-pixel enclosure and seams, pointer lighting, reduced motion, saved customization, light/dark layouts, deck endings, precise landing, navigation, cancellation, empty decks, and resizing. All **54 focused final checks** passed, including **ten visual review cases** covering light/dark phone and desktop shelves, hover and paused opening frames, and six pale, metallic, and dark finishes in both engines. The navigation surface assertion now checks the actual SVG front paint.
+
+The Docker frontend build passed and was deployed as `index-DmbTbLKj.js`. All **30 deployed Chromium/WebKit checks** passed for slim lids, commander/partner displays, opaque cap seams and body joins, card enclosure and emergence, pointer lighting, reduced-motion/touch behavior, light/dark phone layouts, initial artwork failure, pale/metallic/dark finishes, delayed final-flight cleanup, and precise gallery landing. Public readiness, nginx configuration, and the served bundle check passed. The temporary preview container was removed; inspected visual evidence is in ignored `artifacts/deck-refine/final/`.
+
 ## October 3 compact deck case redesign
 
 The cases have been rebuilt with wider, shorter front faces, beveled corners, solid walls, restrained matte shading, and a slim fitted lid. The cap's front edge is seven normalized units high instead of 32, and it opens around a fixed rear hinge. The commander window occupies about two thirds of the front height. Partner commanders, featured cards, saved finishes, emblems, mana colors, and accessible deck labels remain available. Oversized lid branding, the clasp, and stitched borders have been replaced with a narrow seam and discreet branding on the body.
