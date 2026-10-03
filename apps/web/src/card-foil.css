@@ -1,5 +1,5 @@
 .card-finish-art { position: relative; min-width: 0; isolation: isolate; }
-.card-finish-art[data-owned-finish] { border-radius: 9px; }
+.card-finish-art[data-owned-finish] { border-radius: var(--card-corner-radius); }
 .card-finish-art[data-owned-finish]::before,
 .card-finish-art[data-owned-finish]::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; z-index: 1; }
 .card-finish-art[data-owned-finish]::before { background: linear-gradient(135deg, #94d6ff33, #e5b8ea22 28%, transparent 45%, #f1d39d44 75%, #b7e8d733); mix-blend-mode: screen; transition: opacity 180ms ease; }

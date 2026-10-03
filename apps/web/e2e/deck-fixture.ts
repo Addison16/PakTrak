@@ -3,7 +3,7 @@ import { navigate } from "./navigation";
 
 export const printings = Array.from({ length: 7 }, (_, index) => ({ id: `deck-card-${index}`, name: `Fixture Card ${index + 1}`, set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil", "foil"], image_url: `/api/v1/card-images/deck-card-${index}/0/grid` }));
 
-export async function fixture(page: Page, boxes = false) {
+export async function fixture(page: Page, boxes = false, artwork?: string) {
   const saved: any = { id: "saved-deck", name: "Friday night", notes: "Bring blue sleeves", format: "commander", match_mode: "exact", version: 1,
     cards: [{ printing_id: printings[0].id, quantity: 4, section: "main" }, { printing_id: printings[1].id, quantity: 1, section: "commander" }, { printing_id: printings[2].id, quantity: 1, section: "sideboard" }] };
   const empty: any = { ...saved, id: "empty-deck", name: "Next idea", cards: [], notes: "" };
@@ -36,7 +36,7 @@ export async function fixture(page: Page, boxes = false) {
     const body = req.postData() ? JSON.parse(req.postData()!) : null;
     const key = req.headers()["idempotency-key"];
     calls.push({ method, path, body, key });
-    if (path.startsWith("/api/v1/card-images/")) return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="12" fill="#244d46"/><rect x="10" y="10" width="220" height="316" rx="8" fill="#f2e7d3"/><rect x="20" y="60" width="200" height="170" fill="#7a9b93"/><text x="20" y="42" font-size="18">Fixture card</text></svg>' });
+    if (path.startsWith("/api/v1/card-images/")) return route.fulfill({ contentType: "image/svg+xml", body: artwork || '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="12" fill="#244d46"/><rect x="10" y="10" width="220" height="316" rx="8" fill="#f2e7d3"/><rect x="20" y="60" width="200" height="170" fill="#7a9b93"/><text x="20" y="42" font-size="18">Fixture card</text></svg>' });
     let json: any = {}, status = 200;
     if (path === "/api/auth/session") json = { owner_id: "deck-fixture", display_name: "Deck collector", csrf_token: "deck-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

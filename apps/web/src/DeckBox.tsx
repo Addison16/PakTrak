@@ -45,7 +45,7 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation }: { de
   const covers = presentationCovers(deck, presentation);
   const colors = ["W", "U", "B", "R", "G"].filter((color) => deck.colors?.includes(color));
   const { paint, accent } = caseAppearance(deck, presentation);
-  return <span className="deck-box" style={{ "--deck-paint": paint, "--deck-accent": accent } as CSSProperties} aria-hidden="true">
+  return <span className="deck-box" data-format={deck.format} style={{ "--deck-paint": paint, "--deck-accent": accent } as CSSProperties} aria-hidden="true">
     <span className="deck-box-ground" />
     <span className="deck-box-case">
     <span className="deck-box-side" />

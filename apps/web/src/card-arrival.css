@@ -2,17 +2,23 @@
 .card-finish-art:has(> .card-art[data-card-flight-hidden]) { visibility: hidden; }
 .card-arrival-stage { position: fixed; inset: 0; z-index: 8; pointer-events: none; perspective: 1400px; overflow: visible; visibility: hidden; }
 .card-arrival-stage[data-card-arrival-ready] { visibility: visible; }
-.card-arrival-card { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; }
+.card-arrival-card { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .card-arrival-solid { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; will-change: transform; }
-.card-arrival-front, .card-arrival-back { position: absolute; inset: 0; border-radius: 9px; backface-visibility: hidden; overflow: hidden; box-shadow: 0 16px 36px #101a2733, 0 3px 7px #101a271f; }
+.card-arrival-front, .card-arrival-back { position: absolute; inset: 0; border-radius: var(--card-corner-radius); backface-visibility: hidden; overflow: hidden; box-shadow: 0 16px 36px #101a2733, 0 3px 7px #101a271f; }
 .card-arrival-front { transform: translateZ(1.2px); background: #252a2b; }
 .card-arrival-front img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .card-arrival-back { transform: rotateY(180deg) translateZ(1.2px); background: #15120e url("/cards/mtg-card-back.png") center / cover no-repeat; }
-.card-arrival-edge { position: absolute; display: block; backface-visibility: visible; background: linear-gradient(90deg, #ede8da, #d0c9bb 35%, #8e958b 50%, #d7d2c6 72%, #efeadd); }
-.card-arrival-edge-left, .card-arrival-edge-right { top: 0; width: 2.4px; height: 100%; transform: rotateY(90deg); }
+.card-arrival-edge { position: absolute; display: block; backface-visibility: visible; background: linear-gradient(90deg, #161413, #272422 35%, #0b0a09 50%, #24211f 72%, #181614); }
+.card-arrival-edge-left, .card-arrival-edge-right { top: 3.41%; width: 2.4px; height: 93.18%; transform: rotateY(90deg); }
 .card-arrival-edge-left { left: -1.2px; }
 .card-arrival-edge-right { right: -1.2px; }
-.card-arrival-edge-top, .card-arrival-edge-bottom { left: 0; width: 100%; height: 2.4px; transform: rotateX(90deg); background: linear-gradient(#ede8da, #a8ae9f, #ded8ca); }
+.card-arrival-edge-top, .card-arrival-edge-bottom { left: 4.75%; width: 90.5%; height: 2.4px; transform: rotateX(90deg); background: linear-gradient(#201d1b, #0d0c0b, #24211f); }
 .card-arrival-edge-top { top: -1.2px; }
 .card-arrival-edge-bottom { bottom: -1.2px; }
+/* The settled handoff needs only the front. Keep fading out of the 3D scene so
+   WebKit cannot flatten its rotated back over the artwork. */
+.card-arrival-stage[data-card-arrival-landed] .card-arrival-solid { transform-style: flat; }
+.card-arrival-stage[data-card-arrival-landed] .card-arrival-front { transform: none; backface-visibility: visible; }
+.card-arrival-stage[data-card-arrival-landed] .card-arrival-back,
+.card-arrival-stage[data-card-arrival-landed] .card-arrival-edge { display: none; }
 @media (prefers-reduced-motion: reduce) { .card-arrival-stage { display: none; } }

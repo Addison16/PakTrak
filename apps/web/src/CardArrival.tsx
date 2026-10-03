@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { sampleCardMotion } from "./cardMotion";
 import "./card-arrival.css";
 
 let cardBackPreloaded = false;
@@ -50,6 +51,7 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     if (!origin || origin.cardKey !== cardKey || reduced.matches) { setVisible(false); return; }
     if (!visible || !stage.current || !card.current || !solid.current) return;
+    const scene = stage.current;
     const flight = card.current;
     const shape = solid.current;
     let disposed = false;
@@ -57,15 +59,19 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
     let attempts = 0;
     let observer: ResizeObserver | null = null;
     let openedDialog: HTMLDialogElement | null = null;
-    const timers: number[] = [];
     const animations: Animation[] = [];
     const hidden = new Set<HTMLElement>();
     const reveal = (element: HTMLElement) => { if (element.dataset.cardFlightHidden === marker) delete element.dataset.cardFlightHidden; };
     const restore = () => {
-      cancelAnimationFrame(frame);
-      timers.forEach(clearTimeout);
-      animations.forEach(animation => animation.cancel());
+      // Make the viewer persistently visible before cancelling any animation.
+      // A compositor visibility animation must never be the only thing showing it.
       hidden.forEach(reveal);
+      // React can remove the overlay on a later frame. Hide it before cancel
+      // resets its transform and opacity, including during interrupted flights.
+      delete scene.dataset.cardArrivalReady;
+      delete scene.dataset.cardArrivalLanded;
+      cancelAnimationFrame(frame);
+      animations.forEach(animation => animation.cancel());
       observer?.disconnect();
       openedDialog?.removeEventListener("scroll", finish);
       openedDialog?.removeEventListener("close", finish);
@@ -99,44 +105,123 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
       const scaleY = origin.height / destination.height;
       const direction = sourceX < destination.left + destination.width / 2 ? 1 : -1;
       const pose = (x: number, y: number, sx: number, sy: number) => `translate3d(${x - destination.width * sx / 2}px, ${y - destination.height * sy / 2}px, 0) scale(${sx}, ${sy})`;
-      const path = (rect: DOMRect): Keyframe[] => {
-        const targetX = rect.left + rect.width / 2;
-        const targetY = rect.top + rect.height / 2;
-        const endScaleX = rect.width / destination.width;
-        const endScaleY = rect.height / destination.height;
-        const end = pose(targetX, targetY, endScaleX, endScaleY);
-        return [
-          { offset: 0, transform: pose(sourceX, sourceY, scaleX, scaleY), opacity: 1, easing: "cubic-bezier(.25,.6,.35,1)" },
-          { offset: .48, transform: pose(sourceX + (targetX - sourceX) * .5 + direction * 22, sourceY + (targetY - sourceY) * .5 - Math.min(72, rect.height * .16), scaleX + (endScaleX - scaleX) * .65, scaleY + (endScaleY - scaleY) * .65), opacity: 1, easing: "cubic-bezier(.2,.75,.2,1)" },
-          { offset: .9, transform: end, opacity: 1, easing: "linear" },
-          { offset: 1, transform: end, opacity: 0 },
-        ];
-      };
-      const duration = 820;
+      const targetX = destination.left + destination.width / 2;
+      const targetY = destination.top + destination.height / 2;
+      const channels = ["x", "y", "sx", "sy"] as const;
+      let duration = 820;
+      const handoffDuration = duration * .1;
+      let arrivalTime = duration - handoffDuration;
+      let path = sampleCardMotion([
+        { offset: 0, x: sourceX, y: sourceY, sx: scaleX, sy: scaleY },
+        { offset: duration * .48, x: sourceX + (targetX - sourceX) * .5 + direction * Math.min(22, Math.abs(targetX - sourceX) * .08 + 8), y: sourceY + (targetY - sourceY) * .5 - Math.min(56, destination.height * .12), sx: scaleX + (1 - scaleX) * .65, sy: scaleY + (1 - scaleY) * .65 },
+        { offset: arrivalTime, x: targetX, y: targetY, sx: 1, sy: 1 },
+      ], channels);
+      path.push({ ...path[path.length - 1], offset: duration });
+      const placementFrames = () => path.map(point => ({ offset: point.offset / duration, transform: pose(point.x, point.y, point.sx, point.sy) }));
       openedDialog = dialog;
       for (const element of [origin.source, target]) {
         element.dataset.cardFlightHidden = marker;
         hidden.add(element);
       }
-      stage.current!.dataset.cardArrivalReady = "true";
-      const placement = flight.animate(path(destination), { duration, fill: "both", easing: "linear" });
+      const placement = flight.animate(placementFrames(), { duration, fill: "both", easing: "linear" });
       animations.push(placement);
-      animations.push(shape.animate([
-        { offset: 0, transform: "rotateX(0deg) rotateY(0deg) rotateZ(0deg)", easing: "cubic-bezier(.3,.5,.3,1)" },
-        { offset: .26, transform: `rotateX(-12deg) rotateY(${direction * 90}deg) rotateZ(${direction * -12}deg)`, easing: "linear" },
-        { offset: .48, transform: `rotateX(10deg) rotateY(${direction * 180}deg) rotateZ(${direction * 16}deg)`, easing: "linear" },
-        { offset: .7, transform: `rotateX(8deg) rotateY(${direction * 270}deg) rotateZ(${direction * 8}deg)`, easing: "cubic-bezier(.2,.7,.2,1)" },
-        { offset: .9, transform: `rotateX(0deg) rotateY(${direction * 360}deg) rotateZ(0deg)` },
-        { offset: 1, transform: `rotateX(0deg) rotateY(${direction * 360}deg) rotateZ(0deg)` },
-      ], { duration, fill: "both", easing: "linear" }));
-      timers.push(window.setTimeout(() => reveal(target), duration * .9));
-      timers.push(window.setTimeout(finish, duration + 35));
+      const spin = sampleCardMotion([
+        { offset: 0, x: 0, y: 0, z: 0 },
+        { offset: .26, x: -7, y: direction * 90, z: direction * -6 },
+        { offset: .48, x: 6, y: direction * 180, z: direction * 8 },
+        { offset: .7, x: 4, y: direction * 270, z: direction * 4 },
+        { offset: .9, x: 0, y: direction * 360, z: 0 },
+      ], ["x", "y", "z"]);
+      spin.push({ ...spin[spin.length - 1], offset: 1 });
+      animations.push(shape.animate(spin.map(point => ({ offset: point.offset, transform: `rotateX(${point.x}deg) rotateY(${point.y}deg) rotateZ(${point.z}deg)` })), { duration, fill: "both", easing: "linear" }));
+      scene.dataset.cardArrivalReady = "true";
+      const handoff = () => {
+        if (disposed) return;
+        // Once the spin ends, use one flat front surface. Fading a 3D back
+        // surface can make WebKit paint it through the front as a mirrored card.
+        scene.dataset.cardArrivalLanded = "true";
+        const image = target.querySelector<HTMLImageElement>("img");
+        const url = image?.src;
+        const ready = () => {
+          const current = target.querySelector<HTMLImageElement>("img");
+          return !current || (current === image && current.src === url && current.complete && current.naturalWidth > 0);
+        };
+        // Hidden images can finish downloading before the browser decodes them.
+        // Hold the landed card until the viewer image can actually be painted.
+        void (image ? image.decode().catch(() => {}) : Promise.resolve()).then(() => {
+          if (disposed) return;
+          frame = requestAnimationFrame(() => {
+            if (disposed) return;
+            if (!ready()) { handoff(); return; }
+            reveal(target);
+            // Give the visible viewer a paint beneath the still-opaque flight.
+            // Then blend its image and shadow, without toggling visibility again.
+            frame = requestAnimationFrame(() => {
+              if (disposed) return;
+              if (!ready()) { target.dataset.cardFlightHidden = marker; handoff(); return; }
+              const shadow = getComputedStyle(target).boxShadow;
+              const front = shape.querySelector<HTMLElement>(".card-arrival-front")!;
+              const fade = front.animate([
+                { opacity: 1, boxShadow: getComputedStyle(front).boxShadow },
+                { opacity: 0, boxShadow: shadow },
+              ], { duration: handoffDuration, fill: "both", easing: "ease-out" });
+              animations.push(fade);
+              void fade.finished.then(finish).catch(() => {});
+            });
+          });
+        });
+      };
+      void placement.finished.then(handoff).catch(() => {});
       // Loading oracle text and holdings can recenter a native dialog. Keep
       // the source pose and spin, and update the endpoint to the live artwork.
+      let endpoint = destination;
       observer = new ResizeObserver(() => {
+        if (disposed) return;
         const rect = target.getBoundingClientRect();
-        if (rect.width < 1 || rect.height < 1) finish();
-        else (placement.effect as KeyframeEffect).setKeyframes(path(rect));
+        if (rect.width < 1 || rect.height < 1) { finish(); return; }
+        const delta = { x: rect.left + rect.width / 2 - endpoint.left - endpoint.width / 2, y: rect.top + rect.height / 2 - endpoint.top - endpoint.height / 2, sx: (rect.width - endpoint.width) / destination.width, sy: (rect.height - endpoint.height) / destination.height };
+        if (channels.every(channel => Math.abs(delta[channel]) < .001)) return;
+        const elapsed = Math.max(0, Number(placement.currentTime));
+        if (elapsed >= arrivalTime) { finish(); return; }
+        // Preserve the pose already on screen. Ease the remaining path toward
+        // the new endpoint instead of jumping when late card details load.
+        const end = Math.max(1, path.findIndex(point => point.offset >= elapsed));
+        const from = path[end - 1], to = path[end];
+        const current = { offset: elapsed, x: 0, y: 0, sx: 0, sy: 0 };
+        const fraction = (elapsed - from.offset) / (to.offset - from.offset);
+        for (const channel of channels) current[channel] = from[channel] + (to[channel] - from[channel]) * fraction;
+        if (arrivalTime - elapsed < 180) {
+          // A late response must not squeeze a large correction into the last
+          // few milliseconds. Preserve position and velocity and allow a short
+          // settling tail before revealing the destination artwork.
+          const remaining = 180;
+          arrivalTime = elapsed + remaining;
+          duration = arrivalTime + handoffDuration;
+          const landing = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, sx: rect.width / destination.width, sy: rect.height / destination.height };
+          const tail = Array.from({ length: 31 }, (_, frame) => {
+            const t = frame / 30;
+            const point = { ...current, offset: elapsed + remaining * t };
+            for (const channel of channels) {
+              const velocity = (to[channel] - from[channel]) / (to.offset - from.offset);
+              point[channel] = (2 * t ** 3 - 3 * t ** 2 + 1) * current[channel]
+                + (t ** 3 - 2 * t ** 2 + t) * velocity * remaining
+                + (-2 * t ** 3 + 3 * t ** 2) * landing[channel];
+            }
+            return point;
+          });
+          path = [...path.filter(point => point.offset < elapsed), ...tail, { ...tail[tail.length - 1], offset: duration }];
+          (placement.effect as KeyframeEffect).updateTiming({ duration });
+        } else {
+          path = [...path.filter(point => point.offset < elapsed), current, ...path.filter(point => point.offset > elapsed)].map(point => {
+            const t = Math.max(0, Math.min(1, (point.offset - elapsed) / (arrivalTime - elapsed)));
+            const blend = t ** 3 * (10 - 15 * t + 6 * t ** 2);
+            const adjusted = { ...point };
+            for (const channel of channels) adjusted[channel] += delta[channel] * blend;
+            return adjusted;
+          });
+        }
+        endpoint = rect;
+        (placement.effect as KeyframeEffect).setKeyframes(placementFrames());
       });
       observer.observe(target);
       observer.observe(dialog);

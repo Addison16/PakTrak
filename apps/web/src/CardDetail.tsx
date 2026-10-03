@@ -7,10 +7,22 @@ type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text
 type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
 export const finishes: Record<string, string> = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil", unknown: "Unknown finish" };
 
-export function CardArt({ url, name, eager = false }: { url?: string | null; name: string; eager?: boolean }) {
+export function CardArt({ url, fallbackUrl, name, eager = false }: { url?: string | null; fallbackUrl?: string | null; name: string; eager?: boolean }) {
+  const [decodedUrl, setDecodedUrl] = useState(fallbackUrl || url);
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [url]);
-  return <div className="card-art">{url && !failed ? <img src={url} alt={name} loading={eager ? "eager" : "lazy"} decoding="async" width={488} height={680} onError={() => setFailed(true)} /> : <div className="art-placeholder"><span aria-hidden="true">✧</span><strong>{name}</strong><small>Artwork unavailable</small></div>}</div>;
+  const source = fallbackUrl && decodedUrl !== url ? fallbackUrl : url;
+  useEffect(() => {
+    if (!fallbackUrl || !url || url === fallbackUrl) return;
+    let stopped = false;
+    const image = new Image();
+    image.src = url;
+    // Retain the painted thumbnail while its larger version loads and decodes.
+    // A failed detail request can still use the valid cached artwork.
+    void image.decode().then(() => { if (!stopped) setDecodedUrl(url); }).catch(() => {});
+    return () => { stopped = true; };
+  }, [url, fallbackUrl]);
+  useEffect(() => setFailed(false), [source]);
+  return <div className="card-art">{source && !failed ? <img src={source} alt={name} loading={eager ? "eager" : "lazy"} decoding="async" width={488} height={680} onError={() => setFailed(true)} /> : <div className="art-placeholder"><span aria-hidden="true">✧</span><strong>{name}</strong><small>Artwork unavailable</small></div>}</div>;
 }
 
 export default function CardDetail({ card, origin, binder, locations, session, onSaved, onCorrected, onClose }: { card: Card; origin?: CardFlightOrigin | null; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected: () => Promise<void>; onClose: () => void }) {
@@ -49,7 +61,7 @@ export default function CardDetail({ card, origin, binder, locations, session, o
   const face = detail?.faces[faceIndex];
   return <dialog ref={dialog} className="card-dialog" aria-labelledby="card-detail-title" onClose={onClose} onClick={(event) => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close(); } }}>
     <div className="dialog-heading"><span className="eyebrow">In your collection</span><button autoFocus className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
-    <div className="card-detail-layout"><div ref={art} className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} name={face?.name || card.printing.name} eager />
+    <div className="card-detail-layout"><div ref={art} className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} fallbackUrl={faceIndex === 0 ? card.printing.image_url : undefined} name={face?.name || card.printing.name} eager />
       {detail && detail.faces.length > 1 && <button className="button secondary" onClick={() => setFaceIndex((faceIndex + 1) % detail.faces.length)}>View {faceIndex === 0 ? "other" : "front"} face</button>}
       {face?.artist && <p className="fine artist-credit">Illustrated by {face.artist}</p>}
     </div><div className="detail-copy"><h2 id="card-detail-title">{face?.name || card.printing.name}</h2><p className="detail-type">{face?.type_line || card.printing.type_line}</p>

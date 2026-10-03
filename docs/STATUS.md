@@ -2,6 +2,26 @@
 
 October 2, 2026 — current source build, not a release qualification report.
 
+## October 2 card viewer handoff correction
+
+Viewer cleanup now restores persistent artwork visibility before cancelling animations. The flight stays opaque until the viewer image is decoded, gives it a paint beneath the overlay, and blends its image and shadow into the final card. After the spin ends, the landed overlay uses a single flat front surface so WebKit cannot paint a mirrored back during the fade. Collection details retain the cached front thumbnail until the larger image decodes and keep that valid thumbnail if the larger request fails.
+
+The production TypeScript/Vite build and all **64 card-arrival cases** passed across the full suite and a focused rendered-pixel rerun in Chromium and WebKit. New controlled slow/failed detail-image cases and stronger cleanup assertions reproduced both the unpainted image and temporary hidden viewer on the previous build. Rendered pixel checks inspect the start, middle, and end of the handoff at phone and desktop sizes; final-frame visual inspection also exposed and corrected the mirrored back in WebKit. The checks retain exact landing, continuous motion, focus, history, alternate faces, reduced motion, and dark edge coverage.
+
+The corrected handoff was rebuilt and deployed as `index-C1YBjDdl.js`. **20 deployed checks** passed across Chromium and WebKit for rendered front artwork throughout the fade, slow/failed detail images, and completion/resize cleanup. Public API readiness and nginx configuration checks passed.
+
+Before the October 3 GitHub update, **10 additional deployed deck-ending and precise-landing checks** passed across Chromium and WebKit, including full decks at 320, 390, and 1280 pixels and a delayed final flight.
+
+## October 2 card viewer animation polish
+
+Deck and collection card arrivals now use a gentler lift and tilt. Cleanup hides the decorative flight before cancelling transforms, preventing a frame at the screen origin. Late card-detail responses retain the current pose and allow a short settling tail before the artwork handoff. Viewer spins and deck openings use near-black charcoal edges to soften edge flashes.
+
+Validation: the production TypeScript/Vite build and **52 card-arrival browser checks** passed across Chromium and WebKit, including phone and desktop layouts, exact image placement, continuous motion, late layouts, completion and resize cleanup, Back/Forward, focus, face changes, and reduced motion. The new regressions reproduced the visible reset and rushed late landing before the fix. Two additional Chromium visual captures verified the spinning back, aligned landing, and settled preview at 390 and 1280 pixels. These checks use synthetic API fixtures and browser emulation.
+
+The frontend was rebuilt and deployed as `index-BcozNGGH.js`. Public readiness and **18 deployed card-arrival checks** passed across Chromium and WebKit, covering collection and deck image placement, completion and resize cleanup, and late card-detail responses.
+
+The darker card edges were rebuilt and deployed as `index-jxHyytnG.js`. **Six focused edge and visual checks** passed across Chromium and WebKit at phone and desktop widths, followed by **two deployed side-on edge checks** and public readiness verification. The rendered edge remains visible with dark charcoal shading.
+
 ## October 2 source publication review
 
 The combined source update passed **444 backend tests**, **six backup extraction regressions**, Ruff, shell syntax checks and read-only Alembic schema comparison. A complete disposable backup/restore drill passed after hardening archive containment; it retained valid links, database/photo/broker data, installed images, ownership and permissions, and refused overwrites. Private configuration, backups and local test artifacts remain outside Git.

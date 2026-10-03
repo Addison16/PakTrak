@@ -1,7 +1,8 @@
 .deck-list-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 38px 30px; margin-top: 38px !important; }
 .history .deck-list-rows > li { min-width: 0; border: 0; }
 .deck-box-button { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: 12px; text-align: left; color: var(--ink); background: transparent; }
-.deck-box { --deck-depth: clamp(28px, 5vw, 64px); display: block; position: relative; width: 100%; aspect-ratio: 3 / 4.2; perspective: 850px; isolation: isolate; }
+.deck-box { --deck-depth: clamp(38px, 9vw, 100px); display: block; position: relative; width: 100%; aspect-ratio: 3 / 4.2; perspective: 850px; isolation: isolate; }
+.deck-box[data-format="commander"] { --deck-depth: clamp(56px, 17vw, 140px); }
 .deck-box-case { position: absolute; inset: 8% 12% 8% 9%; transform: rotateX(-10deg) rotateY(-24deg); transform-style: preserve-3d; transition: transform 420ms cubic-bezier(.22, 1, .36, 1); }
 .deck-box-ground { position: absolute; inset: auto 8% 1% 9%; height: 9%; border-radius: 50%; background: #06121740; filter: blur(13px); transform: rotate(-3deg); }
 .deck-box-front { position: absolute; inset: 0; overflow: hidden; border: 1px solid #c8d1d13b; border-radius: 9px; transform: translateZ(calc(var(--deck-depth) * .5)); background: linear-gradient(115deg, #ffffff0d, #00000030), var(--deck-paint); box-shadow: inset 1px 1px #ffffff20, inset -2px -2px #00000066, 0 1px 0 #00000080; }
@@ -56,33 +57,40 @@
   .deck-box-ground { filter: blur(9px); }
 }
 .deck-opening { position: fixed; inset: 0; z-index: 60; overflow: hidden; pointer-events: none; perspective: 1000px; }
-.deck-opening-veil { position: absolute; inset: 0; background: var(--canvas); opacity: 1; transition: opacity 440ms ease; }
-.deck-opening-box { position: absolute; z-index: 6; transform-origin: center; animation: deck-box-lift 460ms cubic-bezier(.22, 1, .36, 1) both; }
+.deck-opening-veil { position: absolute; inset: 0; background: var(--canvas); opacity: 1; }
+.deck-opening-box { position: absolute; z-index: 6; transform-origin: center; will-change: transform; animation: deck-box-lift 460ms cubic-bezier(.22, 1, .36, 1) both; }
 .deck-opening-box > .deck-box { width: 100%; height: 100%; }
 .deck-opening-box .deck-box-case { transition: none; }
 .deck-opening-box .deck-box-lid { animation: deck-lid-open 440ms 130ms cubic-bezier(.22, 1, .36, 1) both; }
-.deck-opening-card { position: absolute; display: block; aspect-ratio: 5 / 7; overflow: visible; border-radius: 6px; transform-origin: center; transform-style: preserve-3d; }
+.deck-opening-card { position: absolute; display: block; aspect-ratio: 488 / 680; overflow: visible; border-radius: var(--card-corner-radius); transform-origin: center; transform-style: preserve-3d; will-change: transform; }
 .deck-opening-card > span { opacity: 0; }
-.deck-opening-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.deck-opening-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .deck-opening-card-front, .deck-opening-card-back { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; backface-visibility: hidden; background: #17100c url("/cards/mtg-card-back.png") center / cover; box-shadow: 0 8px 22px #07151140, 0 1px 3px #07151150; }
 .deck-opening-card-front { transform: translateZ(.3px); }
 .deck-opening-card-back { transform: rotateY(180deg) translateZ(.3px); }
-.deck-opening-card-edge { position: absolute; display: block; backface-visibility: visible; background: linear-gradient(90deg, #e0d9cb, #949589, #e0d9cb); }
-.deck-opening-card-edge-left, .deck-opening-card-edge-right { top: 0; width: .6px; height: 100%; transform: rotateY(90deg); }
+.deck-opening-card > .deck-opening-card-edge { position: absolute; display: block; opacity: 1; backface-visibility: visible; background: linear-gradient(90deg, #161413, #272422 35%, #0b0a09 50%, #24211f 72%, #181614); }
+.deck-opening-card-edge-left, .deck-opening-card-edge-right { top: 3.41%; width: .6px; height: 93.18%; transform: rotateY(90deg); }
 .deck-opening-card-edge-left { left: -.3px; }
 .deck-opening-card-edge-right { right: -.3px; }
-.deck-opening-card-edge-top, .deck-opening-card-edge-bottom { left: 0; width: 100%; height: .6px; transform: rotateX(90deg); background: linear-gradient(#e0d9cb, #949589, #e0d9cb); }
+.deck-opening-card-edge-top, .deck-opening-card-edge-bottom { left: 4.75%; width: 90.5%; height: .6px; transform: rotateX(90deg); background: linear-gradient(#201d1b, #0d0c0b, #24211f); }
 .deck-opening-card-edge-top { top: -.3px; }
 .deck-opening-card-edge-bottom { bottom: -.3px; }
 .deck-opening-caption { position: absolute; left: 12%; right: 12%; display: grid; gap: 8px; text-align: center; color: var(--ink); opacity: 0; animation: deck-caption-enter 260ms 250ms ease both; }
 .deck-opening-caption .eyebrow { justify-content: center; margin: 0; font-size: 9px; letter-spacing: .18em; }
 .deck-opening-caption > span:last-child { font: 400 clamp(22px, 3vw, 30px)/1.2 "Fraunces", Georgia, serif; overflow-wrap: anywhere; }
 .deck-opening--revealing .deck-opening-veil { opacity: 0; }
+.deck-opening--revealing .deck-opening-card { transform-style: flat; will-change: transform, opacity; }
+.deck-opening--revealing .deck-opening-card-front { opacity: 1; transform: none; }
+.deck-opening--revealing .deck-opening-card-back, .deck-opening--revealing .deck-opening-card > .deck-opening-card-edge { display: none; }
 .deck-opening--revealing .deck-opening-box > .deck-box, .deck-opening--revealing .deck-opening-caption { opacity: 0; transition: opacity 200ms ease; }
 .deck-opening--revealing .deck-opening-caption { animation: none; }
 @keyframes deck-box-lift { to { transform: translate3d(var(--lift-x), var(--lift-y), 0) scale(var(--lift-scale)); } }
 @keyframes deck-lid-open { to { transform: rotateX(-130deg); } }
 @keyframes deck-caption-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 599px), (pointer: coarse) {
+  .deck-opening-card > .deck-opening-card-edge { display: none; }
+  .deck-opening-card-front, .deck-opening-card-back { box-shadow: 0 3px 8px #07151135, 0 1px 2px #07151140; }
+}
 @media (prefers-reduced-motion: reduce) {
   .deck-box-case, .deck-box-lid, .deck-box-open svg { transition: none; }
   .deck-box-button:not(:disabled):is(:hover, :active) .deck-box-case, .deck-box-button:focus-visible .deck-box-case { transform: rotateX(-10deg) rotateY(-24deg); }

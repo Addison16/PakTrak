@@ -3,8 +3,16 @@ import { createPortal } from "react-dom";
 import { DeckBoxVisual } from "./DeckBox";
 import { presentationCovers, useDeckPresentation } from "./deckPresentation";
 import type { DeckCover, DeckSummary } from "./deckTypes";
+import { sampleCardMotion } from "./cardMotion";
 
 export type DeckOpeningOrigin = { ownerId?: string; deck: DeckSummary; left: number; top: number; width: number; height: number };
+
+type FlightPose = { offset: number; x: number; y: number; turn: number; flip: number; scale: number };
+const poseTransform = ({ x, y, turn, flip, scale }: Omit<FlightPose, "offset">) => `translate3d(${x}px, ${y}px, 0) rotateZ(${turn}deg) rotateY(${flip}deg) scale(${scale})`;
+
+function flightFrames(points: FlightPose[]): Keyframe[] {
+  return sampleCardMotion(points, ["x", "y", "turn", "flip", "scale"]).map(point => ({ offset: point.offset, transform: poseTransform(point) }));
+}
 
 // Load the route immediately. This presentation only covers the handoff; it
 // never owns navigation or delays the request, and can be dismissed safely.
@@ -26,11 +34,13 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
   const cards: (DeckCover | undefined)[] = Array.from({ length: Math.min(12, origin.deck.copies || 0) }, (_, index) => unique.length ? unique[index % unique.length] : undefined);
   const seed = [...origin.deck.id].reduce((value, character) => value * 31 + character.charCodeAt(0) | 0, 0);
   const launchAnimations = useRef<Animation[]>([]);
+  const launchPoses = useRef<FlightPose[]>([]);
 
   useLayoutEffect(() => {
     const flights = [...root.current!.querySelectorAll<HTMLElement>(".deck-opening-card")];
+    let cancelled = false;
+    const finished: Promise<Animation>[] = [];
     const random = (index: number, salt: number) => { const value = Math.sin(seed + index * 127.1 + salt * 311.7) * 43758.5453; return value - Math.floor(value); };
-    const pose = (x: number, y: number, turn: number, flip: number, scale: number) => `translate3d(${x}px, ${y}px, 0) rotateZ(${turn}deg) rotateY(${flip}deg) scale(${scale})`;
     const animations = flights.flatMap((flight, index) => {
       const direction = index % 2 ? 1 : -1;
       const across = direction * (stage.viewportWidth * (.5 + random(index, 1) * .12));
@@ -40,84 +50,102 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
       const readableBack = direction * (172 + random(index, 10) * 16);
       // Give a few backs a clear, on-screen beat. The old 170° pose was
       // already beyond the viewport, so its artwork only flashed past.
-      const timing: KeyframeAnimationOptions = { duration: 900 + index % 3 * 75, delay: 190 + index * 18, easing: "linear", fill: "both" };
-      const movement = flight.animate([
-        { offset: 0, transform: pose(0, 50, 0, 0, .4), zIndex: "3", easing: "cubic-bezier(.25,.65,.4,1)" },
-        { offset: .16, transform: pose(fan * fanWidth * .65, -stage.cardWidth * (1.55 + index % 3 * .12), direction * (backFirst ? 8 : 35), backFirst ? readableBack : direction * 25, .95), zIndex: backFirst ? "14" : "5", easing: "ease-in-out" },
-        { offset: backFirst ? .44 : .38, transform: pose(fan * fanWidth, -stage.cardWidth * (2.25 + (index % 4) * .1), direction * (backFirst ? 13 : 52), backFirst ? readableBack + direction * 4 : direction * 45, backFirst ? 1.08 : 1), zIndex: backFirst ? "14" : "8", easing: "cubic-bezier(.3,.55,.45,1)" },
-        { offset: .56, transform: pose(across, stage.viewportHeight * (.08 + random(index, 3) * .68) - stage.top, direction * (150 + random(index, 4) * 220), direction * (backFirst ? 370 : 170), 1.15), zIndex: "12", easing: "ease-in-out" },
-        { offset: .76, transform: pose(-across * .85, stage.viewportHeight * (.08 + random(index, 5) * .7) - stage.top, direction * (460 + random(index, 6) * 260), direction * (backFirst ? 550 : 370), .72 + random(index, 7) * .55), zIndex: "12", easing: "cubic-bezier(.2,.65,.3,1)" },
-        { offset: 1, transform: pose((random(index, 8) - .5) * stage.viewportWidth * .65, -stage.cardWidth * (1.45 + random(index, 9) * .7), direction * 720 + (index % 7 - 3) * 18, direction * 720, .82 + random(index, 10) * .2), zIndex: "12" },
-      ], timing);
+      const timing: KeyframeAnimationOptions = { duration: 1120 + index % 3 * 60, delay: 190 + index * 18, easing: "linear", fill: "both" };
+      flight.style.zIndex = backFirst ? "14" : "12";
+      const settled = { offset: 1, x: (random(index, 8) - .5) * stage.viewportWidth * .65, y: -stage.cardWidth * (1.45 + random(index, 9) * .7), turn: direction * 360 + (index % 7 - 3) * 18, flip: direction * 360, scale: .9 + random(index, 10) * .1 };
+      launchPoses.current[index] = settled;
+      const movement = flight.animate(flightFrames([
+        { offset: 0, x: 0, y: 50, turn: 0, flip: 0, scale: .4 },
+        { offset: .16, x: fan * fanWidth * .65, y: -stage.cardWidth * (1.55 + index % 3 * .12), turn: direction * (backFirst ? 8 : 25), flip: backFirst ? readableBack : direction * 25, scale: .95 },
+        { offset: backFirst ? .44 : .38, x: fan * fanWidth, y: -stage.cardWidth * (2.25 + (index % 4) * .1), turn: direction * (backFirst ? 13 : 38), flip: backFirst ? readableBack + direction * 4 : direction * 45, scale: backFirst ? 1.08 : 1 },
+        { offset: .56, x: across, y: stage.viewportHeight * (.08 + random(index, 3) * .68) - stage.top, turn: direction * (100 + random(index, 4) * 60), flip: direction * (backFirst ? 210 : 170), scale: 1.08 },
+        { offset: .76, x: -across * .85, y: stage.viewportHeight * (.08 + random(index, 5) * .7) - stage.top, turn: direction * (210 + random(index, 6) * 60), flip: direction * 300, scale: .9 + random(index, 7) * .15 },
+        settled,
+      ]), timing);
+      finished.push(movement.finished);
       // Opacity on the rotating parent flattens its 3D faces in browsers.
       // Fade the individual surfaces so the real back remains visible.
-      const fades = [...flight.children].map(surface => surface.animate([
-        { offset: 0, opacity: 0, easing: "cubic-bezier(.25,.65,.4,1)" },
-        { offset: .16, opacity: 1 },
-        { offset: 1, opacity: 1 },
-      ], timing));
+      const fades = [...flight.querySelectorAll(".deck-opening-card-front, .deck-opening-card-back")].map(surface => surface.animate([
+        { opacity: 0 }, { opacity: 1 },
+      ], { duration: 140, delay: timing.delay, easing: "ease-out", fill: "both" }));
       return [movement, ...fades];
     });
     launchAnimations.current = animations;
-    return () => animations.forEach((animation) => animation.cancel());
+    const emptyTimer = flights.length ? undefined : window.setTimeout(() => setLaunched(true), 620);
+    if (flights.length) void Promise.all(finished).then(() => { if (!cancelled) setLaunched(true); }).catch(() => {});
+    return () => { cancelled = true; clearTimeout(emptyTimer); animations.forEach((animation) => animation.cancel()); };
   }, [stage, seed]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setLaunched(true), 1120);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const dismiss = () => complete.current();
     const preferenceChanged = () => { if (reduceMotion.matches) dismiss(); };
     window.addEventListener("resize", dismiss);
     reduceMotion.addEventListener("change", preferenceChanged);
-    return () => { clearTimeout(timer); window.removeEventListener("resize", dismiss); reduceMotion.removeEventListener("change", preferenceChanged); };
+    return () => { window.removeEventListener("resize", dismiss); reduceMotion.removeEventListener("change", preferenceChanged); };
   }, []);
 
   useLayoutEffect(() => {
     if (!launched || !ready || !root.current) return;
     const detail = document.querySelector<HTMLElement>(`.deck-detail[data-deck-view="${CSS.escape(origin.deck.id)}"]`);
     if (!detail) return;
-    setRevealing(true);
-    const targets = [...detail.querySelectorAll<HTMLElement>(".deck-gallery .deck-art-button")];
     const flights = [...root.current.querySelectorAll<HTMLElement>(".deck-opening-card")];
-    const poses = flights.map(flight => getComputedStyle(flight).transform);
-    launchAnimations.current.forEach(animation => animation.cancel());
-    const hidden = new Set<HTMLElement>();
-    const timers: number[] = [];
-    const animations = flights.flatMap((flight, index) => {
+    // Read the gallery once before hiding anything. Repeated copies and cards
+    // below the viewport leave at their original size instead of piling into
+    // the same large artwork layers during the reveal.
+    const targets = [...detail.querySelectorAll<HTMLElement>(".deck-gallery .deck-art-button")].map(element => ({ element, rect: element.getBoundingClientRect() })).filter(({ rect }) => rect.width > 0 && rect.height > 0 && rect.left < stage.viewportWidth && rect.right > 0 && rect.top < stage.viewportHeight && rect.bottom > 0);
+    const claimed = new Set<HTMLElement>();
+    const cardHeight = stage.cardWidth * 680 / 488;
+    const plans = flights.map((flight, index) => {
       const card = cards[index];
-      const matching = card ? targets.find(target => target.dataset.printingId === card.id && (!card.section || target.dataset.cardSection === card.section)) : undefined;
-      const target = matching?.getBoundingClientRect();
-      const landing = target && target.width > 0 && target.height > 0;
+      const target = card ? targets.find(({ element }) => !claimed.has(element) && element.dataset.printingId === card.id && (!card.section || element.dataset.cardSection === card.section)) : undefined;
+      if (target) claimed.add(target.element);
+      const start = launchPoses.current[index];
       const exit = index % 4;
-      const x = landing ? target.left + target.width / 2 - stage.viewportWidth / 2 : exit < 2 ? (exit ? 1 : -1) * (stage.viewportWidth / 2 + stage.cardWidth * 2) : (index % 5 - 2) * stage.cardWidth;
-      const y = landing ? target.top + target.height / 2 - (stage.top + stage.height * .08 + flight.offsetHeight / 2) : exit === 2 ? -stage.top - flight.offsetHeight * 2 : exit === 3 ? stage.viewportHeight - stage.top + flight.offsetHeight * 2 : (index % 3 - 1) * stage.viewportHeight * .3;
-      const end = `translate3d(${x}px, ${y}px, 0) rotateZ(${landing ? 0 : (index % 2 ? 1 : -1) * 1080}deg) rotateY(${landing ? 0 : 720}deg) scale(${landing ? target.width / stage.cardWidth : 1.1})`;
+      const end = {
+        x: target ? target.rect.left + target.rect.width / 2 - stage.viewportWidth / 2 : exit < 2 ? (exit ? 1 : -1) * (stage.viewportWidth / 2 + stage.cardWidth * 2) : (index % 5 - 2) * stage.cardWidth,
+        y: target ? target.rect.top + target.rect.height / 2 - (stage.top + stage.height * .08 + cardHeight / 2) : exit === 2 ? -stage.top - cardHeight * 2 : exit === 3 ? stage.viewportHeight - stage.top + cardHeight * 2 : (index % 3 - 1) * stage.viewportHeight * .3,
+        turn: target ? Math.round(start.turn / 360) * 360 : start.turn + (index % 2 ? 1 : -1) * 45,
+        flip: start.flip,
+        scale: target ? target.rect.width / stage.cardWidth : .9,
+      };
+      return { flight, index, start, end, matching: target?.element };
+    });
+    setRevealing(true);
+    let cancelled = false;
+    const hidden = new Set<HTMLElement>();
+    const veil = root.current.querySelector<HTMLElement>(".deck-opening-veil")!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 440, easing: "ease", fill: "both" });
+    const finished = [veil.finished];
+    const animations = [veil, ...plans.flatMap(({ flight, index, start, end, matching }) => {
       const delay = index * 18;
-      if (landing && matching) {
+      if (matching) {
         matching.dataset.deckLanding = "true";
         hidden.add(matching);
         flight.dataset.landingPrintingId = matching.dataset.printingId;
         flight.dataset.landingSection = matching.dataset.cardSection;
-        const image = flight.querySelector<HTMLImageElement>("img");
-        if (image) { image.style.objectFit = "contain"; }
-        timers.push(window.setTimeout(() => { delete matching.dataset.deckLanding; }, 560 + delay));
       }
-      const timing: KeyframeAnimationOptions = { duration: 660, delay, easing: "linear", fill: "both" };
+      // Keep the same transform functions across the handoff and a gentle
+      // start/end velocity. The settled cards face forward, so the reveal
+      // needs only their front surface and no further 3D flips.
       const movement = flight.animate([
-        { offset: 0, transform: poses[index], zIndex: "12", easing: "cubic-bezier(.22, .75, .2, 1)" },
-        { offset: .85, transform: end, zIndex: "12", easing: "linear" },
-        { offset: 1, transform: end, zIndex: "12" },
-      ], timing);
-      const fades = [...flight.children].map(surface => surface.animate([
-        { offset: 0, opacity: 1 },
-        { offset: .85, opacity: 1 },
-        { offset: 1, opacity: 0 },
-      ], timing));
-      return [movement, ...fades];
-    });
-    timers.push(window.setTimeout(() => complete.current(), 890));
+        { transform: poseTransform(start) }, { transform: poseTransform(end) },
+      ], { duration: 560, delay, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "both" });
+      const fade = flight.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: "linear", fill: "both" });
+      fade.pause();
+      void movement.finished.then(() => {
+        if (cancelled) return;
+        if (matching) { delete matching.dataset.deckLanding; hidden.delete(matching); }
+        // Keep the flying artwork visible until the real target is restored,
+        // even when a slow frame delays the completion callback.
+        fade.play();
+      }).catch(() => {});
+      finished.push(fade.finished);
+      return [movement, fade];
+    })];
+    launchAnimations.current.forEach(animation => animation.cancel());
+    void Promise.all(finished).then(() => { if (!cancelled) complete.current(); }).catch(() => {});
     return () => {
-      timers.forEach(clearTimeout);
+      cancelled = true;
       animations.forEach(animation => animation.cancel());
       hidden.forEach(target => { delete target.dataset.deckLanding; });
     };

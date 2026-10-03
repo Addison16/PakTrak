@@ -49,15 +49,18 @@ test("flying artwork lands precisely on the matching card in the loaded gallery"
   const opening = page.locator(".deck-opening--revealing");
   await expect(opening).toBeVisible();
   const matches = await opening.evaluate(root => {
+    const animations = root.getAnimations({ subtree: true });
+    animations.forEach(animation => animation.pause());
     const flights = [...root.querySelectorAll<HTMLElement>(".deck-opening-card[data-landing-printing-id]")];
-    return flights.map(flight => {
-      const animation = flight.getAnimations().find(candidate => candidate.effect instanceof KeyframeEffect && candidate.effect.getKeyframes().length === 3)!;
-      animation.pause();
+    const matches = flights.map(flight => {
+      const animation = flight.getAnimations().find(candidate => candidate.effect instanceof KeyframeEffect && candidate.effect.getKeyframes().some(frame => frame.transform !== undefined))!;
       animation.currentTime = Number(animation.effect!.getTiming().delay) + Number(animation.effect!.getTiming().duration);
       const target = [...document.querySelectorAll<HTMLElement>(".deck-gallery .deck-art-button")].find(card => card.dataset.printingId === flight.dataset.landingPrintingId && card.dataset.cardSection === flight.dataset.landingSection)!;
       const from = flight.getBoundingClientRect(), to = target.getBoundingClientRect();
       return { id: flight.dataset.printingId, target: target.dataset.printingId, visible: to.top < innerHeight && to.bottom > 0, x: Math.abs(from.x - to.x), y: Math.abs(from.y - to.y), width: Math.abs(from.width - to.width), height: Math.abs(from.height - to.height) };
     });
+    animations.forEach(animation => animation.play());
+    return matches;
   });
   expect(matches.length).toBeGreaterThan(0);
   expect(matches.some(match => match.visible)).toBe(true);

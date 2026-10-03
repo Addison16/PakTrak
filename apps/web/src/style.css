@@ -5,6 +5,7 @@
   font-synthesis: none;
   line-height: 1.6;
   --radius: 20px;
+  --card-corner-radius: 4.75% / 3.41%;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--canvas); }
@@ -350,8 +351,8 @@ details p { font-size: 14px; }
 .gallery-card { width: 100%; padding: 0; text-align: left; background: none; border: 0; border-radius: 9px; color: var(--ink); display: block; }
 .gallery-card:focus-visible { outline: 3px solid var(--copper); outline-offset: 5px; }
 .gallery-card:disabled { opacity: 1; cursor: progress; }
-.card-art { aspect-ratio: 488 / 680; width: 100%; border-radius: 9px; overflow: hidden; background: var(--surface-muted); box-shadow: 0 5px 12px #1b302416; }
-.card-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.card-art { aspect-ratio: 488 / 680; width: 100%; border-radius: var(--card-corner-radius); overflow: hidden; background: transparent; box-shadow: 0 5px 12px #1b302416; }
+.card-art img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
 .art-placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 15px; text-align: center; color: var(--muted); background: radial-gradient(ellipse at top, var(--surface-muted), var(--surface-muted)); border: 7px solid var(--decorative-border); border-radius: 9px; }
 .art-placeholder > span { font-family: Georgia, serif; font-size: 40px; color: var(--placeholder); }
 .art-placeholder strong { font-family: "Fraunces", Georgia, serif; font-weight: 400; font-size: 19px; line-height: 1.2; }
@@ -615,7 +616,7 @@ details p { font-size: 14px; }
 .deck-card-section > h3 { display: flex; align-items: center; gap: 10px; margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
 .deck-card-section > h3 span { color: var(--muted); font-size: 12px; font-weight: 400; }
 .deck-cards .deck-card-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.deck-card-art { align-self: start; width: 52px; height: 73px; border-radius: 5px; overflow: hidden; background: var(--surface-muted); color: var(--placeholder); }
+.deck-card-art { align-self: start; width: 52px; height: 73px; border-radius: var(--card-corner-radius); overflow: hidden; background: transparent; color: var(--placeholder); }
 .deck-card-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .deck-card-art > span { display: grid; place-items: center; height: 100%; font-size: 22px; }
 .deck-card-copy { min-width: 0; }
@@ -631,13 +632,13 @@ details p { font-size: 14px; }
 .deck-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .deck-view-controls .fine { flex-basis: 100%; }
 .deck-art-button { display: block; border: 0; padding: 0; cursor: zoom-in; text-align: left; }
-.deck-art-button .card-art { height: 100%; border-radius: 5px; }
+.deck-art-button .card-art { height: 100%; }
 .deck-art-button .art-placeholder { padding: 5px; font-size: 10px; }
 .deck-art-button .art-placeholder small { display: none; }
 .deck-cards.deck-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 14px; padding-top: 16px; }
 .deck-cards.deck-gallery .deck-card-row { display: flex; flex-direction: column; gap: 12px; padding: 0; border: 0; min-width: 0; }
-.deck-gallery .deck-card-art { width: 100%; height: auto; border-radius: 9px; }
-.deck-gallery .deck-card-art .card-art { aspect-ratio: 488 / 680; border-radius: 9px; }
+.deck-gallery .deck-card-art { width: 100%; height: auto; }
+.deck-gallery .deck-card-art .card-art { aspect-ratio: 488 / 680; }
 .deck-gallery .holding-title { flex-wrap: wrap; }
 .deck-gallery .card-location { overflow-wrap: anywhere; }
 .deck-preview-dialog { width: min(480px, calc(100% - 16px)); max-height: calc(100dvh - 16px); }

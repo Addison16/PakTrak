@@ -1,5 +1,16 @@
 # Changelog
 
+## Card viewer animation polish — October 2, 2026
+
+- Keep the cached collection artwork visible while its larger image loads and decodes, including when the detail image fails. Reveal the painted viewer before blending away a single front surface and its shadow to prevent the final handoff flash and a mirrored back appearing in WebKit.
+- Replace pale card edges with near-black charcoal shading so viewer spins and deck openings avoid bright edge flashes.
+- Finish deck openings after their animations complete, with distinct visible landing targets and smooth exits for the remaining cards.
+- Give deck cases greater depth, with larger commander cases, and keep artwork corners proportional as cards scale.
+- Soften the lift and tilt when opening a card from a deck or collection while retaining the full spin and visible card edges.
+- Hide the flight before cancelling its animations so completion, resizing, and navigation cannot flash an unpositioned card across the screen.
+- Give late card-detail layout changes time to settle smoothly before revealing the destination artwork.
+- Verify card arrivals with 64 Chromium/WebKit checks covering phone and desktop layouts, rendered front artwork during the handoff, delayed and failed images, exact landing, late responses, cleanup, focus, card faces, and reduced motion.
+
 ## Source publication checks — October 2, 2026
 
 - Keep unfinished photos recoverable in WebKit private contexts by storing bytes and MIME type, while continuing to read previously saved Blob/File photos.
