@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { DeckCover, DeckSummary } from "./deckTypes";
 import { caseAppearance, DeckEmblem, defaultPresentation, presentationCovers, useDeckPresentation, type CaseEmblem, type DeckPresentation } from "./deckPresentation";
+import { DeckBoxLid, DeckBoxShell } from "./DeckBoxShell";
 import "./deck-box.css";
 import "./deck-box-light.css";
 
@@ -40,7 +41,7 @@ export function deckCovers(deck: DeckSummary) {
   return presentationCovers(deck, defaultPresentation);
 }
 
-export function DeckBoxVisual({ deck, presentation = defaultPresentation }: { deck: DeckSummary; presentation?: DeckPresentation }) {
+export function DeckBoxVisual({ deck, presentation = defaultPresentation, opening = false, foreground = false }: { deck: DeckSummary; presentation?: DeckPresentation; opening?: boolean; foreground?: boolean }) {
   const commander = deck.format === "commander";
   const covers = presentationCovers(deck, presentation);
   const colors = ["W", "U", "B", "R", "G"].filter((color) => deck.colors?.includes(color));
@@ -48,8 +49,8 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation }: { de
   return <span className="deck-box" data-format={deck.format} style={{ "--deck-paint": paint, "--deck-accent": accent } as CSSProperties} aria-hidden="true">
     <span className="deck-box-ground" />
     <span className="deck-box-case">
+    <DeckBoxShell commander={commander} foreground={foreground} />
     <span className="deck-box-side"><span className="deck-box-side-panel"><DeckEmblem emblem={presentation.emblem} commander={commander} /><span>PakTrak</span></span></span>
-    <span className="deck-box-mouth" />
     <span className="deck-box-front">
       <span className="deck-box-cover" data-count={covers.length}>{covers.length
         ? covers.map((card) => <CoverArt key={card.id} card={card} commander={commander} emblem={presentation.emblem} />)
@@ -59,10 +60,7 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation }: { de
       <span className="deck-box-colors">{(colors.length ? colors : ["C"]).map((color) => <span key={color} className="deck-mana-pip" style={{ "--mana-tint": mana[color].pip } as CSSProperties}><ManaMark color={color} /></span>)}</span>
       <span className="deck-box-foot"><span>{commander ? "COMMANDER" : deck.format}</span><span>{deck.copies || 0}</span></span>
     </span>
-    <span className="deck-box-lid">
-      <span className="deck-box-lid-top"><span className="deck-box-light" /></span>
-      <span className="deck-box-seam"><span className="deck-box-stamp"><DeckEmblem emblem={presentation.emblem} commander={commander} /><span>PakTrak</span></span><span className="deck-box-clasp" /><span className="deck-box-light" /></span>
-    </span>
+    {!foreground && <DeckBoxLid commander={commander} emblem={presentation.emblem} opening={opening} />}
     </span>
   </span>;
 }

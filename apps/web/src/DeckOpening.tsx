@@ -50,7 +50,7 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
       const readableBack = direction * (172 + random(index, 10) * 16);
       // Give a few backs a clear, on-screen beat. The old 170° pose was
       // already beyond the viewport, so its artwork only flashed past.
-      const timing: KeyframeAnimationOptions = { duration: 1120 + index % 3 * 60, delay: 190 + index * 18, easing: "linear", fill: "both" };
+      const timing: KeyframeAnimationOptions = { duration: 1120 + index % 3 * 60, delay: 310 + index * 18, easing: "linear", fill: "both" };
       flight.style.zIndex = backFirst ? "14" : "12";
       const settled = { offset: 1, x: (random(index, 8) - .5) * stage.viewportWidth * .65, y: -stage.cardWidth * (1.45 + random(index, 9) * .7), turn: direction * 360 + (index % 7 - 3) * 18, flip: direction * 360, scale: .9 + random(index, 10) * .1 };
       launchPoses.current[index] = settled;
@@ -159,7 +159,8 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
   } as CSSProperties;
   return createPortal(<div ref={root} className={`deck-opening${revealing ? " deck-opening--revealing" : ""}`} data-deck-opening={origin.deck.id} aria-hidden="true">
     <div className="deck-opening-veil" />
-    <div className="deck-opening-box" style={boxStyle}><DeckBoxVisual deck={origin.deck} presentation={presentation} /></div>
+    <div className="deck-opening-box" style={boxStyle}><DeckBoxVisual deck={origin.deck} presentation={presentation} opening /></div>
+    <div className="deck-opening-box deck-opening-box--foreground" style={boxStyle}><DeckBoxVisual deck={origin.deck} presentation={presentation} foreground /></div>
     {cards.map((card, index) => <span key={index} className="deck-opening-card" data-printing-id={card?.id} style={{
       left: (window.innerWidth - stage.cardWidth) / 2, top: stage.top + stage.height * .08, width: stage.cardWidth,
       zIndex: 4,

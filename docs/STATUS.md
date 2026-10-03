@@ -2,6 +2,14 @@
 
 October 3, 2026 — current source build, not a release qualification report.
 
+## October 3 realistic deck case construction
+
+The cap now rotates around a fixed rear hinge and has four solid exterior walls, recessed lining, inner walls, and thick perimeter rims. The body has a lined cavity and substantial mouth edges. Shared projected vertices and overlapping face strokes close the panel seams; affine hover motion keeps the complete case on one painted surface in Chromium and WebKit. A foreground shell conceals cards behind the front and side walls as they emerge, and their launch begins after the lid clears the mouth.
+
+The production TypeScript/Vite build and **68 Chromium/WebKit regressions** passed, including **eight new rendered-pixel enclosure and seam cases** at phone and desktop widths. Those cases inspect closed, intermediate, and fully opened cap seams, body joins, the visible underside, concealed cards, and their emergence above the rim. All four enclosure cases failed against the previous deployed build because a card painted through the front wall. Existing pointer lighting, reduced motion, cancellation, light/dark layouts, customization, full-deck scatter, delayed final flights, precise landing, empty decks, and navigation checks passed. **Eight additional visual review cases** covered light/dark phone and desktop shelves, desktop hover, and paused opening frames in both engines.
+
+The Docker frontend build passed and was deployed as `index-DB71q0Uk.js`. **20 deployed Chromium/WebKit checks** passed for the cap seams, body joins, card enclosure and emergence, pointer lighting, reduced-motion/touch behavior, phone layouts, and delayed final-flight cleanup. Public readiness, nginx configuration, and the served bundle check passed. The temporary preview container was removed; inspected visual evidence is in ignored `artifacts/deck-shell/final/`.
+
 ## October 3 premium deck case polish
 
 Deck cases now have deeper proportional bodies, with larger commander cases, framed artwork, padded lids, stitched borders, embossed spines, and metal clasps. Saved finishes, emblems, featured artwork, deck labels, and mana colors remain available. Projected side and top panels form one stable surface before the complete case tilts, preventing WebKit from dropping the panels and keeping seams aligned. Pointer motion is gentler, and the cap lifts coherently when opening a deck.

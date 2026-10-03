@@ -1,5 +1,12 @@
 # Changelog
 
+## Realistic deck case construction — October 3, 2026
+
+- Replace the sliding flat lid with a cap that rotates around a fixed rear hinge, including all four exterior walls, recessed lining, and thick edge rims.
+- Build the body, lined cavity, and lid from shared projected vertices to seal panel joins and prevent edge gaps. Keep hover motion on one stable painted surface.
+- Conceal cards behind the front and side walls until they emerge above the mouth, and give the lid time to clear before launching cards.
+- Verify intermediate cap seams, body joins, visible lining, and card enclosure with rendered-pixel regressions in Chromium and WebKit.
+
 ## Premium deck cases — October 3, 2026
 
 - Give deck boxes deeper proportions that scale with their size, with extra capacity for commander decks.
