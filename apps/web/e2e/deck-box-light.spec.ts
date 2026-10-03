@@ -58,3 +58,31 @@ test("pointer tilt stops when reduced motion is enabled and ignores touch", asyn
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   await expect(box).not.toHaveAttribute("data-box-light", "active");
 });
+
+test("the side panel stays painted at rest and through pointer tilts", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
+  const box = await shelf(page);
+  await expect(box).toBeEnabled();
+  for (const position of [null, { x: .2, y: .25 }, { x: .8, y: .6 }]) {
+    const bounds = await box.boundingBox();
+    if (!bounds) throw new Error("Deck box did not render");
+    if (position) {
+      await page.mouse.move(bounds.x + bounds.width * position.x, bounds.y + bounds.width * position.y);
+      await expect(box).toHaveAttribute("data-box-light", "active");
+    } else await page.mouse.move(1, 1);
+    const side = await box.locator(".deck-box-side").boundingBox();
+    if (!side) throw new Error("Deck side did not render");
+    const point = { x: side.x + side.width / 2 - bounds.x, y: side.y + side.height / 2 - bounds.y };
+    const raster = await box.screenshot();
+    const pixel = await page.evaluate(async ({ raster, point }) => {
+      const image = new Image(); image.src = raster; await image.decode();
+      const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d")!; context.drawImage(image, 0, 0);
+      return [...context.getImageData(Math.floor(point.x), Math.floor(point.y), 1, 1).data];
+    }, { raster: `data:image/png;base64,${raster.toString("base64")}`, point });
+    // Missing 3D faces leave the light page surface in this part of the box.
+    expect(Math.max(...pixel.slice(0, 3)), `painted side panel: ${pixel}`).toBeLessThan(140);
+    expect(pixel[3]).toBe(255);
+  }
+});

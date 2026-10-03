@@ -1,6 +1,14 @@
 # Implementation and validation status
 
-October 2, 2026 — current source build, not a release qualification report.
+October 3, 2026 — current source build, not a release qualification report.
+
+## October 3 premium deck case polish
+
+Deck cases now have deeper proportional bodies, with larger commander cases, framed artwork, padded lids, stitched borders, embossed spines, and metal clasps. Saved finishes, emblems, featured artwork, deck labels, and mana colors remain available. Projected side and top panels form one stable surface before the complete case tilts, preventing WebKit from dropping the panels and keeping seams aligned. Pointer motion is gentler, and the cap lifts coherently when opening a deck.
+
+The production TypeScript/Vite build and **58 Chromium/WebKit regression checks** passed for pointer lighting, painted side panels, light/dark layouts at 320/390/1280 pixels, failed-art keyboard access, customization persistence and focus, full-deck endings, delayed final flights, precise card landing, navigation, resizing, empty decks, and reduced motion. The new rendered-pixel regression failed against the previous WebKit build because the missing side exposed the light page background. **Eight visual review cases** covered phone and desktop shelves in both themes and engines, including desktop hover and paused opening captures.
+
+The Docker frontend build passed and was deployed as `index-CNwOH9_N.js`. **12 deployed Chromium/WebKit checks** passed for pointer lighting and cancellation, reduced-motion/touch behavior, painted side panels, light/dark phone layouts, and delayed final-flight cleanup. Public API readiness, nginx configuration, and the served bundle check passed. The temporary preview container was removed.
 
 ## October 2 card viewer handoff correction
 

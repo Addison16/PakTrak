@@ -48,7 +48,7 @@ export function DeckBoxVisual({ deck, presentation = defaultPresentation }: { de
   return <span className="deck-box" data-format={deck.format} style={{ "--deck-paint": paint, "--deck-accent": accent } as CSSProperties} aria-hidden="true">
     <span className="deck-box-ground" />
     <span className="deck-box-case">
-    <span className="deck-box-side" />
+    <span className="deck-box-side"><span className="deck-box-side-panel"><DeckEmblem emblem={presentation.emblem} commander={commander} /><span>PakTrak</span></span></span>
     <span className="deck-box-mouth" />
     <span className="deck-box-front">
       <span className="deck-box-cover" data-count={covers.length}>{covers.length
@@ -97,8 +97,8 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
         frame = 0;
         element.style.setProperty("--box-light-x", `${(point.x * 100).toFixed(2)}%`);
         element.style.setProperty("--box-light-y", `${(point.y * 100).toFixed(2)}%`);
-        element.style.setProperty("--box-turn-x", `${((.5 - point.y) * 7).toFixed(2)}deg`);
-        element.style.setProperty("--box-turn-y", `${((point.x - .5) * 10).toFixed(2)}deg`);
+        element.style.setProperty("--box-turn-x", `${((.5 - point.y) * 4).toFixed(2)}deg`);
+        element.style.setProperty("--box-turn-y", `${((point.x - .5) * 6).toFixed(2)}deg`);
         element.dataset.boxLight = "active";
       });
     };

@@ -1,5 +1,12 @@
 # Changelog
 
+## Premium deck cases — October 3, 2026
+
+- Give deck boxes deeper proportions that scale with their size, with extra capacity for commander decks.
+- Add framed artwork, padded lids, stitched edges, embossed spines, and brushed metal clasps while retaining saved finishes and emblems.
+- Keep the side and top panels painted in WebKit, align the case seams, and soften pointer tilting and lid opening.
+- Add a rendered-pixel regression for disappearing side panels and verify deck layouts, customization, opening, landing, cancellation, and reduced motion in Chromium and WebKit.
+
 ## Card viewer animation polish — October 2, 2026
 
 - Keep the cached collection artwork visible while its larger image loads and decodes, including when the detail image fails. Reveal the painted viewer before blending away a single front surface and its shadow to prevent the final handoff flash and a mirrored back appearing in WebKit.
