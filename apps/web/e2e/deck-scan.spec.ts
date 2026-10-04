@@ -116,7 +116,6 @@ test("pending matches stay out, processing blocks saving and retries retain choi
 test("deck batch review approves a match without collection controls and carries the batch into its deck", async ({ page }) => {
   const mock = await fixture(page); mock.rows[1].state = "NEEDS_REVIEW"; mock.rows[1].confirmed_printing = null;
   await navigate(page, "Batches"); await page.getByRole("button", { name: /photo-one.jpg/ }).click();
-  await page.getByRole("button", { name: "Edit batch", exact: true }).click();
   await expect(page.getByText("✓ Auto-matched", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Review card 2: Sample Island", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Condition", exact: true })).toHaveCount(0);

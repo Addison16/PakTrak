@@ -38,7 +38,6 @@ test("manual outline and saved flips keep their orientation through Docker proce
     const ready = () => expect.poll(async () => (await (await context.request.get(base)).json()).state, { timeout: 60000 }).toBe("PHOTO_READY");
     await ready();
     expect((await (await context.request.get(base + "/observations")).json()).items).toHaveLength(0);
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     await page.getByRole("button", { name: "Add a missed card", exact: true }).click();
     await expect(page.locator(".crop-canvas img")).toHaveJSProperty("naturalWidth", 600);
     const canvas = page.locator(".crop-canvas"), box = (await canvas.boundingBox())!;
@@ -51,7 +50,6 @@ test("manual outline and saved flips keep their orientation through Docker proce
     await ready();
     page = await context.newPage(); await page.goto("/"); await navigate(page, "Batches");
     await page.getByRole("button", { name: /synthetic-orientation.png/ }).click();
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     const upright = [[255,0,0],[0,255,0],[0,0,255],[255,255,0]];
     await expect.poll(() => cropColors(page)).toEqual(upright);
     const savedResponse = page.waitForResponse((response) => response.url().endsWith("/orientation"));
@@ -59,7 +57,6 @@ test("manual outline and saved flips keep their orientation through Docker proce
     expect((await savedResponse).status()).toBe(200);
     await ready(); await page.reload(); await navigate(page, "Batches");
     await page.getByRole("button", { name: /synthetic-orientation.png/ }).click();
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     await expect.poll(() => cropColors(page)).toEqual([...upright].reverse());
     const batch = await (await context.request.get(base + "/observations")).json();
     expect(batch.items).toHaveLength(1); expect(batch.items[0].rotation).toBe(180);

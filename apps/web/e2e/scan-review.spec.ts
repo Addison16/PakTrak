@@ -5,7 +5,7 @@ const batchId = "scan-review-fixture";
 const base = "/api/v1/scans/" + batchId;
 const printing = (index: number) => ({ id: "printing-" + index, name: "Fixture Card " + (index + 1), set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil", "foil"], set_name: "Fixture Expansion", rarity: "rare", image_url: "/api/v1/card-images/fixture/0/grid" });
 
-async function fixture(page: Page, count = 15, pending = 0, imported: number[] = [], edit = true, rotation = 0, initialFoils = 1, cardName?: string) {
+async function fixture(page: Page, count = 15, pending = 0, imported: number[] = [], rotation = 0, initialFoils = 1, cardName?: string) {
   let deleted = false;
   let processing = pending > 0;
   const calls: { path: string; method: string; body: any }[] = [];
@@ -80,13 +80,12 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
   await page.goto("/");
   await navigate(page, "Batches");
   await page.getByRole("button", { name: /fifteen-card-test.jpg/ }).click();
-  if (edit) await page.getByRole("button", { name: "Edit batch", exact: true }).click();
   return { calls, rows, scan, finish: () => { processing = false; } };
 }
 
 test("alternate printed names remain visible when finding and selecting a batch card", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
-  const mock = await fixture(page, 1, 0, [], true, 0, 0);
+  const mock = await fixture(page, 1, 0, [], 0, 0);
   const card = { ...printing(0), id: "esper-printing", name: "Nature's Claim", display_name: "Search for the Frozen Esper", set_code: "fca", collector_number: "47", set_name: "FINAL FANTASY: Through the Ages", rarity: "uncommon" };
   await page.route("**/api/v1/catalog/search?*", (route) => {
     const query = new URL(route.request().url()).searchParams.get("q");
@@ -111,7 +110,7 @@ test("alternate printed names remain visible when finding and selecting a batch 
 
 for (const cardName of ["Plains", "Lightning Bolt"]) test(`collector-number shortcut narrows ${cardName} before explicit scan approval`, async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 844 });
-  const mock = await fixture(page, 1, 0, [], true, 0, 0, cardName);
+  const mock = await fixture(page, 1, 0, [], 0, 0, cardName);
   const queries: URLSearchParams[] = [];
   const editions = ["first", "second"].map((edition) => ({ ...printing(0), id: edition, name: cardName, set_code: edition, set_name: edition + " expansion", collector_number: "287" }));
   await page.route("**/api/v1/catalog/search?*", (route) => {
@@ -159,7 +158,7 @@ for (const cardName of ["Plains", "Lightning Bolt"]) test(`collector-number shor
 
 for (const mode of ["light", "dark"] as const) test(`${mode} batch guidance opens foil choices directly and leads into card review`, async ({ page }, info) => {
   await page.setViewportSize({ width: 320, height: 844 }); await page.emulateMedia({ colorScheme: mode, reducedMotion: "reduce" });
-  const mock = await fixture(page, 15, 0, [0], false, 0, 2);
+  const mock = await fixture(page, 15, 0, [0], 0, 2);
   const steps = page.getByRole("region", { name: "Batch next steps", exact: true });
   await expect(steps.getByRole("heading", { name: "Finish your batch", exact: true })).toBeVisible();
   await expect(steps).toContainText("14 cards need approval");
@@ -198,7 +197,7 @@ for (const mode of ["light", "dark"] as const) test(`${mode} batch guidance open
 });
 
 test("review shortcut reaches the first pending card and foil shortcuts preserve unsaved selections", async ({ page }) => {
-  const mock = await fixture(page, 3, 0, [0], false, 0, 1);
+  const mock = await fixture(page, 3, 0, [0], 0, 1);
   const steps = page.getByRole("region", { name: "Batch next steps", exact: true });
   await steps.getByRole("button", { name: "Review card matches", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
@@ -214,18 +213,18 @@ test("review shortcut reaches the first pending card and foil shortcuts preserve
 });
 
 test("completed nonfoil batches have no unfinished foil prompt and processing batches explain the wait", async ({ page }) => {
-  const mock = await fixture(page, 3, 0, [0, 1, 2], false, 0, 0);
+  const mock = await fixture(page, 3, 0, [0, 1, 2], 0, 0);
   const steps = page.getByRole("region", { name: "Batch next steps", exact: true });
   await expect(steps.getByRole("heading", { name: "Batch complete", exact: true })).toBeVisible();
   await expect(steps).toContainText("0 foil · 3 nonfoil");
   await expect(steps.getByRole("button", { name: "Choose foil cards", exact: true })).toHaveCount(0);
   await steps.getByRole("button", { name: "Browse scanned cards", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Edit batch", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Card 1 · Imported", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await expect(page.getByRole("button", { name: /fifteen-card-test.jpg/ })).not.toHaveAttribute("data-needs-review");
   expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
   await page.unroute("**/api/**");
-  const waiting = await fixture(page, 3, 1, [], false, 0, 1);
+  const waiting = await fixture(page, 3, 1, [], 0, 1);
   await expect(steps.getByRole("button", { name: "Choose foil cards", exact: true })).toBeDisabled();
   await expect(steps).toContainText("Ready when scanning finishes");
   waiting.finish(); await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -234,7 +233,7 @@ test("completed nonfoil batches have no unfinished foil prompt and processing ba
 
 for (const imported of [false, true]) test(`photo flip is saved across reopening for ${imported ? "imported" : "pending"} cards`, async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
-  const mock = await fixture(page, 1, 0, imported ? [0] : [], true, 180);
+  const mock = await fixture(page, 1, 0, imported ? [0] : [], 180);
   const flip = page.getByRole("button", { name: "Flip photo 180°", exact: true });
   expect((await flip.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await flip.click();
@@ -245,7 +244,6 @@ for (const imported of [false, true]) test(`photo flip is saved across reopening
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   mock.finish(); await page.reload(); await navigate(page, "Batches");
   await page.getByRole("button", { name: /fifteen-card-test.jpg/ }).click();
-  await page.getByRole("button", { name: "Edit batch", exact: true }).click();
   await expect(page.getByAltText("Your scanned card", { exact: true })).toHaveAttribute("src", /\?v=2$/);
   await flip.click();
   await expect(page.getByAltText("Your scanned card", { exact: true })).toHaveAttribute("src", /\?v=3$/);
@@ -290,12 +288,14 @@ test("a missed card can be outlined starting at its bottom right corner", async 
 });
 
 for (const width of [320, 390, 1280]) {
-  test(`batch list opens a separate overview and returns with saved approvals at ${width}px`, async ({ page }) => {
+  test(`batch list opens a reviewable batch and returns with saved approvals at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
-    const mock = await fixture(page, 15, 0, [0], false);
+    const mock = await fixture(page, 15, 0, [0]);
     await expect(page.getByRole("heading", { name: "Saved batches", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Approve & import", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Delete batch", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit batch", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve & import", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete batch", exact: true })).toBeVisible();
     await expect(page.getByText("14 cards need approval", { exact: true })).toBeVisible();
     await page.screenshot({ path: `../../artifacts/batch-navigation/overview-${width}-${test.info().project.name}.png`, fullPage: true });
     await page.getByRole("button", { name: /Back to batches/ }).click();
@@ -308,13 +308,11 @@ for (const width of [320, 390, 1280]) {
     await expect(row.locator(".batch-mini img").first()).toHaveJSProperty("complete", true);
     await page.screenshot({ path: `../../artifacts/batch-navigation/list-${width}-${test.info().project.name}.png`, fullPage: true });
     await row.click();
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     await page.getByRole("combobox", { name: "Finish", exact: true }).selectOption("nonfoil");
     await expect(page.locator(".batch-save-status")).toContainText("Unsaved edits");
     await page.getByRole("button", { name: "Approve & import", exact: true }).click();
     await expect(page.locator(".batch-save-status")).toHaveText("✓ Saved on server");
-    await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
-    await expect(page.getByRole("button", { name: "Edit batch", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Card 3 · Review suggestion", exact: true })).toBeVisible();
     await expect(page.getByText("13 cards need approval", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Close batch", exact: true }).click();
     await expect(row).toContainText("15 cards · 2 imported");
@@ -339,13 +337,12 @@ test("unfinished card choices survive cancelled exits and saved cards survive di
   await page.getByRole("button", { name: "Previous card", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Finish", exact: true })).toHaveValue("foil");
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
+  await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Finish", exact: true })).toHaveValue("foil");
   page.once("dialog", (dialog) => dialog.accept());
   await navigate(page, "Batches");
   await expect(page.getByRole("heading", { name: "Saved batches", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /fifteen-card-test.jpg/ }).click();
-  await page.getByRole("button", { name: "Edit batch", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Finish", exact: true })).toHaveValue("unknown");
   await expect(page.locator(".scan-match-state.imported")).toHaveCount(1);
   expect(mock.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
@@ -370,16 +367,15 @@ test("foil and crop drafts warn on exit and block closing during a save", async 
   await page.getByRole("button", { name: /Corner 1;/ }).focus();
   await page.keyboard.press("ArrowRight");
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
+  await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await expect(page.getByRole("region", { name: "Card outline editor", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Cancel outline", exact: true }).click();
-  await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
   await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Saved batches", exact: true })).toBeVisible();
 });
 
 test("qol recovery restores foil choices after reload without approving cards", async ({ page }) => {
-  const mock = await fixture(page, 3, 0, [], true, 0, 2);
+  const mock = await fixture(page, 3, 0, [], 0, 2);
   await page.getByRole("button", { name: "Select foil cards", exact: true }).click();
   await page.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
   await page.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
@@ -428,7 +424,7 @@ test("qol recovery restores crop corners and allows precise zoomed keyboard adju
   await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
   await page.getByRole("button", { name: "Restore outline", exact: true }).click();
   const corner = page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true });
-  expect(Number(await corner.getAttribute("cx"))).toBeCloseTo(.052, 5);
+  expect(Number(await corner.getAttribute("data-x"))).toBeCloseTo(.052, 5);
   await page.getByRole("button", { name: "+ Zoom in", exact: true }).click();
   const canvas = page.locator(".crop-canvas"), viewport = page.locator(".crop-viewport");
   expect((await canvas.boundingBox())!.width).toBeGreaterThan((await viewport.boundingBox())!.width);
@@ -438,6 +434,51 @@ test("qol recovery restores crop corners and allows precise zoomed keyboard adju
   const saved = mock.calls.find((call) => call.path.endsWith("/geometry"))!;
   expect(saved.body.polygon[0][0]).toBeCloseTo(.072, 5);
   expect(saved.body.expected_version).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("crop corners are finger-sized and a magnifier shows a dragged corner away from the pointer", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mock = await fixture(page, 1);
+  await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
+  const corner = page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true });
+  const loupe = page.locator(".crop-loupe");
+  await expect(page.locator(".crop-canvas img")).toHaveJSProperty("complete", true);
+  // Wait for the editor's scroll into view to settle before using raw pointer positions.
+  await corner.hover();
+  const handle = (await corner.boundingBox())!;
+  expect(handle.width).toBeGreaterThanOrEqual(44); expect(handle.height).toBeGreaterThanOrEqual(44);
+  await expect(loupe).toHaveCount(0);
+  const canvas = (await page.locator(".crop-canvas").boundingBox())!;
+  // Grab below the marker: the corner keeps that offset instead of jumping under the pointer.
+  const start = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 + 12 };
+  await page.mouse.move(start.x, start.y); await page.mouse.down();
+  await expect(loupe).toBeVisible();
+  await page.mouse.move(start.x + 30, start.y + 20, { steps: 5 });
+  const lens = (await loupe.boundingBox())!;
+  expect(lens.x).toBeGreaterThan(start.x + 30 + 22);
+  // The corner sits near the bottom of the screen here; the magnifier must stay fully visible.
+  expect(lens.y).toBeGreaterThanOrEqual(0); expect(lens.y + lens.height).toBeLessThanOrEqual(844);
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: `../../artifacts/crop-magnifier/drag-${test.info().project.name}.png` });
+  expect(lens.width).toBeGreaterThanOrEqual(120);
+  await page.mouse.up();
+  await expect(loupe).toHaveCount(0);
+  expect(Math.abs(Number(await corner.getAttribute("data-x")) * canvas.width - (.05 * canvas.width + 30))).toBeLessThan(2);
+  expect(Math.abs(Number(await corner.getAttribute("data-y")) * canvas.height - (.05 * canvas.height + 20))).toBeLessThan(2);
+  // A corner on the right half puts the magnifier on the left.
+  const right = (await page.getByRole("button", { name: "Corner 2; use arrow keys to adjust", exact: true }).boundingBox())!;
+  await page.mouse.move(right.x + right.width / 2, right.y + right.height / 2); await page.mouse.down();
+  await page.mouse.move(right.x + right.width / 2 + 120, right.y + right.height / 2, { steps: 3 });
+  expect((await loupe.boundingBox())!.x + 136).toBeLessThan(right.x + 120);
+  await page.mouse.up();
+  await corner.focus(); await page.keyboard.press("ArrowDown");
+  await expect(loupe).toBeVisible();
+  await page.getByRole("button", { name: "+ Zoom in", exact: true }).focus();
+  await expect(loupe).toHaveCount(0);
+  await page.getByRole("button", { name: "Save outline & identify", exact: true }).click();
+  const saved = mock.calls.find((call) => call.path.endsWith("/geometry"))!.body.polygon;
+  expect(saved[0][1]).toBeCloseTo(.05 + 20 / canvas.height + .002, 2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -468,7 +509,7 @@ test("qol recovery scan filters retain physical numbers and image viewer fits on
 });
 
 test("batch rows show distinct processing, review and empty states with pagination", async ({ page }) => {
-  const mock = await fixture(page, 12, 3, [], false);
+  const mock = await fixture(page, 12, 3, []);
   const source = mock.scan();
   await page.route("**/api/v1/scans?*", (route) => route.fulfill({ json: {
     items: new URL(route.request().url()).searchParams.get("offset") === "20" ? [{ ...source, id: "older", filename: "older.jpg", state: "EXPIRED", thumbnail_url: null, preview_cards: [], job: null, summary: { ...source.summary, cards: 0, needs_review: 0, value_min: null } }] : [source, { ...source, id: "reviewed", filename: "reviewed.jpg", state: "PHOTO_READY", finishes_confirmed: true, job: null, summary: { ...source.summary, imported: 12, needs_review: 0 } }],
@@ -489,7 +530,7 @@ test("batch rows show distinct processing, review and empty states with paginati
 
 test("failed corrections remain unsaved until retry succeeds", async ({ page }) => {
   await fixture(page, 15, 0, [0]);
-  await page.getByRole("button", { name: "Review card 1: Fixture Card 1", exact: true }).click();
+  await page.getByRole("button", { name: "View card 1: Fixture Card 1", exact: true }).click();
   await page.getByRole("button", { name: "Edit card / printing", exact: true }).click();
   await page.getByRole("combobox", { name: "Finish", exact: true }).selectOption("foil");
   await page.route("**/api/v1/collection/*/details", (route) => route.fulfill({ status: 503, json: { detail: "Could not save the correction. Try again." } }), { times: 1 });
@@ -498,10 +539,9 @@ test("failed corrections remain unsaved until retry succeeds", async ({ page }) 
   await expect(page.locator(".batch-save-status")).toContainText("Unsaved edits");
   await expect(page.getByRole("combobox", { name: "Finish", exact: true })).toHaveValue("foil");
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
+  await page.getByRole("button", { name: "Close batch", exact: true }).click();
   await page.getByRole("button", { name: "Save card correction", exact: true }).click();
   await expect(page.locator(".batch-save-status")).toHaveText("✓ Saved on server");
-  await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
   await page.getByRole("button", { name: "View card 1: Fixture Card 1", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Card 1 · Imported", exact: true })).toBeVisible();
 });
@@ -594,8 +634,9 @@ test("review navigation skips imported cards and remembers unfinished edits", as
   await expect(page.getByRole("button", { name: "Next card", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: /Next to review/ }).click();
   await expect(page.getByRole("heading", { name: "Card 4 · Review suggestion", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Review card 1: Fixture Card 1", exact: true }).click();
+  await page.getByRole("button", { name: "View card 1: Fixture Card 1", exact: true }).click();
   await expect(page.getByRole("button", { name: "Previous card", exact: true })).toBeDisabled();
+  await page.getByText("About prices and matching", { exact: true }).click();
   await expect(page.getByText(/Matches above 88% strength import automatically/)).toBeVisible();
 });
 
@@ -618,7 +659,7 @@ test("expected card count can be cleared and replaced without forcing a digit ba
 });
 
 test("zero foils needs no selection and changing the count marks only selected cards foil", async ({ page }) => {
-  const mock = await fixture(page, 3, 0, [0], true, 0, 0);
+  const mock = await fixture(page, 3, 0, [0], 0, 0);
   const panel = page.getByRole("region", { name: "Foil cards", exact: true });
   await expect(panel.getByRole("heading", { name: "0 foil · 3 nonfoil", exact: true })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Select foil cards", exact: true })).toHaveCount(0);
@@ -638,7 +679,7 @@ test("zero foils needs no selection and changing the count marks only selected c
 });
 
 test("setting zero foils clears the selections and saves every card as nonfoil", async ({ page }) => {
-  const mock = await fixture(page, 3, 0, [0], true, 0, 2);
+  const mock = await fixture(page, 3, 0, [0], 0, 2);
   const panel = page.getByRole("region", { name: "Foil cards", exact: true });
   await panel.getByRole("button", { name: "Select foil cards", exact: true }).click();
   await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
@@ -691,16 +732,16 @@ test("browser history visits batch overview and editing without discarding a can
   const finish = page.getByRole("combobox", { name: "Finish", exact: true });
   await finish.selectOption("foil");
   await cancelBrowserBack(page);
-  await expect(page).toHaveURL(/#\/batches\/scan-review-fixture\/edit$/);
+  await expect(page).toHaveURL(/#\/batches\/scan-review-fixture$/);
   await expect(finish).toHaveValue("foil");
   page.once("dialog", (dialog) => dialog.accept());
-  await page.evaluate(() => history.back());
-  await expect(page.getByRole("button", { name: "Edit batch", exact: true })).toBeVisible();
   await page.evaluate(() => history.back());
   await expect(page.getByRole("heading", { name: "Saved batches", exact: true })).toBeVisible();
   await page.evaluate(() => history.forward());
   await expect(page.getByRole("heading", { name: "fifteen-card-test.jpg", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "fifteen-card-test.jpg", exact: true })).toBeVisible();
+  await page.goto("/#/batches/scan-review-fixture/edit");
+  await expect(page.getByRole("heading", { name: "Card 1 · Review suggestion", exact: true })).toBeVisible();
   expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
 });

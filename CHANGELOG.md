@@ -1,5 +1,14 @@
 # Changelog
 
+## Easier batch review and sleeved-card OCR — October 3, 2026
+
+- Open every batch ready for review. The separate **Edit batch** / **Done editing** mode is gone; older `/edit` batch links open the same batch.
+- Put **Approve & import** in the sticky bottom bar between Previous and Next, so approving and moving to the next card is one thumb tap.
+- Give crop corners finger-sized handles, keep the grab offset while dragging, and show a magnifier with a crosshair and outline edges on the side away from your finger. Keep the draft notice below the photo so it cannot shift corners mid-drag.
+- Read sleeved cards: try lower title strips when the usual position has no confident name, in both orientations, and only flip a card for a plausible upside-down name.
+- Count set codes with digits (M15, C18, MH3), tolerate common footer misreads, and suggest printings from a readable set code and collector number when the title is unreadable.
+- On 133 previously manual-review crops, correct top printings rose from 66 to 99 (standard) and 73 to 103 (enhanced); 40 now qualify for automatic import with enhanced scanning.
+
 ## Deck case edge refinement — October 3, 2026
 
 - Keep the compact proportions and prominent commander artwork while refining the lid, base, and corners.

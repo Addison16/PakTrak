@@ -12,7 +12,7 @@ function parse(): Route {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const [page, id, view] = path.split("/");
   const route: Route = { page: pages.includes(page as Page) ? page as Page : "scan" };
-  if (route.page === "batches" && identifier(id)) { route.batch = id; if (view === "edit") route.view = "edit"; }
+  if (route.page === "batches" && identifier(id)) route.batch = id;
   if (route.page === "decks") {
     if (id === "import" || id === "scan") route.view = id;
     else if (identifier(id)) { route.deck = id; if (view === "edit" || view === "import" || view === "scan") route.view = view; }

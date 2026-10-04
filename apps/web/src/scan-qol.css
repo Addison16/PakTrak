@@ -39,9 +39,26 @@
 .crop-precision-tools span { font-size: 13px; color: var(--muted); }
 .crop-viewport { max-height: min(65vh, 760px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--control-border); border-radius: 12px; background: var(--surface-muted); }
 .crop-viewport .crop-canvas { max-width: none; margin: 0; border: 0; border-radius: 0; }
-.crop-canvas svg { touch-action: pan-x pan-y; }
-.crop-canvas circle { touch-action: none; }
-.crop-canvas circle:focus-visible { outline: none; stroke: var(--ink); stroke-width: .006; }
+.crop-canvas svg { touch-action: pan-x pan-y; pointer-events: none; }
+/* A finger-sized target around a small, precise corner marker. */
+.crop-handle { position: absolute; z-index: 1; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: move; touch-action: none; -webkit-tap-highlight-color: transparent; }
+.crop-handle::before { content: ""; position: absolute; inset: 13px; border: 2px solid var(--forest); border-radius: 50%; background: #ffffffa8; box-shadow: 0 1px 4px #0006; }
+.crop-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--forest); }
+.crop-handle > span { position: absolute; left: 31px; top: -1px; min-width: 16px; padding: 1px 4px; border-radius: 8px; background: var(--paper); color: var(--forest); font-size: 10px; font-weight: 700; line-height: 14px; pointer-events: none; }
+.crop-handle[data-active]::before, .crop-handle:focus-visible::before { border-color: var(--copper); background: #ffe090a8; }
+.crop-handle:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; }
+.crop-loupe { position: fixed; z-index: 30; overflow: hidden; border: 3px solid var(--paper); border-radius: 50%; background: var(--surface-muted); box-shadow: 0 0 0 1px var(--control-border), 0 8px 24px #0006; pointer-events: none; }
+.crop-loupe-content { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.crop-loupe-content img { display: block; width: 100%; height: 100%; max-width: none; }
+.crop-loupe-content svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.crop-loupe-content polygon { fill: none; stroke: #ffe090; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.crop-loupe-content polygon.halo { stroke: #000a; stroke-width: 4px; }
+/* Crosshair marking the exact corner position. */
+.crop-loupe::before, .crop-loupe::after { content: ""; position: absolute; z-index: 1; left: 50%; top: 50%; background: var(--copper); box-shadow: 0 0 0 1px #fff9; }
+.crop-loupe::before { width: 26px; height: 2px; margin: -1px 0 0 -13px; }
+.crop-loupe::after { width: 2px; height: 26px; margin: -13px 0 0 -1px; }
+@media (prefers-reduced-motion: no-preference) { .crop-loupe { animation: crop-loupe-in .12s ease-out; } }
+@keyframes crop-loupe-in { from { opacity: 0; transform: scale(.9); } }
 @media (max-width: 540px) {
   .scan-recovery { padding: 14px; }
   .scan-recovery .actions { width: 100%; }

@@ -31,11 +31,26 @@ from scanner.image_enhancement import (
 from scanner.image_enhancement import VERSION as ENHANCEMENT_VERSION
 from scanner.models import Printing, now
 
-VERSION = "tesseract-sift-v2"
-ENHANCED_VERSION = "tesseract-sift-cpu-enhanced-v2"
+VERSION = "tesseract-sift-v3"
+ENHANCED_VERSION = "tesseract-sift-cpu-enhanced-v3"
 logger = logging.getLogger(__name__)
 _catalog = None
+_identifiers = None
+_numbers = None
 _catalog_at = 0
+# Boxes describe a 600×840 card crop.
+TITLE_BOXES = ((27, 32, 540, 92), (30, 38, 510, 77))
+# Sleeves and generous outlines leave a margin above the card, so its title
+# sits lower in the crop. These strips are read only when no confident name
+# was found at the usual position.
+LOWER_TITLE_BOXES = ((27, 56, 560, 116), (27, 80, 560, 140))
+FOOTER_BOX = (9, 758, 400, 831)
+CONFIDENT_NAME = 0.80
+FLIP_NAME = 0.70
+# A collector number without its set code needs this much of the title.
+NUMBERED_TITLE = 0.50
+# Common OCR confusions in the small footer font, compared in digit form.
+LOOKALIKES = str.maketrans("OQDILSBZ|", "001115821")
 
 
 def normalized(value):
@@ -43,9 +58,11 @@ def normalized(value):
 
 
 def catalog_index():
-    global _catalog, _catalog_at
+    global _catalog, _identifiers, _numbers, _catalog_at
     if _catalog is None or time.monotonic() - _catalog_at > 300:
         by_name = defaultdict(list)
+        by_identifier = defaultdict(list)
+        by_number = defaultdict(list)
         with session_factory()() as db:
             for row in db.execute(
                 select(
@@ -68,8 +85,88 @@ def catalog_index():
                 source = record.pop("source_names")
                 for name in {normalized(name) for name in card_names(row.name, source)} - {""}:
                     by_name[name].append(record)
-        _catalog, _catalog_at = dict(by_name), time.monotonic()
+                # Printed footers show plain numbers; letter-suffixed promos are
+                # left to the name search.
+                number = row.collector_number.lstrip("0")
+                if number.isdigit():
+                    by_identifier[row.set_code.upper().translate(LOOKALIKES), number].append(record)
+                    by_number[number].append(record)
+        _catalog, _identifiers, _numbers = dict(by_name), dict(by_identifier), dict(by_number)
+        _catalog_at = time.monotonic()
     return _catalog
+
+
+def identifier_index():
+    catalog_index()
+    return _identifiers or {}, _numbers or {}
+
+
+def footer_codes(footer):
+    """Possible set codes: whole words, plus the start of the word printed
+    before the language code, where a smudge can run into it ("IMAce EN")."""
+    text = footer.upper()
+    codes = set(re.findall(r"(?<![A-Z0-9])[A-Z0-9]{2,6}(?![A-Z0-9])", text))
+    for word in re.findall(r"(?<![A-Z0-9])([A-Z0-9]{4,8})\W{0,3}EN(?![A-Z0-9])", text):
+        codes.update(word[:size] for size in range(3, len(word)))
+    return codes
+
+
+def footer_numbers(footer):
+    """Collector numbers from "171/269 C" and "R 0282" footers, allowing O/0 slips."""
+    numbers = set()
+    for token in re.findall(r"[A-Z0-9|]+", footer.upper()):
+        for part in (token, token[1:] if token[0].isalpha() and len(token) >= 4 else ""):
+            digits = part.translate(LOOKALIKES)
+            if 2 <= len(part) <= 5 and digits.isdigit() and sum(c.isdigit() for c in part) >= 2:
+                number = digits.lstrip("0")
+                # Skip copyright years; collector numbers are zero-padded.
+                if number and not (len(part) == 4 and 1990 <= int(number) <= 2039):
+                    numbers.add(number)
+    return numbers
+
+
+def code_agrees(code, tokens):
+    # Digits count (M15, C18, MH3), and lookalike letters compare as digits.
+    code = code.upper().translate(LOOKALIKES)
+    return any(token.translate(LOOKALIKES) == code for token in tokens)
+
+
+def footer_printings(tokens, numbers, titles):
+    """Printings identified by a footer, with how closely each matches the title.
+
+    A set code and collector number together identify a printing. A number
+    alone only narrows the search to cards whose title is similar.
+    """
+    by_identifier, by_number = identifier_index()
+    codes = {token.translate(LOOKALIKES) for token in tokens}
+    similarity = {}
+
+    def similar(row):
+        if row["name"] not in similarity:
+            similarity[row["name"]] = round(title_similarity(titles, row["name"]), 3)
+        return similarity[row["name"]]
+
+    found = {}
+    for number in numbers:
+        for code in codes:
+            for row in by_identifier.get((code, number), []):
+                found[str(row["id"])] = (row, similar(row))
+        for row in by_number.get(number, []):
+            if str(row["id"]) not in found and similar(row) >= NUMBERED_TITLE:
+                found[str(row["id"])] = (row, similar(row))
+    return list(found.values())
+
+
+def title_similarity(titles, name):
+    """How much of a card name appears, in order, in the OCR title, with extra text counting against it."""
+    best = 0
+    for target in {normalized(part) for part in [name, *name.split(" // ")]} - {""}:
+        for title in titles:
+            query = normalized(title)
+            if query:
+                blocks = difflib.SequenceMatcher(None, query, target).get_matching_blocks()
+                best = max(best, sum(block.size for block in blocks) / max(len(target), len(query)))
+    return best
 
 
 def read_text(image, box, psm=7, invert=False, *, enhance=False, deadline=None):
@@ -100,15 +197,19 @@ def name_matches(titles, index):
     # fuzzy alternatives, including spacing errors, but never force a match.
     for title in titles:
         words = re.findall(r"[\w.'’-]+", title, re.UNICODE)[:12]
-        while words and (len(normalized(words[-1])) <= 2 or normalized(words[-1]).isdigit()):
-            words.pop()
         while words and len(normalized(words[0])) <= 1:
             words.pop(0)
+        # Short trailing words are usually mana symbols, but a few names end
+        # with one ("Bulk Up"). Those can still match a full name exactly.
+        complete = words[:]
+        while words and (len(normalized(words[-1])) <= 2 or normalized(words[-1]).isdigit()):
+            words.pop()
         whole = normalized(" ".join(words))
         queries = {whole}
-        for start in range(min(2, len(words))):
-            for end in range(max(start + 1, len(words) - 3), len(words) + 1):
-                queries.add(normalized(" ".join(words[start:end])))
+        for sequence in (words, complete):
+            for start in range(min(2, len(sequence))):
+                for end in range(max(start + 1, len(sequence) - 3), len(sequence) + 1):
+                    queries.add(normalized(" ".join(sequence[start:end])))
         for query in queries:
             if len(query) < 4:
                 continue
@@ -122,7 +223,8 @@ def name_matches(titles, index):
             for name in difflib.get_close_matches(query, index.keys(), n=4, cutoff=0.60):
                 score = difflib.SequenceMatcher(None, query, name).ratio()
                 scores[name] = max(scores.get(name, 0), score)
-    return sorted(scores.items(), key=lambda item: -item[1])[:4]
+    # On a tie, the longer exact name used more of the text that was read.
+    return sorted(scores.items(), key=lambda item: (-item[1], -len(item[0])))[:4]
 
 
 def visual_features(data):
@@ -213,50 +315,83 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
     def read(view, box, psm=7, invert=False):
         return read_text(view, box, psm, invert, enhance=enhance, deadline=deadline)
 
-    titles = [read(text_image, (27, 32, 540, 92)), read(text_image, (30, 38, 510, 77))]
+    def strength(found):
+        return found[0][1] if found else 0
+
+    titles = [read(text_image, box) for box in TITLE_BOXES]
     matches = name_matches(titles, index)
-    if orientation is None and (not matches or matches[0][1] < 0.80):
-        flipped = text_image.rotate(180)
-        title = read(flipped, (27, 32, 540, 92))
-        flipped_matches = name_matches([title], index)
-        if flipped_matches and (not matches or flipped_matches[0][1] > matches[0][1]):
-            image, text_image, titles, matches, rotation = (
-                image.rotate(180),
-                flipped,
-                [title],
-                flipped_matches,
-                180,
-            )
-    footer = read(text_image, (9, 758, 400, 831), psm=6, invert=True)
-    footer_words = set(re.findall(r"[A-Z]{2,6}", footer.upper()))
-    footer_numbers = set(re.findall(r"(?<![A-Za-z0-9])[0-9]{2,5}(?![A-Za-z0-9])", footer))
-    numbers = {str(int(number)) for number in footer_numbers}
+    flipped = text_image.rotate(180) if orientation is None else None
+    flipped_titles, flipped_matches = [], []
+    if flipped is not None and strength(matches) < CONFIDENT_NAME:
+        flipped_titles.append(read(flipped, TITLE_BOXES[0]))
+        flipped_matches = name_matches(flipped_titles, index)
+    for box in LOWER_TITLE_BOXES:
+        if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
+            break
+        titles.append(read(text_image, box))
+        matches = name_matches(titles, index)
+    for box in LOWER_TITLE_BOXES if flipped is not None else ():
+        if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
+            break
+        flipped_titles.append(read(flipped, box))
+        flipped_matches = name_matches(flipped_titles, index)
+    # Junk text can fuzzily resemble a name either way up. Only a plausible
+    # name read upside down justifies turning the card.
+    if strength(flipped_matches) > max(strength(matches), FLIP_NAME):
+        image, text_image, titles, matches, rotation = (
+            image.rotate(180),
+            flipped,
+            flipped_titles,
+            flipped_matches,
+            180,
+        )
+    footer = read(text_image, FOOTER_BOX, psm=6, invert=True)
+    codes, numbers = footer_codes(footer), footer_numbers(footer)
+
+    def score_printing(row, score, *, named=True):
+        set_agrees = code_agrees(row["set_code"], codes)
+        number_agrees = row["collector_number"].lstrip("0") in numbers
+        hint = set_hint and row["set_code"] in {set_hint, "t" + set_hint}
+        rank = 0.65 * score + 0.14 * set_agrees + 0.09 * number_agrees + 0.04 * bool(hint)
+        evidence = []
+        if named or score >= 0.78:
+            evidence.append("Card name matches" if score == 1 else "Card name is similar")
+        if set_agrees:
+            evidence.append("Set code read from photo")
+        if number_agrees:
+            evidence.append("Collector number read from photo")
+        if hint and not set_agrees:
+            evidence.append("Set suggested by other cards in this photo")
+        return {
+            "printing_id": str(row["id"]),
+            "match_score": round(rank, 3),
+            "evidence": evidence,
+            "name_score": score,
+            "set_read": row["set_code"] if set_agrees else None,
+            "identifiers_agree": bool(set_agrees and number_agrees),
+            "visual_inliers": 0,
+        }
+
     candidates = {}
     for name, score in matches:
         for row in index[name]:
-            set_agrees = row["set_code"].upper() in footer_words
-            number_agrees = row["collector_number"].lstrip("0") in numbers
-            hint = set_hint and row["set_code"] in {set_hint, "t" + set_hint}
-            rank = 0.65 * score + 0.14 * set_agrees + 0.09 * number_agrees + 0.04 * bool(hint)
-            evidence = ["Card name matches" if score == 1 else "Card name is similar"]
-            if set_agrees:
-                evidence.append("Set code read from photo")
-            if number_agrees:
-                evidence.append("Collector number read from photo")
-            if hint and not set_agrees:
-                evidence.append("Set suggested by other cards in this photo")
-            value = {
-                "printing_id": str(row["id"]),
-                "match_score": round(rank, 3),
-                "evidence": evidence,
-                "name_score": score,
-                "set_read": row["set_code"] if set_agrees else None,
-                "identifiers_agree": bool(set_agrees and number_agrees),
-                "visual_inliers": 0,
-            }
-            if rank > candidates.get(value["printing_id"], {}).get("match_score", -1):
+            value = score_printing(row, score)
+            if value["match_score"] > candidates.get(value["printing_id"], {}).get(
+                "match_score", -1
+            ):
                 candidates[value["printing_id"]] = value
     ranked = sorted(candidates.values(), key=lambda c: (-c["match_score"], c["printing_id"]))[:4]
+    # A readable set code and collector number identify a printing even when
+    # the title is unreadable. Artwork or the title must still corroborate it.
+    footer_found = [
+        score_printing(row, similarity, named=False)
+        for row, similarity in footer_printings(codes, numbers, titles)
+        if str(row["id"]) not in candidates
+    ]
+    footer_found = sorted(footer_found, key=lambda c: (-c["match_score"], c["printing_id"]))[:2]
+    for value in footer_found:
+        value["footer_match"] = True
+    ranked += footer_found
     query_data = io.BytesIO()
     image.save(query_data, "JPEG", quality=95)
     query = visual_features(query_data.getvalue())

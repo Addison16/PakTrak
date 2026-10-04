@@ -77,9 +77,8 @@ test("mobile upload survives a closed browser and is available in a new session"
     await expect(page.getByRole("button", { name: /synthetic-transport-test.png/ })).toBeVisible();
     await page.getByRole("button", { name: /synthetic-transport-test.png/ }).click();
     await expect(page.getByRole("heading", { name: "synthetic-transport-test.png", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit batch", exact: true })).toBeEnabled({ timeout: 60000 });
+    await expect(page.getByRole("button", { name: "Add a missed card", exact: true })).toBeEnabled({ timeout: 60000 });
     await expect.poll(async () => (await (await context.request.get("/api/v1/scans/" + accepted.scan_id)).json()).state, { timeout: 60000 }).toBe("PHOTO_READY");
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     const scan = await (await context.request.get("/api/v1/scans/" + accepted.scan_id)).json();
     expect(scan.job.result).toMatchObject({ recognition_available: true, cards_added: 0 });
     expect(scan.foil_count).toBe(1);
@@ -105,7 +104,6 @@ test("mobile upload survives a closed browser and is available in a new session"
     expect((await (await context.request.get("/api/v1/collection")).json()).copies).toBe(1);
     const reviewed = await (await context.request.get("/api/v1/scans/" + accepted.scan_id + "/observations")).json();
     expect(reviewed.items[0].lot.finish).toBe("foil");
-    await page.getByRole("button", { name: "Done editing", exact: true }).first().click();
     await page.getByRole("button", { name: "Close batch", exact: true }).click();
     const batchRow = page.getByRole("button", { name: /synthetic-transport-test.png/ });
     await expect(batchRow).toContainText("1 imported");

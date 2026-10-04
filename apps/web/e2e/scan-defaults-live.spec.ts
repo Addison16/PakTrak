@@ -29,7 +29,6 @@ test("nonfoil defaults and selected foils survive adding a missed card with the 
     expect(accepted.safe_to_disconnect).toBe(true);
     const base = `/api/v1/scans/${accepted.scan_id}`;
     await expect.poll(async () => (await (await context.request.get(base)).json()).state, { timeout: 60000 }).toBe("PHOTO_READY");
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     let data = await (await context.request.get(base + "/observations")).json();
     expect(data.items).toHaveLength(2);
     expect(data.finishes).toMatchObject({ foil_count: 0, confirmed: true, foil_ids: [] });
@@ -59,7 +58,6 @@ test("nonfoil defaults and selected foils survive adding a missed card with the 
     await expect.poll(async () => (await (await context.request.get(base)).json()).state, { timeout: 60000 }).toBe("PHOTO_READY");
     page = await context.newPage(); await page.goto("/"); await navigate(page, "Batches");
     await page.getByRole("button", { name: /finish-defaults-fixture.jpg/ }).click();
-    await page.getByRole("button", { name: "Edit batch", exact: true }).click();
     await expect(page.getByRole("heading", { name: "1 foil · 2 nonfoil", exact: true })).toBeVisible();
     data = await (await context.request.get(base + "/observations")).json();
     expect(data.finishes).toMatchObject({ foil_count: 1, confirmed: true, foil_ids: [foilId] });

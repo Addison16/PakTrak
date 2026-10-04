@@ -118,8 +118,6 @@ function App() {
   const [scans, setScans] = useState<Scan[]>([]);
   const [selected, setSelected] = useState<Scan | null>(null);
   const [scanDeck, setScanDeck] = useState<Deck | null>(null);
-  const editingBatch = route.page === "batches" && route.view === "edit";
-  const setEditingBatch = (editing: boolean) => navigation.go({ page: "batches", batch: selectedId.current || undefined, view: editing ? "edit" : undefined });
   const [reviewState, setReviewState] = useState<ReviewState>({ dirty: false, busy: false });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -292,9 +290,6 @@ function App() {
     if (sameScreen(from, { page: destination }) && from.overlay === "menu") navigation.close({ ...from, overlay: undefined });
     else if (navigation.go({ page: destination }, { replace: from.overlay === "menu" })) { setNotice(""); setError(""); }
     else if (from.overlay === "menu") navigation.close({ ...from, overlay: undefined }, true);
-  }
-  function finishEditing() {
-    navigation.close({ page: "batches", batch: selected?.id });
   }
   useEffect(() => {
     if (page !== "batches" || selected) return;
@@ -608,13 +603,12 @@ function App() {
             <button className="button secondary" disabled={busy} onClick={() => navigate("batches")}>Review saved batches <Icon name="arrow" /></button></div>}
         </section>}
         {selected && ["scan", "batches"].includes(page) && <section className="panel result" aria-label="Selected batch">
-          <div className="batch-toolbar"><button className="button secondary" disabled={busy || reviewState.busy || deleting} onClick={closeBatch}>← Back to batches</button>
-            {!!selected.width && <button className={"button " + (editingBatch ? "primary" : "secondary")} disabled={busy || reviewState.busy || deleting} onClick={() => editingBatch ? finishEditing() : setEditingBatch(true)}>{editingBatch ? "Done editing" : "Edit batch"}</button>}</div>
-          <div className="eyebrow">{editingBatch ? "EDITING BATCH" : "SAVED BATCH"}</div>
+          <div className="batch-toolbar"><button className="button secondary" disabled={busy || reviewState.busy || deleting} onClick={closeBatch}>← Back to batches</button></div>
+          <div className="eyebrow">SAVED BATCH</div>
           <h2 id="batch-title" className="filename" tabIndex={-1}>{selected.filename}</h2>
           <div className="batch-detail-meta"><span className={"badge " + selected.state.toLowerCase()}>{batchStatus(selected)}</span><time dateTime={selected.created_at}>{new Date(selected.created_at).toLocaleString()}</time></div>
           {selected.accepted_at && <p className="batch-save-status" role="status">{reviewState.busy ? "Saving changes…" : reviewState.dirty ? "Unsaved edits · approve or save your changes before leaving." : "✓ Saved on server"}</p>}
-          {selected.accepted_at && <p className="fine">{editingBatch ? "Each approval and finish confirmation saves immediately. Done editing returns to the overview." : "Use the next steps below to choose foils and review matches. Your batch is saved, so you can return anytime."}</p>}
+          {selected.accepted_at && <p className="fine">Use the next steps below to choose foils and review matches. Each approval saves immediately, so you can return anytime.</p>}
           {selected.accepted_at && <div className="scan-deck-target" aria-label="Save batch to a deck">
             <strong>{selected.target_deck ? `Deck: ${selected.target_deck.name}` : "Organize these cards as a deck"}</strong>
             <p className="fine">{selected.add_to_collection === false ? "Deck scan · matched cards are saved without adding collection copies." : "Building a deck from this batch uses its reviewed cards without adding collection copies again."}</p>
@@ -624,13 +618,13 @@ function App() {
           {selected.accepted_at && !terminal && <p className="saved"><span aria-hidden="true">✓ </span>Saved on your server. You can disconnect.</p>}
           {selected.job && !terminal && <p role="status">{selected.job.stage}</p>}
           {selected.job?.error_message && <p className="message error">{selected.job.error_message}</p>}
-          {!!selected.width && <Suspense fallback={<p>Opening saved card regions…</p>}><Review key={selected.id} scanId={selected.id} photo={selected.thumbnail_url} session={session} editable={editingBatch} onEdit={() => setEditingBatch(true)} onStateChange={setReviewState} processing={!!selected.job && ["QUEUED", "RUNNING"].includes(selected.job.state)} progress={selected.job?.progress} onChange={refreshSelected} /></Suspense>}
+          {!!selected.width && <Suspense fallback={<p>Opening saved card regions…</p>}><Review key={selected.id} scanId={selected.id} photo={selected.thumbnail_url} session={session} onStateChange={setReviewState} processing={!!selected.job && ["QUEUED", "RUNNING"].includes(selected.job.state)} progress={selected.job?.progress} onChange={refreshSelected} /></Suspense>}
           {selected.state === "EXPIRED" && <p>The photo expired under the retention policy. This batch record is still available.</p>}
           {selected.width && <p className="fine">{selected.width} × {selected.height} pixels · Prepared on the server</p>}
           {selected.duplicate_scan_id && <p className="message">An earlier batch contains the same photo. <button className="text-button" onClick={() => leaveReview(() => { request<Scan>("/api/v1/scans/" + selected.duplicate_scan_id).then(openBatch).catch((e: Error) => setError(e)); })}>View earlier batch</button></p>}
           {selected.uploaded && !selected.accepted_at && <button className="button primary" disabled={busy || scanBlocked} onClick={() => void finishUpload()}>Confirm server processing</button>}
-          <div className="batch-exit actions">{editingBatch && <button className="button primary" disabled={busy || reviewState.busy || deleting} onClick={finishEditing}>Done editing</button>}<button className="button secondary" disabled={busy || reviewState.busy || deleting} onClick={closeBatch}>Close batch</button></div>
-          {(editingBatch || !selected.width) && <div className="scan-delete"><button className="button danger" disabled={busy || deleting || reviewState.busy} onClick={() => void deleteSelected()}>{deleting ? "Reviewing deletion…" : "Delete batch"}</button><p className="fine">Also removes the remaining collection copies added by this scan.</p></div>}
+          <div className="batch-exit actions"><button className="button secondary" disabled={busy || reviewState.busy || deleting} onClick={closeBatch}>Close batch</button></div>
+          <div className="scan-delete"><button className="button danger" disabled={busy || deleting || reviewState.busy} onClick={() => void deleteSelected()}>{deleting ? "Reviewing deletion…" : "Delete batch"}</button><p className="fine">Also removes the remaining collection copies added by this scan.</p></div>
         </section>}
         {openedCollection && <div hidden={page !== "collection"}><Suspense fallback={<p role="status">Opening your collection…</p>}><Collections session={session} mode="collection" /></Suspense></div>}
         {page === "transfers" && <Suspense fallback={<p role="status">Opening your transfers…</p>}><Collections session={session} mode="transfers" /></Suspense>}
