@@ -19,7 +19,11 @@ def main():
     parser.add_argument("--url", default="http://localhost:8095")
     parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8095)
+    parser.add_argument("--image-version", help="Pin the installation to a published Docker image version")
     args = parser.parse_args()
+    if args.image_version:
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?", args.image_version) or len(args.image_version) > 127:
+            parser.error("--image-version must be X.Y.Z or X.Y.Z-prerelease")
     if args.upgrade:
         path = Path(".env")
         if not path.exists():
@@ -47,6 +51,19 @@ def main():
                 print(
                     "Added the private password-management credential; existing settings were preserved."
                 )
+            if args.image_version:
+                config.seek(0)
+                contents = config.read()
+                line = "PAKTRAK_VERSION=" + args.image_version
+                if re.search(r"^PAKTRAK_VERSION=.*$", contents, re.MULTILINE):
+                    contents = re.sub(r"^PAKTRAK_VERSION=.*$", line, contents, flags=re.MULTILINE)
+                else:
+                    contents += ("" if contents.endswith("\n") else "\n") + line + "\n"
+                config.seek(0)
+                config.write(contents)
+                config.truncate()
+                config.flush()
+                os.fsync(config.fileno())
         return
     origin = args.url.rstrip("/")
     parsed = urlparse(origin)
@@ -73,6 +90,7 @@ def main():
         "HTTP_PORT": str(args.port),
         "ALLOW_INSECURE_HTTP": str(parsed.scheme == "http").lower(),
         "MAX_UPLOAD_BYTES": str(100 * 1024 * 1024),
+        "PAKTRAK_VERSION": args.image_version or "latest",
     }
     for name in (
         "POSTGRES_PASSWORD",
@@ -139,7 +157,7 @@ def main():
     (generated / "s3.json").chmod(0o644)
     print("Created .env and infra/generated (private, excluded from git).")
     print("Open the application to create your administrator account on first launch.")
-    print("Run docker compose up -d --build. Application origin: " + origin)
+    print("Run sh scripts/update.sh for the latest release, or sh scripts/start.sh --build for this source checkout. Application origin: " + origin)
 
 
 if __name__ == "__main__":

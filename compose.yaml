@@ -1,11 +1,7 @@
 name: mtg-scanner
 
 x-backend: &backend
-  image: mtg-scanner-backend:0.1.0
-  build:
-    context: .
-    dockerfile: services/backend/Dockerfile
-    target: runtime
+  image: ghcr.io/addison16/paktrak-backend:${PAKTRAK_VERSION:-latest}
   init: true
   restart: unless-stopped
   logging:
@@ -151,10 +147,7 @@ services:
     stop_grace_period: 30s
 
   web:
-    image: mtg-scanner-web:0.1.0
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    image: ghcr.io/addison16/paktrak-web:${PAKTRAK_VERSION:-latest}
     restart: unless-stopped
     ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8095}:8080"]
     environment:
@@ -167,10 +160,6 @@ services:
   tests:
     <<: *backend
     image: mtg-scanner-tests:0.1.0
-    build:
-      context: .
-      dockerfile: services/backend/Dockerfile
-      target: test
     profiles: [test]
     restart: "no"
     environment:

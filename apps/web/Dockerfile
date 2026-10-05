@@ -5,7 +5,9 @@ RUN npm ci
 COPY apps/web/ ./
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:daa17b944bac2b578e962da4c61ad72a59233b3c63abea17113acaf4e6b9aea4
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:daa17b944bac2b578e962da4c61ad72a59233b3c63abea17113acaf4e6b9aea4 AS runtime
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY infra/nginx.conf /etc/nginx/templates/default.conf.template
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/paktrak/
+COPY docs/DEPENDENCIES.md /usr/share/doc/paktrak/DEPENDENCIES.md
 ENV NGINX_ENVSUBST_FILTER=^APP_URL$

@@ -18,3 +18,4 @@ backups/
 .hermes-backups/
 .hermes-stage/
 *.egg-info/
+.paktrak-update.lock/

@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 if docker buildx version >/dev/null 2>&1; then
-  docker compose --profile test build tests
+  docker compose -f compose.yaml -f compose.build.yaml --profile test build tests
 else
   DOCKER_BUILDKIT=0 docker build --target test -t mtg-scanner-tests:0.1.0 -f services/backend/Dockerfile .
 fi

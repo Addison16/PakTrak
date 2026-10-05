@@ -2,11 +2,11 @@
 
 ## First installation
 
-Run from the project directory on a machine with Docker Engine/Desktop and Compose:
+Run from a Git clone on a machine with Git, Docker Engine/Desktop and Compose 2.18 or newer. Published application images currently support Linux amd64:
 
 ```sh
 sh scripts/setup.sh
-sh scripts/start.sh
+sh scripts/update.sh
 ```
 
 The web app is at `http://localhost:8095`. Its first launch offers **Create administrator account**; choose your own credentials through the registration screen. There is no pre-created application account on fresh installations. Finish setup before opening registration to general visitors. The separate identity administrator is `admin`, with `KEYCLOAK_ADMIN_PASSWORD`; the identity console is under `/identity/admin/`. Keep secrets, generated configuration, private volumes, test artifacts, and real collection/photo fixtures private.
@@ -17,7 +17,7 @@ Closing guest signup prevents new application accounts, including attempted admi
 
 The account/deck migration preserves existing collectors as members and upgrades an existing provisioned `owner` application account to admin when present. An installation without that account shows the new setup screen. Existing secrets are not overwritten; an old `OWNER_INITIAL_PASSWORD` value is no longer needed for fresh app setup.
 
-No host Python, Node, npm, uv, or Make installation is required. `make setup`, `make dev`, and the other Make targets are conveniences for the shell/Docker commands. The setup script uses the pinned Python container and refuses to overwrite configuration. Builds use Buildx when available and support the legacy Docker builder as a fallback.
+No host Python, Node, npm, uv, or Make installation is required. `make setup`, `make start`, `make update`, and the other Make targets are conveniences for the shell/Docker commands. Setup uses the pinned Python container and refuses to overwrite configuration. Normal installation pulls prebuilt GHCR images. `make dev` or `sh scripts/start.sh --build` builds the current source through `compose.build.yaml`, using Buildx when available or the legacy Docker builder as a fallback.
 
 Passwords require at least **8 characters**. Bootstrap applies this minimum to both new and existing installations, retaining any other operator-configured password rules. Existing credentials keep working. It also selects the `paktrak` login theme; Compose mounts [the theme](../infra/themes/paktrak/login/), bundled fonts and shared appearance assets read-only. Keep both theme `resources/fonts/` and `resources/shared/` directories, including their `.gitkeep` files, when copying the project: Docker needs those mount points inside the read-only theme.
 
@@ -29,13 +29,37 @@ Allow initial image downloads and time for Keycloak to start. The API readiness 
 
 The start script validates and reloads nginx after Compose starts the services. This refreshes Docker service addresses when an API update replaces its container but leaves the existing web container running.
 
+## Installing updates
+
+From the installation directory:
+
+```sh
+sh scripts/update.sh
+```
+
+The updater looks up the latest **published stable** GitHub release, fetches its tag, and switches the checkout to that tag. Login themes, database initialization files, setup scripts and Compose configuration stay paired with the release images. The checkout is intentionally detached from `main`; subsequent updates use the same script. There is no need to run `git pull`. The updater refuses tracked source edits and concurrent updates. Ignored `.env`, generated configuration and data volumes remain in place.
+
+It pins `PAKTRAK_VERSION` in `.env` to the release version, then starts the installation. Startup downloads all required images before pausing services, stops application processes before schema changes, refreshes the identity theme, and reruns the one-shot bootstrap. Application services start only after successful migration, and the API must pass its readiness check before the web service starts. nginx is validated and reloaded. There is a short maintenance pause during migration/startup.
+
+Use `sh scripts/start.sh` to repeat startup at the installed version without changing the Git checkout. To select a specific **published** release:
+
+```sh
+sh scripts/update.sh --version v0.1.0
+```
+
+A prerelease can be selected explicitly; it is never selected by the default update command. Selecting an older image does not reverse database migrations. For recovery across schema changes, restore a matching [installation backup](#upgrades-and-backups) into a new project rather than mixing an old application with a newer schema.
+
+If an image cannot be pulled, running application services have not yet been stopped. If bootstrap fails after the pause, inspect `docker compose logs migrate api identity`, fix the cause, and rerun `sh scripts/start.sh`. Existing credentials and named volumes are retained. Keep the installed `.env` and generated configuration with your normal installation backups.
+
+The simple `docker compose pull` / `docker compose up -d --no-build` commands use the pinned image version and retain volumes, but use the update script for a new release so runtime files and configuration upgrades are applied too. [The release guide](RELEASING.md) documents image publishing and package visibility.
+
 ## HTTPS and access from a phone
 
 For a **fresh** deployment, choose the final origin before initializing Keycloak:
 
 ```sh
 sh scripts/setup.sh --url https://cards.example.net --bind 127.0.0.1 --port 8095
-sh scripts/start.sh
+sh scripts/update.sh
 ```
 
 Replace the example hostname with one you control. Terminate HTTPS at your existing reverse proxy on the same server and forward to `127.0.0.1:8095`. For example, using [Caddy's documented reverse-proxy configuration](https://caddyserver.com/docs/quick-starts/reverse-proxy), a host-installed Caddy configuration is:
@@ -64,7 +88,7 @@ Open **Menu → My account** for your profile, password change, sign-out control
 
 Password resets create a temporary password to share privately; the next sign-in requires a new password. They revoke both app and identity sessions. No SMTP configuration is needed, and PakTrak does not send the password automatically. Admin accounts change their own password through **My account**; the per-user reset action is for guests and members.
 
-`scripts/start.sh` runs `scripts/setup.sh --upgrade` before building. On an older installation, this appends a generated `PASSWORD_RESET_CLIENT_SECRET` to `.env` under a file lock, preserves existing values and permissions them to owner-only access. Repeated starts reuse the secret. An explicitly empty key needs a generated value of at least 32 characters. Keep the updated `.env` with private installation backups.
+`scripts/start.sh` runs `scripts/setup.sh --upgrade` before pulling or building. On an older installation, this appends a generated `PASSWORD_RESET_CLIENT_SECRET` to `.env` under a file lock, preserves existing values and permissions them to owner-only access. Repeated starts reuse the secret. An explicitly empty key needs a generated value of at least 32 characters. Keep the updated `.env` with private installation backups.
 
 The one-shot bootstrap provisions a dedicated confidential Keycloak service client, `paktrak-account-admin`, with only the `realm-management` **manage-users** role and a matching token scope. This role manages users within the application realm; it is not an endpoint-specific reset permission. Interactive login and password grants are disabled for this client. Its credential reaches only the API and migration service, not workers or browser assets. The identity master-admin credential remains confined to bootstrap and the identity service. The application checks administrator status, CSRF, account version and protected-admin rules before calling the provider's [credential reset and logout endpoints](https://www.keycloak.org/docs-api/26.7.4/rest-api/index.html).
 

@@ -45,7 +45,7 @@ for browser in chromium webkit; do
   docker run -d --rm --name mtg-scanner-accounts-e2e-web --network mtg-scanner_private \
     -p 127.0.0.1:18097:8080 -v "$PWD/scripts/accounts-test-nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
     -v "$PWD/apps/web/dist:/usr/share/nginx/html:ro" \
-    --entrypoint nginx mtg-scanner-web:0.1.0 -g 'daemon off;' >/dev/null
+    --entrypoint nginx "$(docker compose images -q web)" -g 'daemon off;' >/dev/null
   sh scripts/test-browser.sh --grep 'first-run administrator' --project "$browser"
   cleanup
   created=0

@@ -1,0 +1,29 @@
+# Opt-in source builds: docker compose -f compose.yaml -f compose.build.yaml …
+x-backend-build: &backend-build
+  build:
+    context: .
+    dockerfile: services/backend/Dockerfile
+    target: runtime
+
+services:
+  migrate:
+    <<: *backend-build
+  api:
+    <<: *backend-build
+  worker:
+    <<: *backend-build
+  transfer-worker:
+    <<: *backend-build
+  dispatcher:
+    <<: *backend-build
+  data-worker:
+    <<: *backend-build
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+  tests:
+    build:
+      context: .
+      dockerfile: services/backend/Dockerfile
+      target: test

@@ -16,6 +16,8 @@ RUN python -c "from PIL import features; from pi_heif import libheif_info; asser
 COPY services/backend services/backend
 COPY migrations migrations
 COPY alembic.ini ./
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/paktrak/
+COPY docs/DEPENDENCIES.md /usr/share/doc/paktrak/DEPENDENCIES.md
 RUN groupadd -g 10001 scanner && useradd -u 10001 -g scanner -m scanner
 USER scanner
 # Check source access as the runtime user before replacing a running installation.
@@ -27,6 +29,7 @@ USER root
 RUN uv sync --frozen
 COPY tests tests
 COPY scripts/setup.py scripts/setup.py
+COPY scripts/release.py scripts/release.py
 USER scanner
 ENV PYTEST_ADDOPTS="-p no:cacheprovider"
 CMD ["pytest", "-q"]

@@ -37,6 +37,7 @@ SKIP = {
     ".hermes-backups",
     ".hermes-stage",
     ".paktrak-backup.lock",
+    ".paktrak-update.lock",
 }
 
 

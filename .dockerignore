@@ -14,3 +14,4 @@ backups
 Instructions/*.pdf
 test-results
 playwright-report
+.paktrak-update.lock

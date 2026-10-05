@@ -1,0 +1,127 @@
+name: Docker verification and releases
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.event.release.tag_name || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      latest: ${{ steps.release.outputs.latest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Validate release tag
+        if: github.event_name == 'release'
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          version=$(python3 scripts/release.py validate "$RELEASE_TAG")
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          latest=false
+          if [ "$RELEASE_PRERELEASE" = false ] && [ "${version#*-}" = "$version" ]; then
+            latest=true
+          fi
+          printf 'latest=%s\n' "$latest" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Check deployment behavior
+        run: python3 scripts/test_deployment.py
+      - name: Configure disposable installation
+        run: sh scripts/setup.sh
+      - name: Build application and tests
+        run: docker compose -f compose.yaml -f compose.build.yaml --profile test build api web tests
+      - name: Start disposable test services
+        # Catalog/price downloads and task workers are unnecessary for this suite.
+        run: docker compose up -d --no-build --wait --wait-timeout 240 database broker storage identity migrate api web
+      - name: Backend tests, lint and schema check
+        run: sh scripts/test.sh
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100 migrate api identity web
+      - name: Remove disposable installation
+        if: always()
+        run: docker compose --profile test down --volumes --remove-orphans
+
+  publish:
+    if: github.event_name == 'release'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            dockerfile: services/backend/Dockerfile
+          - component: web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish versioned image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ghcr.io/addison16/paktrak-${{ matrix.component }}:${{ needs.verify.outputs.version }}
+            ghcr.io/addison16/paktrak-${{ matrix.component }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=PakTrak ${{ matrix.component }}
+            org.opencontainers.image.source=https://github.com/Addison16/PakTrak
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
+          cache-from: type=gha,scope=paktrak-${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=paktrak-${{ matrix.component }}
+
+  promote-latest:
+    if: github.event_name == 'release' && needs.verify.outputs.latest == 'true'
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Advance latest after both images publish
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for component in backend web; do
+            image="ghcr.io/addison16/paktrak-$component"
+            docker buildx imagetools create --tag "$image:latest" "$image:$RELEASE_VERSION"
+          done

@@ -1,5 +1,13 @@
 # Changelog
 
+## Pull-based Docker releases — October 4, 2026
+
+- Publish tested Linux amd64 backend and web images to GHCR when a GitHub release is published. Version and commit tags include provenance and SBOM attestations; `latest` advances after both stable-release images publish.
+- Pull application images in the default Compose setup, with opt-in source builds through `compose.build.yaml` and `sh scripts/start.sh --build`.
+- Add `sh scripts/update.sh` to install a matching published source tag and image version while retaining existing credentials, project identifiers and named data volumes.
+- Download images before pausing services, stop application processes before migrations, refresh the identity theme, and start the app only after successful bootstrap and API readiness.
+- Document installation, updates, release publication and initial public package visibility; include project notices in application images.
+
 ## Easier batch review and sleeved-card OCR — October 3, 2026
 
 - Open every batch ready for review. The separate **Edit batch** / **Done editing** mode is gone; older `/edit` batch links open the same batch.

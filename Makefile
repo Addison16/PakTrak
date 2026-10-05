@@ -1,8 +1,12 @@
-.PHONY: setup dev test test-e2e test-accounts test-recovery migrate import-catalog logs stop
+.PHONY: setup start update dev test test-e2e test-accounts test-recovery migrate import-catalog logs stop
 setup:
 	sh scripts/setup.sh
-dev:
+start:
 	sh scripts/start.sh
+update:
+	sh scripts/update.sh
+dev:
+	sh scripts/start.sh --build
 test:
 	sh scripts/test.sh
 test-e2e:

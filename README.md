@@ -18,18 +18,26 @@ The [latest changes](CHANGELOG.md) include photo-to-deck scanning, deck values f
 
 ## Run with Docker
 
-Install Docker Engine/Desktop with Compose. No host Python or Node installation is required.
+Install Git and Docker Engine/Desktop with Compose **2.18 or newer**. Published images support **Linux x86-64 / amd64**. No host Python, Node, or local application build is required.
 
 ```sh
 git clone https://github.com/Addison16/PakTrak.git
 cd PakTrak
 sh scripts/setup.sh
-sh scripts/start.sh
+sh scripts/update.sh
 ```
 
 Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` and `infra/generated/` private; setup never prints their passwords. Complete first-admin setup before opening an installation for general access.
 
-Setup runs once and refuses to overwrite existing configuration. Start can be repeated. If this workspace is already configured, run only `sh scripts/start.sh`. Builds support installations that have Compose but lack the optional Buildx plugin.
+Setup runs once and refuses to overwrite existing configuration. The update command selects the latest published stable GitHub release, checks out its matching source tag, pulls both app images from GHCR, and pins their version in `.env`. It preserves existing credentials and data volumes. Run it again to update:
+
+```sh
+sh scripts/update.sh
+```
+
+To restart the installed version, run `sh scripts/start.sh`. To install a particular published version, use `sh scripts/update.sh --version v0.1.0`. Updates refuse tracked source edits; save those edits before updating. The [release guide](docs/RELEASING.md) covers publishing images and initial GHCR package visibility.
+
+For development or before the first images are published, build this checkout with `sh scripts/start.sh --build`. [compose.build.yaml](compose.build.yaml) adds local builds to the pull-based default Compose file. The build path also supports installations without the optional Buildx plugin.
 
 The default address is local to the server. For a phone, deploy behind HTTPS with a stable hostname; follow [the Docker and HTTPS guide](docs/OPERATIONS.md). Do not use the phone's `localhost` address to reach your server.
 
