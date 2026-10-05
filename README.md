@@ -2,7 +2,7 @@
 
 **Every card. In reach.**
 
-**Source-available for noncommercial use.** Original PakTrak code is licensed under [PolyForm Noncommercial 1.0.0](LICENSE); commercial use is not licensed. See [third-party notices](THIRD_PARTY_NOTICES.md) for separately licensed components.
+**Free and open source.** Original PakTrak code is licensed under the [GNU AGPL v3](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for separately licensed components.
 
 A Magic: The Gathering collection app for phone browsers, built around Docker Compose. Upload a photo, wait for **server acceptance**, then put your phone away. Processing and collection transfers continue on the server. Explore your cards, track their binders and boxes, and save your next deck.
 
@@ -105,7 +105,7 @@ The integration suite uses a separate `scanner_test` database and `scanner-test`
 
 Calibrated exact-printing recognition, targeted replacement close-ups, account deletion, backup/restore automation, and release hardening remain. A development photo now produces all 15 expected regions and card-name suggestions; a held-out real-photo benchmark, physical-phone testing and destination file interoperability checks are still needed. No universal 15-card accuracy or file compatibility claim is made.
 
-PakTrak uses the [PolyForm Noncommercial License 1.0.0](LICENSE), with its [required notice](NOTICE). It permits the noncommercial uses, modifications and redistribution described in those terms; commercial use is not licensed. This is a source-available project, not an OSI open-source project. Third-party software, fonts and card data keep their own rights and notices; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies and source rights](docs/DEPENDENCIES.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+PakTrak is free and open-source software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only), the same license Immich uses, with the project [notice](NOTICE). You may use, modify and redistribute it, including commercially. Redistributed or modified versions must remain under the AGPL with their source available, and if you run a modified version as a network service, you must offer its users the corresponding source. Third-party software, fonts and card data keep their own rights and notices; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies and source rights](docs/DEPENDENCIES.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 See [import formats](docs/IMPORT_FORMATS.md), [architecture decisions](docs/ARCHITECTURE.md), [PakTrak's visual identity](docs/BRAND.md), and the authoritative [product specification](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.md). The supplied [PDF](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.pdf) remains the original version 1.0 snapshot. It does not describe this implementation.
 

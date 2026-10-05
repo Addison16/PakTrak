@@ -286,7 +286,7 @@ M2 now includes suggestions, approval/correction, manual region drawing/editing,
 
 The owner’s September 19 direction enables automatic additions using match strength strictly above 0.88, superseding the earlier calibrated-probability prerequisite. The score is server-computed and recorded with its policy/threshold in the audit event. Calibration and independent benchmark gates remain open for accuracy claims; the active similarity rule does not satisfy those evaluation milestones.
 
-M5 remains open: complete image/transitive-dependency notices and SBOMs, implement account/data deletion, add generated frontend response contracts, harden operations and security, and qualify devices and the privacy lifecycle. The owner authorized publishing the current source; PolyForm Noncommercial 1.0.0, the required notice, bundled-font notices, contribution/security guidance and issue templates are present. This source-publication work does not publish container images or declare release qualification complete.
+M5 remains open: complete image/transitive-dependency notices and SBOMs, implement account/data deletion, add generated frontend response contracts, harden operations and security, and qualify devices and the privacy lifecycle. The owner authorized publishing the current source; the project license (AGPL-3.0-only since October 5, 2026), the project notice, bundled-font notices, contribution/security guidance and issue templates are present. This source-publication work does not publish container images or declare release qualification complete.
 
 ## Request diagnostics and sign-in recovery
 

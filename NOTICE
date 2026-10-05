@@ -1,8 +1,17 @@
-Required Notice: Copyright 2026 Addison16 and PakTrak contributors (https://github.com/Addison16/PakTrak)
+PakTrak
+Copyright (C) 2026 Addison16 and PakTrak contributors (https://github.com/Addison16/PakTrak)
 
-Original PakTrak source code, documentation and original project artwork are
-provided under the PolyForm Noncommercial License 1.0.0 in LICENSE.
-Commercial use is not licensed under those terms.
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, version 3, as provided in LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+If you run a modified version of PakTrak as a network service, section 13 of
+the license requires you to offer its users the Corresponding Source of your
+modified version.
 
 Third-party components retain their separate licenses and notices, as described
 in THIRD_PARTY_NOTICES.md. The project license does not grant rights in Magic:

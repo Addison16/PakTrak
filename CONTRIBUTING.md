@@ -1,6 +1,6 @@
 # Contributing to PakTrak
 
-PakTrak is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use is not licensed. Contributions to original project files are submitted under these same terms; third-party files must retain their compatible upstream licenses and notices. Do not add a different license to existing project code without discussing it with the maintainer.
+PakTrak is free and open-source software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). Contributions to original project files are submitted under these same terms; third-party files must retain their compatible upstream licenses and notices. Do not add a different license to existing project code without discussing it with the maintainer.
 
 ## Development
 
