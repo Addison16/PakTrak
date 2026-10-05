@@ -1,5 +1,9 @@
 # Changelog
 
+## Container dependency notices — October 4, 2026
+
+- Include the complete React, React DOM and Scheduler MIT licenses and the npm lockfile in the production web image, alongside project notices and bundled font licenses.
+
 ## Pull-based Docker releases — October 4, 2026
 
 - Publish tested Linux amd64 backend and web images to GHCR when a GitHub release is published. Version and commit tags include provenance and SBOM attestations; `latest` advances after both stable-release images publish.

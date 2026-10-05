@@ -17,6 +17,8 @@ Python and JavaScript packages are downloaded during the Docker build, rather th
 
 React/React DOM, FastAPI and several other libraries use MIT terms; Vite and its plugin use their upstream permissive terms; TypeScript and Playwright use Apache-2.0. Python libraries, native codecs, system packages and service images carry additional licenses. In particular, Psycopg and the HEIF/native decoding stack include LGPL-covered components. Preserve the notices and applicable source/replacement rights when redistributing built artifacts.
 
+The production web image includes the complete React, React DOM and Scheduler MIT license files under `/usr/share/doc/paktrak/`, along with the npm lockfile that records their versions. The backend retains Python distribution license files in its installed environment.
+
 Docker installs Debian's Tesseract OCR and English language data, with their copyright manifests under `/usr/share/doc/tesseract-ocr/` and `/usr/share/doc/tesseract-ocr-eng/`. Container base images include further operating-system components and notices. Published app images preserve installed upstream notices and include this notice, the project license and the dependency register under `/usr/share/doc/paktrak/`. The release workflow attaches image SBOM and provenance attestations. See [the release guide](docs/RELEASING.md) for publishing and inspectable release evidence; generating an SBOM does not by itself discharge applicable source/replacement obligations.
 
 The login theme extends Keycloak's bundled theme without vendoring its authentication templates. Keycloak and SeaweedFS are Apache-2.0 components; PostgreSQL and Valkey retain their respective PostgreSQL and BSD licenses.
