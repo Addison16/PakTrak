@@ -1,4 +1,4 @@
-.deck-presentation-dialog { width: min(800px, calc(100% - 28px)); max-height: calc(100dvh - 28px); padding: 26px 30px 24px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 30px 100px #0006; overflow: hidden; overscroll-behavior: contain; }
+.deck-presentation-dialog { width: min(800px, calc(100% - 28px)); max-height: calc(100dvh - 28px); padding: 26px 30px 24px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 40px #0005; overflow: hidden; overscroll-behavior: contain; }
 .deck-presentation-dialog[open] { display: flex; flex-direction: column; }
 .deck-presentation-scroll { min-height: 0; overflow: auto; padding: 0 3px 3px; margin: 0 -3px; overscroll-behavior: contain; }
 .deck-presentation-dialog::backdrop { background: #10171acc; backdrop-filter: blur(10px); }
@@ -46,7 +46,7 @@
 .deck-presentation-actions > span { flex: 1; }
 .deck-presentation-actions > .text-button { font-size: 12px; }
 @media (max-width: 550px) {
-  .deck-presentation-dialog { width: calc(100% - 16px); padding: 22px 20px; max-height: calc(100dvh - 16px); border-radius: 16px; }
+  .deck-presentation-dialog { width: calc(100% - 16px); padding: 22px 20px; max-height: calc(100dvh - 16px); border-radius: 10px; }
   .deck-presentation-body { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .deck-presentation-preview { position: relative; top: auto; width: 112px; height: 148px; margin: 0 auto 10px; }
   .deck-presentation-preview-top { height: 31px; gap: 4px; font-size: 8px; }

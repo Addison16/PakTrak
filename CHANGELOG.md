@@ -1,5 +1,11 @@
 # Changelog
 
+## Simpler interface styling — October 6, 2026
+
+- Remove decorative dots and marks: the dot beside the current menu item, the hook before section labels, the dot in the home banner and the onboarding progress dots (the "1 of 5" step count stays).
+- Replace most nested boxes with plain sections divided by rules. Status badges are now plain labels, panels lose their drop shadows, and corners are smaller throughout, including the menu button, filters, dialogs and the menu drawer.
+- Notices that need attention (recoveries, password resets, foil cards to mark) keep their tinted background with a side rule.
+
 ## Smoother self-hosted updates — October 6, 2026
 
 - Run PakTrak from just `compose.yaml` and `.env`, with no Git checkout or host files mounted. A one-shot `database-setup` service creates missing database roles and databases, the login theme ships in the web image and is copied by a one-shot `identity-theme` service, SeaweedFS reads its S3 keys from `.env`, and bootstrap creates the sign-in realm on fresh installations.

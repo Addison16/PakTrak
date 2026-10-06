@@ -6,10 +6,10 @@
   margin: auto;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 10px;
   color: var(--ink);
   background: var(--paper);
-  box-shadow: 0 24px 90px #102f2855, 0 2px 8px #102f2814;
+  box-shadow: 0 12px 40px #102f2840;
   overflow: hidden;
 }
 .onboarding-dialog[open] { display: flex; flex-direction: column; }
@@ -18,31 +18,27 @@
 .tour-wordmark { display: inline-flex; align-items: center; color: var(--forest); font-size: 12px; font-weight: 700; letter-spacing: -.02em; }
 .tour-wordmark > span:first-child { color: var(--copper); }
 .tour-header-divider { width: 1px; height: 15px; margin: 0 10px; background: var(--line); }
-.tour-skip, .tour-back, .tour-next { min-height: 44px; border-radius: 10px; font-size: 13px; font-weight: 600; line-height: 1.3; }
+.tour-skip, .tour-back, .tour-next { min-height: 44px; border-radius: 8px; font-size: 13px; font-weight: 600; line-height: 1.3; }
 .tour-skip { flex-shrink: 0; padding: 8px 5px; border: 0; color: var(--muted); background: transparent; }
 .tour-content { min-height: 0; overflow: auto; overscroll-behavior-y: contain; padding: 24px 28px 20px; }
-.tour-preview { display: flex; align-items: center; justify-content: center; min-height: 144px; margin: 0 0 25px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-muted); pointer-events: none; user-select: none; }
-.tour-eyebrow { margin: 0 0 10px; font-size: 9px; font-weight: 600; line-height: 1.5; color: var(--copper); text-transform: uppercase; letter-spacing: .15em; }
+.tour-preview { display: flex; align-items: center; justify-content: center; min-height: 144px; margin: 0 0 25px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); pointer-events: none; user-select: none; }
+.tour-eyebrow { margin: 0 0 10px; font-size: 9px; font-weight: 600; line-height: 1.5; color: var(--copper); text-transform: uppercase; letter-spacing: .08em; }
 .tour-title { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 32px; font-weight: 400; line-height: 1.15; letter-spacing: -.04em; text-wrap: balance; }
 .tour-title:focus { outline: none; }
 .tour-copy { margin: 15px 0 18px; font-size: 14px; line-height: 1.65; color: var(--ink); }
-.tour-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 13px; border: 1px solid var(--warning-border); border-radius: 11px; background: var(--warning-bg); color: var(--warning-text); font-size: 12px; line-height: 1.6; }
+.tour-note { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 13px; border: 0; border-left: 3px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); font-size: 12px; line-height: 1.6; }
 .tour-note .icon { width: 18px; height: 18px; margin-top: 1px; color: var(--copper); }
 .tour-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; padding: 14px 24px max(14px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--paper); }
 .tour-progress { display: grid; gap: 7px; flex-shrink: 0; color: var(--muted); font-size: 11px; line-height: 1.3; }
-.tour-progress-dots { display: flex; gap: 5px; }
-.tour-progress-dots i { width: 5px; height: 5px; border-radius: 5px; background: var(--control-border); }
-.tour-progress-dots .is-done { background: var(--forest); }
-.tour-progress-dots .is-current { width: 18px; background: var(--forest); }
 .tour-actions { display: flex; align-items: center; gap: 7px; }
 .tour-back { padding: 10px 12px; border: 1px solid transparent; color: var(--muted); background: transparent; }
-.tour-next { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 88px; padding: 11px 17px; border: 1px solid var(--forest); color: var(--on-forest); background: var(--forest); box-shadow: 0 3px 7px #163e3815; }
+.tour-next { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 88px; padding: 11px 17px; border: 1px solid var(--forest); color: var(--on-forest); background: var(--forest); }
 .tour-next .icon { width: 17px; height: 17px; }
 .tour-mini-window { width: 270px; max-width: 100%; border: 1px solid var(--control-border); border-radius: 10px; background: var(--paper); box-shadow: 0 7px 16px #24462f12; overflow: hidden; }
 .tour-mini-topbar { display: flex; justify-content: space-between; align-items: center; padding: 9px 11px; border-bottom: 1px solid var(--line); }
 .tour-mini-topbar strong { font-size: 12px; letter-spacing: -.05em; }
 .tour-mini-topbar strong > span { color: var(--copper); }
-.tour-mini-menu { display: flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--control-border); border-radius: 30px; color: var(--forest); background: var(--surface-muted); font-size: 9px; font-weight: 600; }
+.tour-mini-menu { display: flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--control-border); border-radius: 6px; color: var(--forest); background: var(--surface-muted); font-size: 9px; font-weight: 600; }
 .tour-mini-menu > span { font-size: 10px; }
 .tour-mini-workspace { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-left: 14px; }
 .tour-mini-cards { display: flex; align-items: center; justify-content: center; gap: 7px; }
@@ -67,7 +63,7 @@
 .tour-mini-sort strong { color: var(--forest); font-size: 10px; font-weight: 600; }
 .tour-mini-paths { display: flex; align-items: center; justify-content: center; width: 100%; gap: 15px; }
 .tour-mini-paths > div { display: grid; justify-items: center; gap: 4px; min-width: 0; }
-.tour-preview-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 4px; border: 1px solid var(--control-border); border-radius: 13px; color: var(--forest); background: var(--surface-muted); }
+.tour-preview-icon { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 4px; border: 1px solid var(--control-border); border-radius: 8px; color: var(--forest); background: var(--surface-muted); }
 .tour-mini-paths > div:last-child .tour-preview-icon { border-color: var(--warning-border); color: var(--warning-text); background: var(--warning-bg); }
 .tour-mini-paths strong { font-size: 11px; font-weight: 600; color: var(--forest); }
 .tour-mini-paths > div > span:last-child { font-size: 9px; color: var(--muted); white-space: nowrap; }

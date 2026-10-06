@@ -1,17 +1,17 @@
-.scan-recovery { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 20px; margin: 18px 0; border: 1px solid var(--warning-border); border-radius: 14px; background: var(--warning-bg); color: var(--warning-text); }
+.scan-recovery { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; margin: 18px 0; border-left: 3px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
 .scan-recovery p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
 .scan-recovery .actions { margin: 0; }
 .scan-local-status { margin: 12px 0; font-size: 12px; color: var(--muted); }
 .scan-queue-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0; }
 .scan-queue-filters { display: flex; flex-wrap: wrap; gap: 7px; }
-.scan-queue-filters button { min-height: 42px; padding: 8px 13px; border-radius: 22px; border: 1px solid var(--control-border); background: var(--paper); color: var(--muted); font-size: 12px; }
+.scan-queue-filters button { min-height: 42px; padding: 8px 13px; border-radius: 6px; border: 1px solid var(--control-border); background: var(--paper); color: var(--muted); font-size: 12px; }
 .scan-queue-filters button[aria-pressed=true] { color: var(--on-forest); background: var(--forest); border-color: var(--forest); }
 .scan-queue-sort { min-width: 150px; max-width: 230px; font-size: 12px; }
 .scan-queue-sort select { margin-top: 4px; min-height: 42px; }
-.scan-filter-empty { padding: 24px; text-align: center; border: 1px dashed var(--control-border); border-radius: 14px; color: var(--muted); }
+.scan-filter-empty { padding: 24px; text-align: center; color: var(--muted); }
 .scan-photo-enlarge { display: block; position: relative; border: 0; padding: 0; background: var(--surface-muted); width: 100%; cursor: zoom-in; border-radius: 12px; overflow: hidden; }
 .scan-photo-enlarge > img { display: block; width: 100%; }
-.scan-photo-enlarge > span { position: absolute; right: 8px; bottom: 8px; padding: 4px 8px; background: var(--paper); color: var(--forest); border: 1px solid var(--control-border); border-radius: 15px; font-size: 10px; }
+.scan-photo-enlarge > span { position: absolute; right: 8px; bottom: 8px; padding: 4px 8px; background: var(--paper); color: var(--forest); border: 1px solid var(--control-border); border-radius: 4px; font-size: 10px; }
 .scan-reference-missing { min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; background: var(--surface-muted); border-radius: 12px; color: var(--muted); font-size: 12px; }
 .printing-choice-art { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; }
 .printing-choice-art > img, .printing-art-placeholder { width: 48px; height: 67px; object-fit: contain; border-radius: 5px; background: var(--surface-muted); }
@@ -67,4 +67,4 @@
   .scan-queue-filters { gap: 6px; }
   .scan-viewer-toolbar { justify-content: center; }
 }
-@media (min-width: 1000px) { .scan-image-viewer { width: min(1200px, calc(100% - 64px)); height: calc(100% - 64px); margin: auto; border: 1px solid var(--line); border-radius: 20px; } }
+@media (min-width: 1000px) { .scan-image-viewer { width: min(1200px, calc(100% - 64px)); height: calc(100% - 64px); margin: auto; border: 1px solid var(--line); border-radius: 10px; } }

@@ -89,7 +89,7 @@
 .deck-opening-card-edge-top { top: -.3px; }
 .deck-opening-card-edge-bottom { bottom: -.3px; }
 .deck-opening-caption { position: absolute; left: 12%; right: 12%; display: grid; gap: 8px; text-align: center; color: var(--ink); opacity: 0; animation: deck-caption-enter 260ms 250ms ease both; }
-.deck-opening-caption .eyebrow { justify-content: center; margin: 0; font-size: 9px; letter-spacing: .18em; }
+.deck-opening-caption .eyebrow { justify-content: center; margin: 0; font-size: 9px; }
 .deck-opening-caption > span:last-child { font: 400 clamp(22px, 3vw, 30px)/1.2 "Fraunces", Georgia, serif; overflow-wrap: anywhere; }
 .deck-opening--revealing .deck-opening-veil { opacity: 0; }
 .deck-opening--revealing .deck-opening-card { transform-style: flat; will-change: transform, opacity; }

@@ -534,7 +534,7 @@ function App() {
     <main className={session ? "signed-in" + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "account" || page === "admin" ? " account-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
-          <div className="edition"><span className="dot" /> YOUR COLLECTION, WITH PAKTRAK</div>
+          <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
           <h1>Every card.<br /><span>In reach.</span></h1>
           {!session && <p className="intro">Photograph your cards, find their place and build your next deck.</p>}
         </div>
