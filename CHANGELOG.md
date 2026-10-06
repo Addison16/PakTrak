@@ -1,5 +1,11 @@
 # Changelog
 
+## Single-container image — October 6, 2026
+
+- Publish `ghcr.io/addison16/paktrak`, one container with the database, sign-in service, photo storage, app and web server, started in order and stopped cleanly. It keeps everything in one `/data` folder and creates its private passwords on first start.
+- Add an Unraid template so PakTrak can be added and updated from Unraid's Docker page, and rewrite the [Unraid guide](docs/UNRAID.md) around it.
+- Add `scripts/move-to-single-container.sh`, which copies a Compose installation's database, photos and passwords into the single container's data folder and leaves the old volumes untouched.
+
 ## Unraid installs — October 6, 2026
 
 - Add an [Unraid guide](docs/UNRAID.md): install from a downloaded archive, set up and start from the Unraid terminal.
