@@ -510,6 +510,8 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
     flipped_titles, flipped_matches = [], []
     if flipped is not None and strength(matches) < CONFIDENT_NAME:
         flipped_titles.append(read(flipped, TITLE_BOXES[0]))
+        if dark_strip(flipped, TITLE_BOXES[0]):
+            flipped_titles.append(read(flipped, TITLE_BOXES[0], 7, True))
         flipped_matches = name_matches(flipped_titles, index)
     for boxes in FALLBACK_TITLE_BOXES:
         if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
@@ -523,6 +525,9 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
         if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
             break
         flipped_titles += _pool.map(lambda box: read(flipped, box), boxes)
+        flipped_matches = name_matches(flipped_titles, index)
+    if flipped is not None and max(strength(matches), strength(flipped_matches)) < CONFIDENT_NAME:
+        flipped_titles += _pool.map(lambda box: read(flipped, box, 7, True), INVERTED_TITLE_BOXES)
         flipped_matches = name_matches(flipped_titles, index)
     # Junk text can fuzzily resemble a name either way up. Only a plausible
     # name read upside down justifies turning the card.

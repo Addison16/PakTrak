@@ -257,3 +257,21 @@ def test_titles_at_the_top_of_a_tight_crop_or_on_gold_bars_are_read(monkeypatch)
     )
     recognition.recognize(white, orientation=0)
     assert not set(recognition.UPPER_TITLE_BOXES) & set(reads)
+
+
+def test_an_upside_down_gold_title_is_read_inverted_and_turns_the_card(monkeypatch):
+    monkeypatch.setattr(recognition, "catalog_index", lambda: {"bulkup": []})
+    monkeypatch.setattr(recognition, "identifier_index", lambda: ({}, {}))
+    upright = lambda image: image.getpixel((5, 5))[0] > 200  # noqa: E731
+
+    def read(image, box, psm=7, invert=False, **kwargs):
+        flipped = not upright(image)
+        return "Bulk Up" if flipped and invert and box == recognition.TITLE_BOXES[0] else ""
+
+    monkeypatch.setattr(recognition, "read_text", read)
+    # A mid-grey card, like a gold bar, is not dark enough to count as dark.
+    marked = Image.new("RGB", (600, 840), (150, 150, 150))
+    marked.paste((255, 0, 0), (0, 0, 40, 40))
+    assert recognition.recognize(jpeg(marked))["rotation"] == 180
+    # A dark title strip is read inverted as soon as the card is turned.
+    assert recognition.recognize(jpeg(marked_card()))["rotation"] == 180
