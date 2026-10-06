@@ -2,7 +2,7 @@
 
 ## AGPL-3.0 relicense — October 5, 2026
 
-- Relicense original PakTrak code from PolyForm Noncommercial 1.0.0 to the GNU Affero General Public License v3.0 (AGPL-3.0-only), the license Immich uses. PakTrak is now free and open-source software, and commercial use is permitted under the AGPL's terms.
+- Relicense original PakTrak code from PolyForm Noncommercial 1.0.0 to the GNU Affero General Public License v3.0 (AGPL-3.0-only). PakTrak is now free and open-source software, and commercial use is permitted under the AGPL's terms.
 - Update the notice, README, contribution guide, third-party notices, dependency register and published image license label.
 
 ## Container dependency notices — October 4, 2026

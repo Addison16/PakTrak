@@ -10,7 +10,7 @@
 
 > **Product goal:** Photograph the cards from an opened Magic: The Gathering pack laid out on a table. Detect and identify each physical card independently. Process the uploaded photo on a server. Automatically add valid server-computed matches with match strength strictly greater than 88%, per the owner’s updated direction below. Present everything else that might be a card for review, correction, or a closer photo. Preserve quantities, expose uncertainty, and make every addition reversible.
 
-**Owner direction, September 17, 2026:** Build primarily for self-hosting with Docker Compose and use from a phone browser. Follow the Paperless-ngx upload-then-process experience: once the server confirms durable acceptance, the phone may disconnect, close the browser, or turn off. Target phones four years old or newer at release; approximately 2022-and-newer hardware is the initial 2026 baseline. Built-in collection import/export, including tested ManaBox CSV migration and a mapping flow for similar tools, belongs in Version 1. Prepare for a free, open-source public GitHub release after refinement. On October 5, 2026 the owner changed the license to the GNU AGPL v3, matching Immich; see Section 16.5.
+**Owner direction, September 17, 2026:** Build primarily for self-hosting with Docker Compose and use from a phone browser. Follow the Paperless-ngx upload-then-process experience: once the server confirms durable acceptance, the phone may disconnect, close the browser, or turn off. Target phones four years old or newer at release; approximately 2022-and-newer hardware is the initial 2026 baseline. Built-in collection import/export, including tested ManaBox CSV migration and a mapping flow for similar tools, belongs in Version 1. Prepare for a free, open-source public GitHub release after refinement. On October 5, 2026 the owner changed the license to the GNU AGPL v3; see Section 16.5.
 
 **Additional owner direction, September 19, 2026 (supersedes the older owned-only deck scope):**
 
@@ -119,7 +119,7 @@ A user photographs a supported pack-sized layout, sees all detected regions, get
 | Collection portability | ManaBox CSV import, canonical CSV import/export, tested ManaBox-compatible export, and generic CSV mapping in the web UI. | Required Version 1 scope; exact adapter behavior must be tested. |
 | Branding and domain | Placeholder name only. | Owner approval. |
 | Distribution | Free, open-source project intended for public GitHub release after refinement. | Required by owner; publication is a later release action. |
-| License | GNU Affero General Public License v3.0 (AGPL-3.0-only), matching Immich. | Owner direction, October 5, 2026; replaces the earlier PolyForm Noncommercial choice. |
+| License | GNU Affero General Public License v3.0 (AGPL-3.0-only). | Owner direction, October 5, 2026; replaces the earlier PolyForm Noncommercial choice. |
 | Monetization | No paid application tier, subscription, or scan charge in this project's release plan. | Owner's direction; does not settle third-party license rights. |
 
 Support is determined by the image actually received and the evaluated browser/device path. A newer phone can still deliver a small preview frame. An older phone can deliver a useful still image. Do not infer scan capability from a camera's advertised megapixel count.
@@ -995,7 +995,7 @@ Keep a source/license register covering code libraries, pretrained weights, refe
 
 ### 16.5 Open-source GitHub release under the GNU AGPL v3
 
-On October 5, 2026 the owner relicensed PakTrak under the **GNU Affero General Public License v3.0** (AGPL-3.0-only), the same license Immich uses, replacing the earlier source-available PolyForm Noncommercial 1.0.0 terms. The unmodified license text is in [LICENSE](../LICENSE), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). The AGPL is an OSI-approved open-source license: it permits use, modification and redistribution, including commercial use, provided derived works stay under the AGPL with source available. Section 13 additionally requires anyone running a modified version as a network service to offer its users the corresponding source. [S24]
+On October 5, 2026 the owner relicensed PakTrak under the **GNU Affero General Public License v3.0** (AGPL-3.0-only), replacing the earlier source-available PolyForm Noncommercial 1.0.0 terms. The unmodified license text is in [LICENSE](../LICENSE), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). The AGPL is an OSI-approved open-source license: it permits use, modification and redistribution, including commercial use, provided derived works stay under the AGPL with source available. Section 13 additionally requires anyone running a modified version as a network service to offer its users the corresponding source. [S24]
 
 Review dependency, model, and asset distribution compatibility with the AGPL before adding components. Keep third-party notices and licenses separate and intact; the project's chosen license cannot replace the rights attached to dependencies, card data/artwork, or user photos. Publish code and only redistributable assets in GitHub and container images. Fetch other permitted catalog/model resources through documented setup steps; never bundle real private collections or photos as demo fixtures.
 
