@@ -69,6 +69,7 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
       row.rotation = body.rotation; row.version++; row.crop_url = base + "/observations/" + row.id + "/image?v=" + row.version;
       processing = row.state === "NEEDS_REVIEW"; json = { id: row.id };
     }
+    else if (path.endsWith("/undo-approval")) { const row = rows.find((r) => path.includes(r.id))!; expect(body.expected_version).toBe(row.version); row.state = "NEEDS_REVIEW"; row.lot = null; row.version++; json = { state: row.state, version: row.version }; }
     else if (path.endsWith("/geometry")) { const row = rows.find((r) => path.includes(r.id))!; row.polygon = body.polygon; row.version++; processing = true; json = { id: row.id }; }
     else if (path === base + "/observations" && method === "POST") { processing = true; json = { id: "new-region" }; status = 201; }
     else if (path === base + "/identify") { processing = true; json = { queued: true }; status = 202; }
@@ -666,11 +667,10 @@ test("zero foils needs no selection and changing the count marks only selected c
   await expect(page.getByRole("combobox", { name: "Finish", exact: true })).toHaveValue("nonfoil");
   expect(mock.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
   await panel.getByRole("button", { name: "Change foil cards", exact: true }).click();
-  await expect(panel.getByRole("button", { name: /^Foil card / })).toHaveCount(0);
-  await panel.getByRole("spinbutton", { name: "How many cards are foil?", exact: true }).fill("1");
-  await expect(panel.getByRole("heading", { name: "Choose your foil cards", exact: true })).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Confirm card finishes", exact: true })).toBeDisabled();
+  await expect(panel.getByRole("heading", { name: "Tap any foil cards", exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: /^Foil card / })).toHaveCount(3);
   await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
+  await expect(panel.getByText("1 foil card selected", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
   await expect(panel.getByRole("heading", { name: "1 foil · 2 nonfoil", exact: true })).toBeVisible();
   expect(mock.rows.map((row) => row.finish)).toEqual(["foil", "nonfoil", "nonfoil"]);
@@ -689,7 +689,7 @@ test("setting zero foils clears the selections and saves every card as nonfoil",
   await count.pressSequentially("2");
   await expect(panel.getByText("2 of 2 foil cards selected", { exact: true })).toBeVisible();
   await count.fill("0");
-  await expect(panel.getByRole("button", { name: /^Foil card / })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /^Foil card /, pressed: true })).toHaveCount(0);
   await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
   await expect(panel.getByRole("heading", { name: "0 foil · 3 nonfoil", exact: true })).toBeVisible();
   expect(mock.calls.find((c) => c.path.endsWith("/finishes"))?.body).toMatchObject({ foil_count: 0, foil_ids: [], etched_ids: [] });
@@ -706,7 +706,7 @@ test("foil selection updates auto-imported copies and preserves finishes in bulk
   await expect(foils).toHaveValue("");
   await foils.pressSequentially("2"); await expect(foils).toHaveValue("2");
   await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
-  await expect(panel.getByRole("button", { name: "Confirm card finishes", exact: true })).toBeDisabled();
+  await expect(panel.getByText("Choose 1 more, or confirm to save 1 foil card.", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
   await expect(panel.getByText("2 of 2 foil cards selected", { exact: true })).toBeVisible();
   expect(mock.calls.filter((c) => c.path.endsWith("/finishes"))).toHaveLength(0);
@@ -744,4 +744,146 @@ test("browser history visits batch overview and editing without discarding a can
   await page.goto("/#/batches/scan-review-fixture/edit");
   await expect(page.getByRole("heading", { name: "Card 1 · Review suggestion", exact: true })).toBeVisible();
   expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+});
+
+test("strong matches approve in one tap and leave weaker or corrected cards for review", async ({ page }) => {
+  const mock = await fixture(page, 4, 0, [], 0, 0);
+  mock.rows[3].candidates[0].match_score = .72;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.getByRole("button", { name: "Next card", exact: true }).click();
+  await page.getByRole("button", { name: "Edit card / printing", exact: true }).click();
+  await page.locator(".printing-picker").getByRole("searchbox", { name: "Find an exact printing", exact: true }).fill("Fixture Card");
+  await page.locator(".printing-choice").first().click();
+  const strong = page.getByRole("group", { name: "Strong matches", exact: true });
+  await expect(strong).toContainText("2 matches are 80% or stronger.");
+  await expect(strong).toContainText("imported to Scanned cards as ungraded");
+  await strong.getByRole("combobox", { name: "Match strength", exact: true }).selectOption("0.7");
+  await expect(strong).toContainText("3 matches are 70% or stronger.");
+  await strong.getByRole("button", { name: "Approve 3 strong matches", exact: true }).click();
+  const approved = mock.calls.find((call) => call.path.endsWith("/approve"))!.body;
+  expect(approved.items.map((item: any) => item.observation_id)).toEqual(["region-0", "region-2", "region-3"]);
+  expect(approved.binder).toBe("Scanned cards");
+  await expect(page.getByText("3 copies imported into Scanned cards.")).toBeVisible();
+  await expect(strong).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Match strength", exact: true })).toHaveCount(0);
+});
+
+test("swiping the card comparison moves between cards and does not open the enlarged photo", async ({ page }) => {
+  await fixture(page, 3, 0, [], 0, 0);
+  const detail = page.getByRole("region", { name: "Review selected card", exact: true });
+  await expect(detail.getByRole("heading", { name: "Card 1 · Review suggestion", exact: true })).toBeVisible();
+  async function swipe(from: number, to: number) {
+    const box = (await page.locator(".scan-comparison").boundingBox())!, y = box.y + box.height / 2;
+    await page.locator(".scan-comparison").evaluate((element, points) => {
+      const send = (type: string, x: number) => element.querySelector("img")!.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: "touch", isPrimary: true, clientX: x, clientY: points.y }));
+      send("pointerdown", points.from); send("pointerup", points.to);
+      element.querySelector("img")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }, { from: box.x + from * box.width, to: box.x + to * box.width, y });
+  }
+  await swipe(.8, .2);
+  await expect(detail.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+  await expect(page.locator(".scan-image-viewer")).toHaveCount(0);
+  await swipe(.8, .2);
+  await expect(detail.getByRole("heading", { name: "Card 3 · Review suggestion", exact: true })).toBeVisible();
+  await swipe(.2, .8);
+  await expect(detail.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+  await swipe(.5, .55);
+  await expect(detail.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+});
+
+test("condition and photo card count are remembered for the next card and batch", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mock = await fixture(page, 3, 0, [], 0, 0);
+  await page.getByRole("combobox", { name: "Condition", exact: true }).selectOption("LP");
+  await page.getByRole("spinbutton", { name: "Cards in this photo", exact: true }).fill("12");
+  await page.getByRole("button", { name: "Approve & import", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Condition", exact: true })).toHaveValue("LP");
+  expect(mock.calls.find((call) => call.path.endsWith("/approve"))!.body.condition).toBe("LP");
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Condition", exact: true })).toHaveValue("LP");
+  await expect(page.getByRole("spinbutton", { name: "Cards in this photo", exact: true })).toHaveValue("12");
+  await expect(page.locator(".batch-save-status")).not.toContainText("Unsaved edits");
+});
+
+test("foil cards can be confirmed with fewer taps than the planned count", async ({ page }) => {
+  const mock = await fixture(page, 4, 0, [], 0, 2);
+  const panel = page.getByRole("region", { name: "Foil cards", exact: true });
+  await panel.getByRole("button", { name: "Select foil cards", exact: true }).click();
+  await panel.getByRole("button", { name: "Foil card 2: Fixture Card 2", exact: true }).click();
+  await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
+  await expect(panel.getByRole("heading", { name: "1 foil · 3 nonfoil", exact: true })).toBeVisible();
+  expect(mock.calls.find((call) => call.path.endsWith("/finishes"))!.body).toMatchObject({ foil_count: 1, foil_ids: ["region-1"] });
+});
+
+test("adjusting a crop opens enlarged around the card and undoes one corner at a time", async ({ page }) => {
+  const mock = await fixture(page, 1);
+  await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
+  await expect(page.locator(".crop-precision-tools")).toContainText("3×");
+  const corner = page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true });
+  await expect.poll(async () => {
+    const view = (await page.locator(".crop-viewport").boundingBox())!, box = (await corner.boundingBox())!;
+    return box.x >= view.x && box.y >= view.y && box.x <= view.x + view.width && box.y <= view.y + view.height;
+  }).toBe(true);
+  const undo = page.getByRole("button", { name: "Undo last corner", exact: true });
+  await expect(undo).toBeDisabled();
+  await corner.focus(); await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "Corner 3; use arrow keys to adjust", exact: true }).focus(); await page.keyboard.press("ArrowDown");
+  await undo.click();
+  expect(Number(await page.getByRole("button", { name: "Corner 3; use arrow keys to adjust", exact: true }).getAttribute("data-y"))).toBeCloseTo(.25, 5);
+  expect(Number(await corner.getAttribute("data-x"))).toBeCloseTo(.052, 5);
+  await undo.click();
+  expect(Number(await corner.getAttribute("data-x"))).toBeCloseTo(.05, 5);
+  await expect(undo).toBeDisabled();
+  expect(mock.calls.filter((call) => call.method !== "GET")).toHaveLength(0);
+});
+
+test("cards turn over from the card back as the server identifies them", async ({ page }) => {
+  const mock = await fixture(page, 3, 2, [], 0, 0);
+  const tiles = page.locator(".scan-gallery .scan-tile-art");
+  await expect(tiles.nth(1).locator(".scan-tile-back")).toHaveCount(1);
+  await expect(tiles.nth(0).locator(".scan-tile-back")).toHaveCount(0);
+  mock.rows[1].recognition = { status: "MATCHED", reason: "Check the collector number." } as any;
+  await expect(tiles.nth(1)).toHaveAttribute("data-flip", "true", { timeout: 15000 });
+  await expect(tiles.nth(1)).not.toHaveAttribute("data-flip", "true");
+  await expect(tiles.nth(1).locator(".scan-tile-back")).toHaveCount(0);
+  await expect(tiles.nth(2).locator(".scan-tile-back")).toHaveCount(1);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await expect(page.locator(".scan-gallery .scan-tile-back")).toHaveCount(0);
+});
+
+test("the upload page starts with the photo controls on a phone", async ({ page }) => {
+  await fixture(page, 1, 0, [], 0, 0);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
+  await expect(page.locator(".hero")).toBeHidden();
+  expect((await page.getByRole("button", { name: "Take photo", exact: true }).boundingBox())!.y).toBeLessThan(844);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator(".hero")).toBeVisible();
+});
+
+test("a just-approved card can be put back into review with Undo", async ({ page }) => {
+  const mock = await fixture(page, 3, 0, [], 0, 0);
+  await page.getByRole("button", { name: "Approve & import", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+  await expect(page.getByText("1 copy imported into Scanned cards.")).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByText("Approval undone. The card is back in review.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Card 1 · Review suggestion", exact: true })).toBeVisible();
+  expect(mock.calls.filter((call) => call.path.endsWith("/undo-approval"))).toHaveLength(1);
+  expect(mock.rows[0].state).toBe("NEEDS_REVIEW");
+});
+
+test("the phone tab bar shows batches waiting for review and hides inside a batch", async ({ page }) => {
+  await fixture(page, 3, 0, [], 0, 0);
+  const tabs = page.getByRole("navigation", { name: "Quick navigation", exact: true });
+  await expect(tabs).toHaveCount(0);
+  await page.getByRole("button", { name: /Back to batches/ }).click();
+  await expect(tabs.getByRole("button", { name: "Batches, 1 to review", exact: true })).toHaveAttribute("aria-current", "page");
+  await tabs.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(tabs).toBeHidden();
 });

@@ -22,3 +22,6 @@
 .bulk-preview li p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .import-attention-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; padding: 14px 0; border-block: 1px solid var(--line); }
 @media (max-width: 480px) { .bulk-collection-dialog { padding: 18px; } .collection-selection-toolbar .button { flex: 1; } }
+.card-step { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; }
+.card-step .text-button { min-width: 44px; min-height: 44px; font-size: 18px; text-decoration: none; }
+.detail-art { touch-action: pan-y pinch-zoom; }

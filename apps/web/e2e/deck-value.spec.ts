@@ -45,9 +45,10 @@ test("background account refreshes keep exactly one deck value and token panel",
   await expect(page.locator(".deck-opening")).toHaveCount(0);
   await page.clock.install();
   for (let tick = 0; tick < 6; tick++) {
-    const reads = state.calls.filter(call => call.path === "/api/v1/scans").length;
+    // The sign-in check runs on every tick; the batch list itself refreshes less often while nothing is processing.
+    const reads = state.calls.filter(call => call.path === "/api/auth/session").length;
     await page.clock.runFor(2500);
-    await expect.poll(() => state.calls.filter(call => call.path === "/api/v1/scans").length).toBeGreaterThan(reads);
+    await expect.poll(() => state.calls.filter(call => call.path === "/api/auth/session").length).toBeGreaterThan(reads);
     await expect(panel).toHaveCount(1);
     await expect(panel.getByLabel("Estimated deck value", { exact: true })).toHaveCount(1);
     await expect(page.locator(".deck-tokens")).toHaveCount(1);

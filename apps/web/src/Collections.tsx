@@ -125,14 +125,18 @@ function CollectionTransfers({ session }: { session: Session }) {
       }
     }
   }
+  // Imports and exports change only while a job runs; otherwise check back occasionally.
+  const transferActive = useRef(false);
+  transferActive.current = [...imports, ...exports, ...(selected ? [selected] : [])].some((item) => ["PREVIEWING", "COMMITTING", "UNDOING", "QUEUED", "PROCESSING"].includes(item.state));
   useEffect(() => {
-    let running = false; let stopped = false;
-    async function poll() {
+    let running = false; let stopped = false; let lastLoaded = 0;
+    async function poll(event?: Event) {
       if (running || stopped || document.hidden || !navigator.onLine) return;
+      if (!event && lastLoaded && !transferActive.current && Date.now() - lastLoaded < 20000) return;
       running = true;
-      try { await refresh(() => !stopped); if (!stopped) backgroundError.recovered(); } catch (e) { if (!stopped) backgroundError.failed(e as Error); } finally { running = false; }
+      try { await refresh(() => !stopped); lastLoaded = Date.now(); if (!stopped) backgroundError.recovered(); } catch (e) { if (!stopped) backgroundError.failed(e as Error); } finally { running = false; }
     }
-    void poll(); const timer = window.setInterval(() => void poll(), 3500);
+    void poll(new Event("load")); const timer = window.setInterval(() => void poll(), 3500);
     document.addEventListener("visibilitychange", poll); window.addEventListener("online", poll);
     return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); };
   }, [binder, selectedId, revision, rowOffset, attentionOnly, focusRow, historyOffset, exportOffset]);

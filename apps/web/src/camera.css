@@ -68,3 +68,7 @@
   .camera-dialog { width: min(1100px, calc(100% - 64px)); height: min(820px, calc(100% - 64px)); margin: auto; border: 1px solid var(--line); border-radius: 10px; }
   .camera-dialog::backdrop { background: var(--backdrop, #1d252566); }
 }
+.camera-next { display: block; width: 100%; margin-top: 6px; min-height: 44px; text-align: center; }
+.camera-drop { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transform-origin: 50% 100%; }
+@media (prefers-reduced-motion: no-preference) { .camera-drop { animation: camera-drop 600ms cubic-bezier(.4, 0, .2, 1) both; } }
+@keyframes camera-drop { 0% { transform: none; opacity: 1; } 100% { transform: translateY(40%) scale(.18); opacity: 0; } }
