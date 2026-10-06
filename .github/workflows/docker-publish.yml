@@ -99,7 +99,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/Addison16/PakTrak
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.verify.outputs.version }}
-            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
+            org.opencontainers.image.licenses=AGPL-3.0-only
           cache-from: type=gha,scope=paktrak-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=paktrak-${{ matrix.component }}
 
