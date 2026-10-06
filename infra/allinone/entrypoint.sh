@@ -4,12 +4,14 @@ set -eu
 mkdir -p /data/postgres /data/photos /data/broker /run/paktrak/nginx
 chmod 0700 /data/postgres /run/paktrak
 # The services run as their own users, so they must be able to enter /data even
-# when the host folder was created private (mode 0700). Its contents stay private.
+# when the host folder was created private (mode 0700). Traversal alone lists
+# nothing, and every entry inside is private to the service that owns it.
 chmod a+x /data
 python -I /usr/local/lib/paktrak/aio.py
 # Moved or restored data can belong to other user IDs; fix it once.
 for dir in /data/photos /data/broker; do
   [ "$(stat -c %u "$dir")" = 10001 ] || chown -R paktrak:paktrak "$dir"
+  chmod 0700 "$dir"
 done
 chown paktrak:paktrak /run/paktrak /run/paktrak/nginx /run/paktrak/nginx.conf
 chmod 0600 /run/paktrak/env.sh
