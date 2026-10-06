@@ -37,7 +37,7 @@ sh scripts/update.sh
 
 To restart the installed version, run `sh scripts/start.sh`. To install a particular published version, use `sh scripts/update.sh --version v0.1.0`. Updates refuse tracked source edits; save those edits before updating. The [release guide](docs/RELEASING.md) covers publishing images and initial GHCR package visibility.
 
-You can also run PakTrak with only `compose.yaml` and `.env`, without a Git checkout. See [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
+On Unraid, follow the [Unraid guide](docs/UNRAID.md). You can also run PakTrak with only `compose.yaml` and `.env`, without a Git checkout. See [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
 
 For development or before the first images are published, build this checkout with `sh scripts/start.sh --build`. [compose.build.yaml](compose.build.yaml) adds local builds to the pull-based default Compose file. The build path also supports installations without the optional Buildx plugin.
 

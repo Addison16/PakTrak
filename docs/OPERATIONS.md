@@ -37,7 +37,7 @@ From the installation directory:
 sh scripts/update.sh
 ```
 
-The updater looks up the latest **published stable** GitHub release, fetches its tag, and switches the checkout to that tag. Setup scripts and Compose configuration stay paired with the release images; the login theme and database setup ship inside the images. The checkout is intentionally detached from `main`; subsequent updates use the same script. There is no need to run `git pull`. The updater refuses tracked source edits and concurrent updates. Ignored `.env`, generated configuration and data volumes remain in place.
+The updater looks up the latest **published stable** GitHub release, fetches its tag, and switches the checkout to that tag. An installation unpacked from a source archive instead of a Git clone (as on [Unraid](UNRAID.md)) downloads the release's source archive and unpacks it over the installation; `.env` and data volumes are kept. Setup scripts and Compose configuration stay paired with the release images; the login theme and database setup ship inside the images. The checkout is intentionally detached from `main`; subsequent updates use the same script. There is no need to run `git pull`. The updater refuses tracked source edits and concurrent updates. Ignored `.env`, generated configuration and data volumes remain in place.
 
 It pins `PAKTRAK_VERSION` in `.env` to the release version, then starts the installation. Startup downloads all required images before pausing services and stops application processes before schema changes. It then runs the one-shot `database-setup` service (which creates missing database roles and databases and leaves existing ones unchanged), refreshes the identity theme, recreates the identity service and reruns the one-shot bootstrap. Application services start only after successful migration, and the API must pass its readiness check before the web service starts. nginx is validated and reloaded. There is a short maintenance pause during migration/startup.
 
@@ -93,7 +93,7 @@ sh scripts/setup.sh --url https://cards.example.net --bind 127.0.0.1 --port 8095
 sh scripts/update.sh
 ```
 
-Replace the example hostname with one you control. Terminate HTTPS at your existing reverse proxy on the same server and forward to `127.0.0.1:8095`. For example, using [Caddy's documented reverse-proxy configuration](https://caddyserver.com/docs/quick-starts/reverse-proxy), a host-installed Caddy configuration is:
+Replace the example hostname with one you control. Setup refuses a plain HTTP address other than `localhost` unless you add `--allow-http`; that suits a home network, but browsers then turn off the live in-app camera, while **Phone camera** and **Library** uploads still work. Terminate HTTPS at your existing reverse proxy on the same server and forward to `127.0.0.1:8095`. For example, using [Caddy's documented reverse-proxy configuration](https://caddyserver.com/docs/quick-starts/reverse-proxy), a host-installed Caddy configuration is:
 
 ```caddy
 cards.example.net {
