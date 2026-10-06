@@ -4,7 +4,8 @@
 
 - Read light title text on dark strips (old black frames, showcase and borderless cards) by also reading a dark strip inverted, alongside the usual read. On synthetic light-text titles, correct reads rose from 6 of 10 to 10 of 10.
 - When the printed code is unreadable, compare one printing of each artwork of a reprinted name (up to eight) instead of the first few printings by ID, so the printing with matching art can be suggested.
-- Also read a slightly wider footer area, so set codes whose first letter sits right at the card edge are read whole. On a real 15-card photo, set code and number agreed on 2 cards where they agreed on none before.
+- When the usual title strip gives no confident name, also read strips at the very top of the crop (on a dark table the outline can follow the coloured frame rather than the black border) and, last, gold title bars inverted. On 7 real layout photos (92 detected cards), cards with a name suggestion rose from 68 to 87.
+- Also read a slightly wider footer area, so set codes whose first letter sits right at the card edge are read whole. On the same photos, set code and number agreed on 19 cards instead of 7.
 - Read both title strips and the printed code in parallel, shortlist fuzzy name search by shared letter pairs, and reuse earlier title searches. On synthetic cards with a 32,000-name catalog, the text stage dropped from about 845 ms to about 397 ms per card on a 4-core machine.
 - Keep recently compared catalog artwork features in memory, look up compared printings in one query, and skip rereading an unchanged catalog every five minutes.
 

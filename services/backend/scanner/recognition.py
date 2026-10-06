@@ -66,6 +66,14 @@ TITLE_BOXES = ((27, 32, 540, 92), (30, 38, 510, 77))
 # sits lower in the crop. These strips are read only when no confident name
 # was found at the usual position.
 LOWER_TITLE_BOXES = ((27, 56, 560, 116), (27, 80, 560, 140))
+# On a dark table the outline can follow the coloured frame instead of the
+# black border, so the title sits at the very top of the crop. Both strips are
+# read together, before the lower ones, when the usual position fails.
+UPPER_TITLE_BOXES = ((20, 0, 560, 60), (20, 12, 560, 72))
+FALLBACK_TITLE_BOXES = (UPPER_TITLE_BOXES, LOWER_TITLE_BOXES[:1], LOWER_TITLE_BOXES[1:])
+# Gold and other mid-tone title bars are too light to count as dark, yet often
+# read better inverted. Tried last, only when nothing else gave a name.
+INVERTED_TITLE_BOXES = (TITLE_BOXES[0], UPPER_TITLE_BOXES[0])
 FOOTER_BOX = (9, 758, 400, 831)
 # Tight outlines can trim the card's black border, and modern footers start
 # close to the edge, so the set code's first letter can fall outside the
@@ -503,15 +511,18 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
     if flipped is not None and strength(matches) < CONFIDENT_NAME:
         flipped_titles.append(read(flipped, TITLE_BOXES[0]))
         flipped_matches = name_matches(flipped_titles, index)
-    for box in LOWER_TITLE_BOXES:
+    for boxes in FALLBACK_TITLE_BOXES:
         if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
             break
-        titles.append(read(text_image, box))
+        titles += _pool.map(lambda box: read(text_image, box), boxes)
         matches = name_matches(titles, index)
-    for box in LOWER_TITLE_BOXES if flipped is not None else ():
+    if max(strength(matches), strength(flipped_matches)) < CONFIDENT_NAME:
+        titles += _pool.map(lambda box: read(text_image, box, 7, True), INVERTED_TITLE_BOXES)
+        matches = name_matches(titles, index)
+    for boxes in FALLBACK_TITLE_BOXES if flipped is not None else ():
         if max(strength(matches), strength(flipped_matches)) >= CONFIDENT_NAME:
             break
-        flipped_titles.append(read(flipped, box))
+        flipped_titles += _pool.map(lambda box: read(flipped, box), boxes)
         flipped_matches = name_matches(flipped_titles, index)
     # Junk text can fuzzily resemble a name either way up. Only a plausible
     # name read upside down justifies turning the card.

@@ -231,3 +231,29 @@ def test_reference_artwork_features_are_computed_once(monkeypatch):
         assert recognition.reference_features(card, 3) == ("points", b"art")
     # "b" was the least recently used when "c" arrived.
     assert loads == ["a", "b", "c", "b"]
+
+
+def test_titles_at_the_top_of_a_tight_crop_or_on_gold_bars_are_read(monkeypatch):
+    # On a dark table the outline can follow the coloured frame, leaving the
+    # title at the very top of the crop. Gold bars read better inverted.
+    monkeypatch.setattr(recognition, "catalog_index", lambda: {"bulkup": []})
+    monkeypatch.setattr(recognition, "identifier_index", lambda: ({}, {}))
+    white = jpeg(Image.new("RGB", (600, 840), "white"))
+    for wanted in ((recognition.UPPER_TITLE_BOXES[1], False), (recognition.TITLE_BOXES[0], True)):
+        reads = []
+
+        def read(image, box, psm=7, invert=False, reads=reads, wanted=wanted, **kwargs):
+            reads.append((box, invert))
+            return "Bulk Up" if (box, invert) == wanted else ""
+
+        monkeypatch.setattr(recognition, "read_text", read)
+        found = recognition.recognize(white, orientation=0)
+        assert "Bulk Up" in found["title_text"]
+    # The inverted strips are the last resort, after the lower ones.
+    assert reads.index((recognition.LOWER_TITLE_BOXES[1], False)) < reads.index(wanted)
+    reads.clear()
+    monkeypatch.setattr(
+        recognition, "read_text", lambda image, box, *a, **k: reads.append(box) or "Bulk Up"
+    )
+    recognition.recognize(white, orientation=0)
+    assert not set(recognition.UPPER_TITLE_BOXES) & set(reads)
