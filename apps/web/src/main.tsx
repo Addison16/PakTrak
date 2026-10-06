@@ -531,7 +531,7 @@ function App() {
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
       {session && <Navigation session={session} page={page} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} />}
     </header>
-    <main className={session ? "signed-in" + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "account" || page === "admin" ? " account-view" : "") : undefined}>
+    <main className={session ? "signed-in" + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "account" || page === "admin" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
           <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
@@ -577,7 +577,7 @@ function App() {
           <div className="capture-finishes"><label className="foil-count">How many cards are foil?<input type="number" inputMode="numeric" min={0} max={32} value={String(foilCountDraft)} disabled={busy}
             onFocus={(e) => e.currentTarget.select()} onBlur={() => setFoilCountDraft(foilCount)}
             onChange={(e) => setFoilCountDraft(e.target.value === "" ? "" : Math.max(0, Math.min(32, Math.trunc(Number(e.target.value) || 0))))} /></label>
-            <p className="fine">{foilCount === 0 ? "0 means every card is nonfoil. Include etched foils in your count." : `After scanning, tap the ${foilCount} foil ${foilCount === 1 ? "card" : "cards"}. The rest will be nonfoil.`} You can correct this in the batch later.</p></div>
+            <p className="fine">{foilCount === 0 ? "Optional. Leave this at 0 and tap any foil cards in the batch after scanning." : `After scanning, tap the ${foilCount} foil ${foilCount === 1 ? "card" : "cards"}. The rest will be nonfoil.`} Include etched foils.</p></div>
           <input ref={camera} data-testid="native-camera-input" hidden type="file" accept={photoAccept} capture="environment" onChange={(e) => void chooseFile(e.target.files?.[0])} />
           <input ref={picker} data-testid="photo-input" hidden type="file" accept={photoAccept} onChange={(e) => void chooseFile(e.target.files?.[0])} />
           <div className="actions">

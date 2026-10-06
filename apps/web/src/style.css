@@ -145,6 +145,8 @@ progress { width: 100%; height: 9px; accent-color: var(--forest); }
 .history ul { list-style: none; margin: 0; padding: 0; }
 .history li + li { border-top: 1px solid var(--line); }
 .batches-view .hero, .batches-view .account-allowance { display: none; }
+/* On a phone the upload controls come first; the banner stays on larger screens. */
+@media (max-width: 540px) { .scan-view .hero { display: none; } }
 .batches-view > .panel { margin-top: 0; }
 .history .section-heading h2 { margin: 3px 0 0; }
 .history .section-heading > .button { flex-shrink: 0; }

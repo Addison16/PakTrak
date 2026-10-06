@@ -11,6 +11,13 @@ type CropDraft = { points: number[][]; version?: number };
 type Loupe = { index: number; width: number; height: number; left: number; top: number };
 const LOUPE_SIZE = 136;
 const KEY_STEPS: Record<string, number[]> = { ArrowLeft: [-.002, 0], ArrowRight: [.002, 0], ArrowUp: [0, -.002], ArrowDown: [0, .002] };
+// Open an existing outline already enlarged around its card so the first drag is precise.
+function startZoom(polygon: number[][] | undefined) {
+  if (!polygon?.length) return 1;
+  const xs = polygon.map((p) => p[0]), ys = polygon.map((p) => p[1]);
+  const size = Math.max(Math.max(...xs) - Math.min(...xs), (Math.max(...ys) - Math.min(...ys)) * .75);
+  return Math.max(1, Math.min(3, Math.floor(.6 / Math.max(size, .01))));
+}
 function isCropDraft(value: CropDraft | null): value is CropDraft {
   return !!value && Array.isArray(value.points) && value.points.length <= 4
     && value.points.every((point) => Array.isArray(point) && point.length === 2 && point.every((coordinate) => Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= 1))
@@ -32,7 +39,10 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
   const dragging = useRef<{ index: number; offset: number[]; added: boolean } | null>(null);
   const [loupe, setLoupe] = useState<Loupe | null>(null);
   const receipt = useRef<{ body: string; key: string } | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(() => startZoom(region?.polygon));
+  const centered = useRef(false);
+  const history = useRef<number[][][]>([]);
+  const [undoCount, setUndoCount] = useState(0);
   const [version, setVersion] = useState(region?.version);
   const [savedUncertain, setSavedUncertain] = useState(false);
   const recoveryKey = `crop:${session.owner_id}:${scanId}:${region?.id || "new"}`;
@@ -60,6 +70,19 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
       top: Math.min(Math.max(view.top, 0) + inset, innerHeight - LOUPE_SIZE - inset),
     });
   }
+  function remember() { history.current = [...history.current.slice(-49), points]; setUndoCount(history.current.length); }
+  function undo() {
+    const previous = history.current.pop(); setUndoCount(history.current.length);
+    if (previous) setPoints(previous);
+  }
+  function center() {
+    const view = viewport.current, polygon = region?.polygon;
+    if (centered.current || !view || !canvas.current || !polygon?.length || zoom <= 1) return;
+    centered.current = true;
+    const box = canvas.current.getBoundingClientRect();
+    const x = polygon.reduce((sum, p) => sum + p[0], 0) / polygon.length, y = polygon.reduce((sum, p) => sum + p[1], 0) / polygon.length;
+    view.scrollTo(x * box.width - view.clientWidth / 2, y * box.height - view.clientHeight / 2);
+  }
   function start(e: PointerEvent<HTMLDivElement>) {
     if (busy || e.button > 0) return;
     const pointer = position(e), box = canvas.current!.getBoundingClientRect();
@@ -67,6 +90,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     let index = handle ? Number(handle.dataset.corner) : -1;
     if (index < 0) index = points.findIndex((p) => Math.hypot((p[0] - pointer[0]) * box.width, (p[1] - pointer[1]) * box.height) < 24);
     let next = points;
+    remember();
     if (index < 0) {
       if (points.length >= 4) return;
       index = points.length; next = [...points, [clamp(pointer[0]), clamp(pointer[1])]]; setPoints(next);
@@ -88,11 +112,15 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     dragging.current = null; setLoupe(null);
     // A touch that turns into scrolling should not leave a stray corner behind.
     if (cancelled && drag?.added) setPoints((current) => current.filter((_, i) => i !== drag.index));
+    // A tap that did not move a corner leaves nothing to undo.
+    const before = history.current[history.current.length - 1];
+    if (drag && before && (drag.added ? cancelled : JSON.stringify(before) === JSON.stringify(points))) { history.current.pop(); setUndoCount(history.current.length); }
   }
   function nudge(e: KeyboardEvent<HTMLButtonElement>, index: number) {
     const delta = KEY_STEPS[e.key];
     if (!delta) return;
     e.preventDefault(); if (busy) return;
+    if (!e.repeat) remember();
     const step = e.shiftKey ? 10 : 1, point = points[index], next = [clamp(point[0] + delta[0] * step), clamp(point[1] + delta[1] * step)];
     setPoints((current) => current.map((p, i) => i === index ? next : p));
     showLoupe(index, next);
@@ -128,7 +156,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     <div className="crop-viewport" ref={viewport} tabIndex={0} role="region" aria-label="Photo outline. Scroll when enlarged." onScroll={() => setLoupe(null)}>
     <div className="crop-canvas" ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={() => stop(false)} onPointerCancel={() => stop(true)}
       style={{ width: `${zoom * 100}%`, touchAction: "pan-x pan-y" }}>
-      <img src={photo} alt="Tap around one card in your photo" draggable={false} />
+      <img src={photo} alt="Tap around one card in your photo" draggable={false} onLoad={center} />
       <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon points={points.map((p) => p.join(",")).join(" ")} /></svg>
       {points.map((p, i) => <button type="button" key={i} className="crop-handle" data-corner={i} data-x={p[0]} data-y={p[1]} data-active={loupe?.index === i || undefined}
         style={{ left: `${p[0] * 100}%`, top: `${p[1] * 100}%` }} aria-label={`Corner ${i + 1}; use arrow keys to adjust`}
@@ -147,7 +175,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
       })()}
     </div>}
     {localSaved !== null && <p className="scan-local-status" role="status">{localSaved ? "Unfinished corners saved on this device." : "This browser could not save your outline draft. Keep this page open until you save."}</p>}
-    <div className="actions"><button className="button primary" disabled={busy || !!recovery || points.length !== 4} onClick={() => void save()}>{busy ? "Saving outline…" : "Save outline & identify"}</button><button className="text-button" disabled={busy} onClick={() => { removeDraft(recoveryKey); setRecovery(null); setPoints([]); setSavedUncertain(false); }}>Start outline over</button><button className="text-button" disabled={busy} onClick={() => { removeDraft(recoveryKey); onCancel(); }}>Cancel outline</button></div>
+    <div className="actions"><button className="button primary" disabled={busy || !!recovery || points.length !== 4} onClick={() => void save()}>{busy ? "Saving outline…" : "Save outline & identify"}</button><button className="button secondary" disabled={busy || !!recovery || !undoCount} onClick={undo}>Undo last corner</button><button className="text-button" disabled={busy} onClick={() => { remember(); removeDraft(recoveryKey); setRecovery(null); setPoints([]); setSavedUncertain(false); }}>Start outline over</button><button className="text-button" disabled={busy} onClick={() => { removeDraft(recoveryKey); onCancel(); }}>Cancel outline</button></div>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
   </section>;
 }

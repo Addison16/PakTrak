@@ -68,3 +68,23 @@
   .scan-viewer-toolbar { justify-content: center; }
 }
 @media (min-width: 1000px) { .scan-image-viewer { width: min(1200px, calc(100% - 64px)); height: calc(100% - 64px); margin: auto; border: 1px solid var(--line); border-radius: 10px; } }
+.scan-strong { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; padding: 14px 0; margin: 0 0 4px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.scan-strong p { flex: 1 1 260px; margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+.scan-strong p strong { color: var(--ink); }
+.scan-strong-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.scan-strong-actions label { font-size: 12px; min-width: 150px; }
+.scan-strong-actions select { margin-top: 4px; min-height: 44px; }
+.scan-strong-actions .button { min-height: 44px; }
+@media (max-width: 540px) { .scan-strong-actions, .scan-strong-actions label, .scan-strong-actions .button { width: 100%; } }
+.scan-comparison { touch-action: pan-y pinch-zoom; }
+.scan-tile-art { position: relative; display: block; perspective: 600px; }
+.scan-tile-art > .scan-tile-back { position: absolute; inset: 0; height: 100%; object-fit: contain; }
+.scan-tile-art > .scan-tile-back:only-child { position: static; }
+@media (prefers-reduced-motion: no-preference) {
+  .scan-tile-art[data-flip] > img { backface-visibility: hidden; }
+  .scan-tile-art[data-flip] > img:not(.scan-tile-back) { animation: scan-tile-face 560ms cubic-bezier(.2, .65, .3, 1) both; }
+  .scan-tile-art[data-flip] > .scan-tile-back-turning { animation: scan-tile-back 560ms cubic-bezier(.2, .65, .3, 1) both; }
+}
+@keyframes scan-tile-face { from { transform: rotateY(-180deg); } to { transform: rotateY(0); } }
+@keyframes scan-tile-back { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
+.scan-tile-art:not([data-flip]) > .scan-tile-back-turning { display: none; }

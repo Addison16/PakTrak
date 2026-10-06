@@ -84,7 +84,7 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
   async function save() {
     if (working.current) return;
     working.current = true; setBusy(true); setError("");
-    const body = { foil_count: count, foil_ids: selected.map((r) => r.id), etched_ids: selected.filter((r) => etched.has(r.id)).map((r) => r.id), token };
+    const body = { foil_count: selected.length, foil_ids: selected.map((r) => r.id), etched_ids: selected.filter((r) => etched.has(r.id)).map((r) => r.id), token };
     const encoded = JSON.stringify(body);
     if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
     try {
@@ -98,9 +98,9 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
     } finally { working.current = false; setBusy(false); }
   }
   return <section className="scan-finishes" aria-label="Foil cards" data-attention={open || !plan.confirmed || undefined}>
-    <div className="scan-finishes-heading"><div className="scan-finishes-title"><span className="finish-section-icon" aria-hidden="true"><Icon name="spark" /></span><div><span className="eyebrow">STEP 1 · FOIL CARDS</span><h3>{open ? count === 0 ? "All cards will be nonfoil" : "Choose your foil cards" : plan.confirmed ? `${plan.foil_ids.length} foil · ${active.length - plan.foil_ids.length} nonfoil` : plan.foil_count === 0 ? "All cards are nonfoil" : plan.foil_count === null ? "Which cards are foil?" : `Select your ${plan.foil_count} foil ${plan.foil_count === 1 ? "card" : "cards"}`}</h3></div></div>
+    <div className="scan-finishes-heading"><div className="scan-finishes-title"><span className="finish-section-icon" aria-hidden="true"><Icon name="spark" /></span><div><span className="eyebrow">STEP 1 · FOIL CARDS</span><h3>{open ? count === 0 && !selected.length ? "Tap any foil cards" : "Choose your foil cards" : plan.confirmed ? `${plan.foil_ids.length} foil · ${active.length - plan.foil_ids.length} nonfoil` : plan.foil_count === 0 ? "All cards are nonfoil" : plan.foil_count === null ? "Which cards are foil?" : `Select your ${plan.foil_count} foil ${plan.foil_count === 1 ? "card" : "cards"}`}</h3></div></div>
       {!open && <button className={"button " + (plan.confirmed || plan.foil_count === 0 ? "secondary" : "primary")} disabled={disabled || processing || !active.length} onClick={start}>{plan.confirmed || plan.foil_count === 0 ? "Change foil cards" : "Select foil cards"}{!plan.confirmed && plan.foil_count !== 0 && <Icon name="arrow" />}</button>}</div>
-    {!open && <p className="fine">{plan.foil_count === 0 ? "Every card defaults to nonfoil. Change the foil count if needed." : processing ? "Identification continues on the server. Select foil cards when it finishes." : plan.confirmed ? "Finishes are saved for this batch." : "Select the foil cards, then confirm. Every other card will be nonfoil."}</p>}
+    {!open && <p className="fine">{plan.foil_count === 0 ? "Every card is saved as nonfoil. Use Change foil cards to tap any foils." : processing ? "Identification continues on the server. Select foil cards when it finishes." : plan.confirmed ? "Finishes are saved for this batch." : "Select the foil cards, then confirm. Every other card will be nonfoil."}</p>}
     {recovery && <div className="scan-recovery" aria-label="Recovered foil draft"><div><strong>Your unfinished foil choices are available</strong><p>Saved on this device for this account. Review them before confirming finishes.</p></div><div className="actions"><button className="button primary" disabled={busy || disabled || processing || !active.length} onClick={restore}>Restore foil choices</button><button className="text-button" disabled={busy} onClick={discard}>Discard foil draft</button></div></div>}
     {open && <>
       {notice && <p className="message" role="status">{notice}</p>}
@@ -108,17 +108,17 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
       <label className="foil-count">How many cards are foil?<input type="number" inputMode="numeric" min={0} max={32} value={String(countDraft)} disabled={busy}
         onFocus={(e) => e.currentTarget.select()} onBlur={() => { setCountDraft(count); if (count === 0) clearFoils(); }}
         onChange={(e) => { const value = e.target.value === "" ? "" : Math.max(0, Math.min(32, Math.trunc(Number(e.target.value) || 0))); setCountDraft(value); if (value === 0) clearFoils(); }} /></label>
-      <p className="foil-instructions">{count === 0 ? "No foil cards to select. Confirm to mark every card nonfoil." : <>Tap the <strong>{count} foil {count === 1 ? "card" : "cards"}</strong> below, then confirm. Everything else will be nonfoil.</>}</p>
-      {(count > 0 || conflicts.length > 0) && <>
-      <div className="scan-gallery foil-gallery">{(count > 0 ? active : conflicts).map((item) => {
+      <p className="foil-instructions">{count === 0 ? "Tap each foil card below, then confirm. If none are foil, just confirm." : <>Tap the <strong>{count} foil {count === 1 ? "card" : "cards"}</strong> below, then confirm. Everything else will be nonfoil.</>}</p>
+      {active.length > 0 && <>
+      <div className="scan-gallery foil-gallery">{active.map((item) => {
         const card = item.lot?.printing || item.confirmed_printing || item.candidates[0]?.printing;
         const number = data.items.indexOf(item) + 1;
         const name = card?.name || `Card ${number}`;
         const chosen = foils.has(item.id);
         return <div className={"scan-tile" + (chosen ? " foil-selected" : "")} key={item.id}>
-          <button disabled={busy || count === 0} aria-pressed={chosen} aria-label={`Foil card ${number}: ${name}`} onClick={() => toggle(item.id, !!card?.finishes.includes("etched") && !card.finishes.includes("foil"))}>
+          <button disabled={busy} aria-pressed={chosen} aria-label={`Foil card ${number}: ${name}`} onClick={() => toggle(item.id, !!card?.finishes.includes("etched") && !card.finishes.includes("foil"))}>
             {item.crop_url ? <img src={item.crop_url} alt="" loading="lazy" /> : card?.image_url ? <img src={card.image_url} alt="" loading="lazy" /> : <div className="scan-crop-missing">Card {number}</div>}
-            <span className="scan-tile-number">{number}</span><span className={"foil-tile-check" + (chosen ? " checked" : "")} aria-hidden="true">{chosen ? "✓" : "+"}</span><strong>{name}</strong><span className="scan-match-state">{chosen ? "✓ Selected as foil" : count === 0 ? "Nonfoil needs correction" : "Tap to mark foil"}</span>
+            <span className="scan-tile-number">{number}</span><span className={"foil-tile-check" + (chosen ? " checked" : "")} aria-hidden="true">{chosen ? "✓" : "+"}</span><strong>{name}</strong><span className="scan-match-state">{chosen ? "✓ Selected as foil" : "Tap to mark foil"}</span>
           </button>
           {chosen && card?.finishes.includes("etched") && <label className="foil-etched">Foil type<select disabled={busy} value={etched.has(item.id) ? "etched" : "foil"} onChange={(e) => setEtched((before) => { const next = new Set(before); if (e.target.value === "etched") next.add(item.id); else next.delete(item.id); return next; })}>{card.finishes.includes("foil") && <option value="foil">Foil</option>}<option value="etched">Etched foil</option></select></label>}
           {conflicts.some((conflict) => conflict.id === item.id) && <span className="scan-finish-conflict">This printing does not support the selected finish.{onReviewCard && <button className="text-button" disabled={busy} onClick={() => correctPrinting(item.id)}>Correct printing</button>}</span>}
@@ -127,11 +127,12 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
       </>}
       <p className="fine">This saves finishes for {active.length} cards. It does not add copies or change their storage locations.</p>
       <div className="foil-confirmation">
-        {count > 0 && <div className="foil-selection-progress"><p className="foil-selection-count" role="status">{selected.length} of {count} foil cards selected</p>
+        {count > 0 ? <div className="foil-selection-progress"><p className="foil-selection-count" role="status">{selected.length} of {count} foil cards selected</p>
           <progress value={Math.min(selected.length, count)} max={count} aria-label="Foil selection progress" />
-          <p className="fine">{selected.length === count ? "Ready to confirm. The rest will be nonfoil." : selected.length > count ? `Remove ${selected.length - count} from your selection, or change the foil count.` : `Choose ${count - selected.length} more ${count - selected.length === 1 ? "card" : "cards"}.`}</p></div>}
+          <p className="fine">{selected.length === count ? "Ready to confirm. The rest will be nonfoil." : selected.length > count ? `That's more than the ${count} you expected. Confirming saves ${selected.length} foil ${selected.length === 1 ? "card" : "cards"}.` : `Choose ${count - selected.length} more, or confirm to save ${selected.length} foil ${selected.length === 1 ? "card" : "cards"}.`}</p></div>
+          : selected.length > 0 && <p className="foil-selection-count" role="status">{selected.length} foil {selected.length === 1 ? "card" : "cards"} selected</p>}
         {conflicts.length > 0 && <p className="message" role="status">{conflicts.length} {conflicts.length === 1 ? "printing needs" : "printings need"} a finish correction before confirmation.</p>}
-        <div className="actions"><button className="button primary" disabled={busy || disabled || processing || selected.length !== count || !active.length || conflicts.length > 0} onClick={() => void save()}>{busy ? "Saving finishes…" : "Confirm card finishes"}</button><button className="text-button" disabled={busy} onClick={discard}>Cancel</button></div>
+        <div className="actions"><button className="button primary" disabled={busy || disabled || processing || !active.length || conflicts.length > 0} onClick={() => void save()}>{busy ? "Saving finishes…" : "Confirm card finishes"}</button><button className="text-button" disabled={busy} onClick={discard}>Cancel</button></div>
       </div>
       {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
     </>}

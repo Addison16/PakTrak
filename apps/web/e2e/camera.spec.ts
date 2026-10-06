@@ -61,7 +61,7 @@ test("captures the whole source frame without guides and uploads only on confirm
   expect((await cameraStats(page)).revoked).toBeGreaterThan(0);
   await navigate(page, "Upload photo");
   await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveValue("0");
-  await expect(page.getByText(/0 means every card is nonfoil/)).toBeVisible();
+  await expect(page.getByText(/Leave this at 0 and tap any foil cards/)).toBeVisible();
 });
 
 test("uses the still-photo API when available and displays actual photo dimensions", async ({ page }) => {
