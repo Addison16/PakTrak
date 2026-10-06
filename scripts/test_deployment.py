@@ -42,6 +42,7 @@ if [ -n "${DEPLOY_TEST_FAIL:-}" ]; then
 fi
 case "$*" in
   *'/release.py resolve'*) printf '%s\\n' 'v0.1.0';;
+  *'rev-parse --show-toplevel'*) pwd -P;;
   *'config --images api'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest';;
   *'config --images web'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest' 'ghcr.io/addison16/paktrak-web:latest';;
 esac
@@ -170,6 +171,15 @@ done
         # The archive has no .env; the pinned version is written by setup (stubbed here).
         self.assertEqual(self.config.read_text(), self.original)
         self.assertEqual(sorted(path.name for path in self.root.glob(".paktrak-update*")), [])
+
+    def test_archive_install_inside_another_checkout_does_not_use_that_checkout(self):
+        self.use_release_archive()
+        (self.root / "bin" / "git").write_text("#!/bin/sh\nprintf 'git %s\\n' \"$*\" >> \"$DEPLOY_TEST_LOG\"\n[ \"$*\" = 'rev-parse --show-toplevel' ] && dirname \"$(pwd -P)\"\nexit 0\n")
+        result = self.run_script("update.sh", "--version", "v0.1.0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = self.commands()
+        self.assertTrue(any("archive/refs/tags/v0.1.0.tar.gz" in line for line in commands))
+        self.assertFalse(any(line.startswith("git ") and ("fetch" in line or "checkout" in line or "diff" in line) for line in commands))
 
     def test_incomplete_release_archive_changes_nothing(self):
         self.use_release_archive(complete=False)

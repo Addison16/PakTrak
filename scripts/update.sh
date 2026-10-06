@@ -19,7 +19,8 @@ esac
 # Installs unpacked from a source archive (for example on Unraid, which has no
 # Git) download each release's archive instead of checking out its tag.
 UPDATE_FROM_GIT=false
-if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+# Only this directory's own checkout counts, not one it happens to sit inside.
+if command -v git >/dev/null 2>&1 && [ "$(git rev-parse --show-toplevel 2>/dev/null || true)" = "$(pwd -P)" ]; then
   UPDATE_FROM_GIT=true
   # Refuse to discard source edits; ignored private configuration is preserved.
   git diff --quiet HEAD -- || { printf '%s\n' 'Commit or save your tracked source edits before updating.' >&2; exit 1; }
