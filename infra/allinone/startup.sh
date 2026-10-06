@@ -15,6 +15,8 @@ wait_for() {
   name=$1 attempts=$2
   shift 2
   until "$@" >/dev/null 2>&1; do
+    failed=$(ctl status | awk '$2 == "FATAL" { print $1 }' | tr '\n' ' ')
+    [ -z "$failed" ] || fail "These services could not start: $failed"
     attempts=$((attempts - 1))
     [ "$attempts" -gt 0 ] || fail "$name did not become ready."
     sleep 2
