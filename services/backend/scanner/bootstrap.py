@@ -12,6 +12,38 @@ from scanner.settings import get_settings
 from scanner.storage import ensure_bucket
 
 
+def new_realm(settings):
+    origin = settings.app_url
+    return {
+        "realm": "scanner",
+        "enabled": True,
+        "displayName": "PakTrak",
+        "sslRequired": "external" if settings.secure_cookies else "none",
+        "registrationAllowed": True,
+        "passwordPolicy": "length(8)",
+        "loginTheme": "paktrak",
+        "resetPasswordAllowed": False,
+        "bruteForceProtected": True,
+        "clients": [
+            {
+                "clientId": settings.oidc_client_id,
+                "enabled": True,
+                "publicClient": False,
+                "secret": settings.oidc_client_secret.get_secret_value(),
+                "standardFlowEnabled": True,
+                "directAccessGrantsEnabled": False,
+                "redirectUris": [origin + "/api/auth/callback"],
+                "webOrigins": [origin],
+                "attributes": {
+                    "pkce.code.challenge.method": "S256",
+                    "post.logout.redirect.uris": origin + "/",
+                },
+                "defaultClientScopes": ["web-origins", "profile", "email", "basic"],
+            }
+        ],
+    }
+
+
 def configure_registration():
     settings = get_settings()
     if settings.identity_admin_password is None:
@@ -30,6 +62,14 @@ def configure_registration():
         token.raise_for_status()
         headers = {"Authorization": "Bearer " + token.json()["access_token"]}
         realm = client.get(base + "/admin/realms/scanner", headers=headers)
+        if realm.status_code == 404:
+            # Fresh installations create the realm here instead of importing a
+            # generated file, so Compose needs no host configuration mounts.
+            client.post(
+                base + "/admin/realms", headers=headers, json=new_realm(settings)
+            ).raise_for_status()
+            print("Created the PakTrak sign-in realm.")
+            realm = client.get(base + "/admin/realms/scanner", headers=headers)
         realm.raise_for_status()
         realm_data = realm.json()
         root = base + "/admin/realms/scanner"
@@ -68,8 +108,8 @@ def configure_registration():
                     },
                 },
             ).raise_for_status()
-            # --import-realm skips existing realms: update the actual login
-            # client on every boot, retaining unrelated attributes and secrets.
+            # Update the actual login client on every boot, retaining unrelated
+            # attributes and secrets.
             client.put(
                 root + "/clients/" + login_client["id"],
                 headers=headers,

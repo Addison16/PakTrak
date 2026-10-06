@@ -55,9 +55,13 @@ trap finish EXIT
 START_PAUSED=true
 # Keep old application processes out of a schema upgrade; leave data volumes intact.
 compose stop --timeout 90 web api worker transfer-worker dispatcher data-worker migrate
-compose up -d --no-build --wait --wait-timeout 180 database broker storage identity
-# Keycloak caches theme files supplied by Git, even when its image is unchanged.
-compose restart identity
+compose up -d --no-build --wait --wait-timeout 180 database broker storage
+# One-shot services: create missing database roles, then copy the login theme
+# from the web image. Both exit before identity and migrations start.
+compose up --no-build --no-deps --force-recreate --exit-code-from database-setup database-setup
+compose up --no-build --no-deps --force-recreate --exit-code-from identity-theme identity-theme
+# Keycloak caches theme files, even when its image is unchanged.
+compose up -d --no-build --no-deps --force-recreate --wait --wait-timeout 180 identity
 # Always re-run bootstrap, including when only the public hostname has changed.
 # A failed migration exits here, before any application process is started.
 compose up --no-build --no-deps --force-recreate --exit-code-from migrate migrate

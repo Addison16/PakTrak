@@ -83,12 +83,27 @@ esac
         result = self.run_script("start.sh")
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.commands()
-        fragments = ["compose.yaml pull", "stop --timeout", "restart identity", "--exit-code-from migrate", "--wait-timeout 180 api", "--wait-timeout 60 web", "nginx -t", "nginx -s reload"]
+        fragments = ["compose.yaml pull", "stop --timeout", "--wait-timeout 180 database broker storage", "--exit-code-from database-setup", "--exit-code-from identity-theme", "--force-recreate --wait --wait-timeout 180 identity", "--exit-code-from migrate", "--wait-timeout 180 api", "--wait-timeout 60 web", "nginx -t", "nginx -s reload"]
         positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
         self.assertEqual(positions, sorted(positions))
         self.assertNotIn(" build ", "\n".join(commands))
         self.assertNotIn("--volumes", "\n".join(commands))
         self.assertEqual(self.config.read_text(), self.original)
+
+    def test_failed_database_setup_blocks_identity_and_migrations(self):
+        result = self.run_script("start.sh", fail="--exit-code-from database-setup")
+        self.assertNotEqual(result.returncode, 0)
+        commands = "\n".join(self.commands())
+        self.assertNotIn("identity-theme", commands)
+        self.assertNotIn("--exit-code-from migrate", commands)
+        self.assertNotIn("nginx -s reload", commands)
+
+    def test_compose_layout_needs_no_host_configuration_files(self):
+        compose = (ROOT / "compose.yaml").read_text()
+        for line in compose.splitlines():
+            entry = line.strip().removeprefix("- ")
+            self.assertFalse(entry.startswith(("./", "../", "/")), line)
+        self.assertNotIn("infra/", compose)
 
     def test_local_build_fallback_uses_resolved_image_names_and_never_pulls_app(self):
         result = self.run_script("start.sh", "--build", fail="buildx version")
