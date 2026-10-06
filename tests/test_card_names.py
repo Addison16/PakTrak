@@ -232,6 +232,12 @@ def test_scanner_indexes_aliases_and_identifies_the_reported_title(named_cards, 
     ):
         assert [row["id"] for row in index[recognition.normalized(name)]] == [cards[position].id]
     assert "secretmetadataname" not in index
+    # An unchanged catalog is not reread when the index is due for a check.
+    monkeypatch.setattr(recognition, "_catalog_at", 0)
+    assert recognition.catalog_index() is index
+    monkeypatch.setattr(recognition, "_catalog_at", 0)
+    monkeypatch.setattr(recognition, "_catalog_fingerprint", None)
+    assert recognition.catalog_index() is not index
     output = io.BytesIO()
     Image.new("RGB", (600, 840), "white").save(output, "PNG")
     # The original failed scan had a readable title and FCA / 0047 footer.

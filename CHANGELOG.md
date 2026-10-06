@@ -1,5 +1,12 @@
 # Changelog
 
+## Faster, more accurate card reading — October 6, 2026
+
+- Read light title text on dark strips (old black frames, showcase and borderless cards) by inverting the strip first. On synthetic light-text titles, correct reads rose from 6 of 10 to 10 of 10.
+- When the printed code is unreadable, compare one printing of each artwork of a reprinted name (up to eight) instead of the first few printings by ID, so the printing with matching art can be suggested.
+- Read both title strips and the printed code in parallel, shortlist fuzzy name search by shared letter pairs, and reuse earlier title searches. On synthetic cards with a 32,000-name catalog, the text stage dropped from about 845 ms to about 397 ms per card on a 4-core machine.
+- Keep recently compared catalog artwork features in memory, look up compared printings in one query, and skip rereading an unchanged catalog every five minutes.
+
 ## Container dependency notices — October 4, 2026
 
 - Include the complete React, React DOM and Scheduler MIT licenses and the npm lockfile in the production web image, alongside project notices and bundled font licenses.
