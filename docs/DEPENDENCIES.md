@@ -4,7 +4,7 @@ Reviewed September 18, 2026. This is an implementation inventory and release gat
 
 ## Project license direction
 
-On October 5, 2026 the owner relicensed PakTrak as **free and open-source software** under the [GNU AGPL v3](../LICENSE) (AGPL-3.0-only), matching Immich, with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). It previously used PolyForm Noncommercial 1.0.0. The listed dependencies use permissive or LGPL terms, which are compatible with distribution under the AGPL. The project license does not replace dependency licenses, provider terms, card-art rights, or users' rights in their photos/collections.
+On October 5, 2026 the owner relicensed PakTrak as **free and open-source software** under the [GNU AGPL v3](../LICENSE) (AGPL-3.0-only), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). It previously used PolyForm Noncommercial 1.0.0. The listed dependencies use permissive or LGPL terms, which are compatible with distribution under the AGPL. The project license does not replace dependency licenses, provider terms, card-art rights, or users' rights in their photos/collections.
 
 The source repository includes the project license and full notices for its bundled fonts. Before distributing built images, assemble the required dependency, bundled-library, and container-base notices/source offers for those images. The current stack avoids a mandatory paid recognition API and bundles the packaged English Tesseract OCR data when building the server image. Provider card-face images are cached at runtime. The decorative classic Magic card back is bundled separately and attributed in the interface asset section below.
 
