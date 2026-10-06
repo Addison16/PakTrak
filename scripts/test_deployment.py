@@ -26,7 +26,7 @@ class DeploymentTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         (self.root / "scripts").mkdir()
-        for name in ("start.sh", "update.sh", "setup.sh", "setup.py", "release.py"):
+        for name in ("start.sh", "update.sh", "setup.sh", "setup.py", "release.py", "move-to-single-container.sh"):
             shutil.copy(ROOT / "scripts" / name, self.root / "scripts" / name)
         self.config = self.root / ".env"
         self.original = "APP_URL=https://example.invalid\nSESSION_SECRET=fixture-secret\nPASSWORD_RESET_CLIENT_SECRET=fixture-reset-secret\n"
@@ -43,6 +43,9 @@ fi
 case "$*" in
   *'/release.py resolve'*) printf '%s\\n' 'v0.1.0';;
   *'rev-parse --show-toplevel'*) pwd -P;;
+  *'service=api'*) printf '%s\\n' 'ghcr.io/addison16/paktrak-backend:0.2.0 mtg-scanner';;
+  *'project.working_dir'*) printf '%s\\n' "$DEPLOY_TEST_DIR";;
+  *'ps -q --filter'*) printf '%s\\n' abc123;;
   *'config --images api'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest';;
   *'config --images web'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest' 'ghcr.io/addison16/paktrak-web:latest';;
 esac
@@ -55,6 +58,7 @@ esac
             **os.environ,
             "PATH": str(binary) + os.pathsep + os.environ["PATH"],
             "DEPLOY_TEST_LOG": str(self.log),
+            "DEPLOY_TEST_DIR": str(self.root),
         }
 
     def run_script(self, name, *args, fail=""):
@@ -205,6 +209,44 @@ done
         self.assertEqual(settings["HTTP_BIND"], "0.0.0.0")
         self.assertEqual(settings["ALLOW_INSECURE_HTTP"], "true")
         self.assertEqual(stat.S_IMODE(self.config.stat().st_mode), 0o600)
+
+    def write_full_settings(self):
+        names = ["POSTGRES_PASSWORD", "SCANNER_DB_PASSWORD", "KEYCLOAK_DB_PASSWORD", "SESSION_SECRET", "OIDC_CLIENT_SECRET", "PASSWORD_RESET_CLIENT_SECRET", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY", "KEYCLOAK_ADMIN_PASSWORD"]
+        self.config.write_text("APP_URL=http://192.168.1.20:8095\nHTTP_BIND=0.0.0.0\n" + "".join(f"{name}=secret-{name.lower()}\n" for name in names))
+        return names
+
+    def test_move_to_single_container_copies_data_and_secrets_only(self):
+        names = self.write_full_settings()
+        target = self.root / "single"
+        result = self.run_script("move-to-single-container.sh", str(target))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("http://192.168.1.20:8095", result.stdout)
+        commands = self.commands()
+        fragments = ["volume inspect mtg-scanner_database", "pull ghcr.io/addison16/paktrak:latest", "stop -t 90 abc123", "mtg-scanner_photos:/from/photos:ro"]
+        positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
+        self.assertEqual(positions, sorted(positions))
+        self.assertFalse(any(line.startswith("docker start") for line in commands))
+        moved = target / "paktrak.env"
+        self.assertEqual(moved.read_text(), "".join(f"{name}=secret-{name.lower()}\n" for name in names))
+        self.assertEqual(stat.S_IMODE(moved.stat().st_mode), 0o600)
+
+    def test_failed_move_restarts_the_compose_installation(self):
+        self.write_full_settings()
+        result = self.run_script("move-to-single-container.sh", str(self.root / "single"), fail="--network none")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("docker start abc123", self.commands())
+        self.assertFalse((self.root / "single" / "paktrak.env").exists())
+
+    def test_move_refuses_a_folder_that_already_has_data(self):
+        self.write_full_settings()
+        target = self.root / "single"
+        target.mkdir()
+        (target / "paktrak.env").write_text("existing\n")
+        result = self.run_script("move-to-single-container.sh", str(target))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not empty", result.stderr)
+        self.assertFalse(any("stop" in line or "pull" in line for line in self.commands()))
+        self.assertEqual((target / "paktrak.env").read_text(), "existing\n")
 
     def test_concurrent_update_refused_without_docker_or_checkout(self):
         (self.root / ".paktrak-update.lock").mkdir()
