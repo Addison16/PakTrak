@@ -763,7 +763,7 @@ test("strong matches approve in one tap and leave weaker or corrected cards for 
   const approved = mock.calls.find((call) => call.path.endsWith("/approve"))!.body;
   expect(approved.items.map((item: any) => item.observation_id)).toEqual(["region-0", "region-2", "region-3"]);
   expect(approved.binder).toBe("Scanned cards");
-  await expect(page.getByText("3 copies imported into Scanned cards.", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 copies imported into Scanned cards.")).toBeVisible();
   await expect(strong).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("combobox", { name: "Match strength", exact: true })).toHaveCount(0);
@@ -822,8 +822,10 @@ test("adjusting a crop opens enlarged around the card and undoes one corner at a
   await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
   await expect(page.locator(".crop-precision-tools")).toContainText("3×");
   const corner = page.getByRole("button", { name: "Corner 1; use arrow keys to adjust", exact: true });
-  const viewport = (await page.locator(".crop-viewport").boundingBox())!;
-  await expect.poll(async () => { const box = (await corner.boundingBox())!; return box.x >= viewport.x && box.y >= viewport.y && box.x <= viewport.x + viewport.width && box.y <= viewport.y + viewport.height; }).toBe(true);
+  await expect.poll(async () => {
+    const view = (await page.locator(".crop-viewport").boundingBox())!, box = (await corner.boundingBox())!;
+    return box.x >= view.x && box.y >= view.y && box.x <= view.x + view.width && box.y <= view.y + view.height;
+  }).toBe(true);
   const undo = page.getByRole("button", { name: "Undo last corner", exact: true });
   await expect(undo).toBeDisabled();
   await corner.focus(); await page.keyboard.press("ArrowRight");

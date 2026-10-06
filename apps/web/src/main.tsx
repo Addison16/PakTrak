@@ -372,7 +372,6 @@ function App() {
     const controller = new AbortController();
     async function refresh(force = false) {
       if (stopped || loading || document.hidden || !navigator.onLine || (!force && Date.now() < nextAttempt)) return;
-      if (!force && !activeWork.current && Date.now() - lastLoaded < 15000) return;
       loading = true;
       let readingSelected: string | null = null;
       try {
@@ -381,6 +380,8 @@ function App() {
         if (stopped) return;
         if (account.owner_id !== owner) throw new ApiError("Another account signed in in a different tab. Reload PakTrak before making changes.", {}, undefined, { code: "account_changed", action: "Refresh sign-in" });
         setSession((current) => current && (Object.keys(account) as (keyof Session)[]).every((key) => current[key] === account[key]) ? current : account);
+        // The small sign-in check keeps allowance changes live; the batch list waits longer while nothing is processing.
+        if (!force && !activeWork.current && Date.now() - lastLoaded < 15000) { setRefreshError(null); failures = 0; nextAttempt = 0; return; }
         const data = await request<{ items: Scan[]; next_offset: number | null }>(
           "/api/v1/scans?offset=" + offset, { signal: controller.signal },
         );
