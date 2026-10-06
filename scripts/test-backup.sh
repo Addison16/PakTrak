@@ -9,7 +9,7 @@ DRILL_SOURCE="$DRILL_DIR/source"
 DRILL_TARGET="$DRILL_DIR/restored"
 DRILL_SOURCE_PROJECT="paktrak-backup-check-$(date -u +%Y%m%d%H%M%S)-$$"
 DRILL_TARGET_PROJECT="$DRILL_SOURCE_PROJECT-restored"
-mkdir -p "$DRILL_SOURCE/infra/generated"
+mkdir -p "$DRILL_SOURCE"
 source_compose() { docker compose -p "$DRILL_SOURCE_PROJECT" -f "$DRILL_SOURCE/compose.yaml" "$@"; }
 target_compose() { docker compose -p "$DRILL_TARGET_PROJECT" -f "$DRILL_TARGET/compose.yaml" -f "$DRILL_TARGET/restore-compose.yaml" "$@"; }
 cleanup() {
@@ -27,9 +27,6 @@ trap 'exit 143' TERM HUP
 cat > "$DRILL_SOURCE/.env" <<'ENV'
 POSTGRES_PASSWORD=disposable-backup-drill-only
 ENV
-cat > "$DRILL_SOURCE/infra/generated/s3.json" <<'JSON'
-{"disposable_backup_drill": true}
-JSON
 cat > "$DRILL_SOURCE/compose.yaml" <<'COMPOSE'
 services:
   database:
@@ -53,12 +50,20 @@ services:
   idle:
     image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
     command: [sh, -c, 'trap "exit 0" TERM; while :; do sleep 1; done']
+  one-shot:
+    image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+    command: [sh, -c, 'printf "theme witness\n" > /theme/witness']
+    restart: "no"
+    volumes: [identity-theme:/theme]
 volumes:
   database:
   broker:
   photos:
+  identity-theme:
 COMPOSE
-source_compose up -d --wait >/dev/null
+source_compose up -d --wait database broker storage idle >/dev/null
+# Like database-setup and migrate: a completed one-shot container stays exited.
+source_compose up --exit-code-from one-shot one-shot >/dev/null
 source_compose stop --timeout 5 idle >/dev/null
 source_compose exec -T database psql -U postgres -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 CREATE DATABASE scanner;
@@ -75,16 +80,17 @@ source_compose exec -T broker sh -c 'printf "broker witness\n" > /data/appendonl
 sh "$BACKUP_SCRIPT_DIR/backup.sh" --directory "$DRILL_SOURCE" --project "$DRILL_SOURCE_PROJECT" "$DRILL_DIR/backup"
 [ "$(source_compose ps --status running --services | wc -l | tr -d ' ')" = 3 ] || fail 'Backup did not resume exactly the previously running services.'
 [ "$(docker inspect --format '{{.State.Running}}' "$(source_compose ps -aq idle)")" = false ] || fail 'Backup incorrectly started a previously stopped container.'
+[ "$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$(source_compose ps -aq one-shot)")" = 'exited 0' ] || fail 'Backup changed a completed one-shot container.'
 sh "$BACKUP_SCRIPT_DIR/restore.sh" "$DRILL_DIR/backup" --target-dir "$DRILL_TARGET" --project "$DRILL_TARGET_PROJECT"
 [ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$DRILL_TARGET_PROJECT")" ] || fail 'Restore unexpectedly started services.'
-target_compose up -d --no-build --wait >/dev/null
+target_compose up -d --no-build --wait database broker storage >/dev/null
 [ "$(target_compose exec -T database psql -U postgres -d scanner -Atc 'SELECT name,quantity FROM restore_witness')" = 'collection witness|7' ] || fail 'Application database did not restore.'
 [ "$(target_compose exec -T database psql -U postgres -d identity_service -Atc 'SELECT account_name FROM restore_witness')" = 'identity witness' ] || fail 'Identity database did not restore.'
 [ "$(target_compose exec -T storage cat /data/photo-link)" = 'photo witness' ] || fail 'Photo/filer file or symlink did not restore.'
 [ "$(target_compose exec -T storage stat -c '%u:%g %a' /data/filer/photo)" = '1234:1235 640' ] || fail 'File ownership or permissions did not restore.'
 [ "$(target_compose exec -T broker cat /data/appendonly.aof)" = 'broker witness' ] || fail 'Broker files did not restore.'
 cmp "$DRILL_SOURCE/.env" "$DRILL_TARGET/.env"
-cmp "$DRILL_SOURCE/infra/generated/s3.json" "$DRILL_TARGET/infra/generated/s3.json"
+[ ! -e "$DRILL_DIR/backup/identity-theme.tar.gz" ] || fail 'Backup archived the rebuilt theme volume.'
 [ "$(stat -c %a "$DRILL_DIR/backup")" = 700 ] || fail 'Backup directory is not private.'
 for DRILL_FILE in "$DRILL_DIR/backup"/* "$DRILL_TARGET/.env"; do
   [ "$(stat -c %a "$DRILL_FILE")" = 600 ] || fail 'Backup/configuration file is not private.'
@@ -96,4 +102,4 @@ cp -al "$DRILL_DIR/backup" "$DRILL_DIR/damaged"
 rm "$DRILL_DIR/damaged/photos.tar.gz"
 printf 'damaged archive\n' > "$DRILL_DIR/damaged/photos.tar.gz"
 if sh "$BACKUP_SCRIPT_DIR/verify-backup.sh" "$DRILL_DIR/damaged" >"$DRILL_DIR/checksum.log" 2>&1; then fail 'Verification accepted a damaged archive.'; fi
-printf '%s\n' 'Restore drill passed: application/identity databases, photos, broker, image startup, ownership, secrets, restart state and refusal/checksum safeguards.'
+printf '%s\n' 'Restore drill passed: application/identity databases, photos, broker, image startup, ownership, secrets, restart and one-shot state, and refusal/checksum safeguards.'

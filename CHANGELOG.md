@@ -1,5 +1,11 @@
 # Changelog
 
+## Smoother self-hosted updates — October 6, 2026
+
+- Run PakTrak from just `compose.yaml` and `.env`, with no Git checkout or host files mounted. A one-shot `database-setup` service creates missing database roles and databases, the login theme ships in the web image and is copied by a one-shot `identity-theme` service, SeaweedFS reads its S3 keys from `.env`, and bootstrap creates the sign-in realm on fresh installations.
+- Keep the site up when Compose recreates the API or identity service on a new IP address: nginx re-resolves them instead of returning 502 errors, and Compose restarts the web service when they are replaced.
+- Upgrade existing installations in place with `sh scripts/update.sh` or `sh scripts/start.sh`. Collections, photos, S3 credentials and sign-in accounts are kept; the older `infra/generated/` files are simply no longer needed.
+- Back up installations without `infra/generated/`, skip the rebuilt theme volume, and leave completed one-shot containers stopped when resuming after a backup.
 ## AGPL-3.0 relicense — October 5, 2026
 
 - Relicense original PakTrak code from PolyForm Noncommercial 1.0.0 to the GNU Affero General Public License v3.0 (AGPL-3.0-only). PakTrak is now free and open-source software, and commercial use is permitted under the AGPL's terms.

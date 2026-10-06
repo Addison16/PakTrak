@@ -19,7 +19,6 @@ while [ "$#" -gt 0 ]; do
 done
 [ -f "$BACKUP_PROJECT_DIR/compose.yaml" ] || fail 'Project directory needs compose.yaml'
 [ -f "$BACKUP_PROJECT_DIR/.env" ] || fail 'Project directory needs its matching .env'
-[ -d "$BACKUP_PROJECT_DIR/infra/generated" ] || fail 'Project directory needs infra/generated/'
 cd "$BACKUP_PROJECT_DIR"
 compose() {
   if [ -n "$BACKUP_PROJECT" ]; then docker compose -p "$BACKUP_PROJECT" "$@"; else docker compose "$@"; fi
