@@ -14,13 +14,13 @@ function rememberCamera(id: string) {
   try { if (id) localStorage.setItem(cameraPreference, id); else localStorage.removeItem(cameraPreference); } catch { /* Private browsing may disable storage. */ }
 }
 type Props = {
-  foilCount: number; progress: number | null; uploadError: string;
+  progress: number | null; uploadError: string;
   onClose: () => void; onNativeCamera: () => void; onChoosePhoto: () => void;
   onUpload: (file: File, next?: boolean) => Promise<boolean>;
   onCapture?: (file: File) => Promise<void>; onDiscard?: () => Promise<void>;
 };
 
-export default function CameraCapture({ foilCount, progress, uploadError, onClose, onNativeCamera, onChoosePhoto, onUpload, onCapture, onDiscard }: Props) {
+export default function CameraCapture({ progress, uploadError, onClose, onNativeCamera, onChoosePhoto, onUpload, onCapture, onDiscard }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -287,7 +287,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
     <div className="camera-controls">
       <div className="camera-copy">
         <strong>{photo ? "Check the edges, text and reflections." : uploaded ? `${uploaded} ${uploaded === 1 ? "photo" : "photos"} saved as batches. Ready for the next one.` : "Keep every edge in view. Leave space between cards."}</strong>
-        <p>{photo ? `${photoSize.width ? `${photoSize.width} × ${photoSize.height} · ` : ""}${foilCount} ${foilCount === 1 ? "foil" : "foils"} planned · ${uploading ? "Uploading" : "Awaiting upload"}` : ready ? `${dimensions.width} × ${dimensions.height} live view · Hold steady` : "Your photo is uploaded only after you confirm it."}</p>
+        <p>{photo ? `${photoSize.width ? `${photoSize.width} × ${photoSize.height} · ` : ""}${uploading ? "Uploading" : "Awaiting upload"}` : ready ? `${dimensions.width} × ${dimensions.height} live view · Hold steady` : "Your photo is uploaded only after you confirm it."}</p>
       </div>
       {error && phase !== "error" && <p className="camera-feedback" role="alert">{error}</p>}
       {controlsError && <p className="camera-feedback" role="status">{controlsError}</p>}

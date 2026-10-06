@@ -167,13 +167,13 @@ for (const mode of ["light", "dark"] as const) test(`${mode} batch guidance open
   await page.screenshot({ path: `../../artifacts/batch-guidance/overview-${mode}-${info.project.name}.png` });
   await steps.getByRole("button", { name: "Choose foil cards", exact: true }).click();
   const panel = page.getByRole("region", { name: "Foil cards", exact: true });
-  await expect(panel.getByRole("heading", { name: "Choose your foil cards", exact: true })).toBeVisible();
-  await expect(panel.getByLabel("How many cards are foil?", { exact: true })).toHaveValue("2");
+  await expect(panel.getByRole("heading", { name: "Tap any foil cards", exact: true })).toBeVisible();
+  await expect(panel.getByLabel("How many cards are foil?", { exact: true })).toHaveCount(0);
   await expect.poll(async () => (await panel.boundingBox())!.y).toBeLessThan(75);
   const first = panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true });
   expect((await first.boundingBox())!.width).toBeGreaterThanOrEqual(85);
   await first.click(); await panel.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
-  await expect(panel.getByRole("progressbar", { name: "Foil selection progress" })).toHaveAttribute("value", "2");
+  await expect(panel.getByText("2 foil cards selected", { exact: true })).toBeVisible();
   const confirm = panel.getByRole("button", { name: "Confirm card finishes", exact: true });
   await expect(confirm).toBeEnabled();
   const confirmBox = (await confirm.boundingBox())!;
@@ -355,7 +355,7 @@ test("foil and crop drafts warn on exit and block closing during a save", async 
   await page.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Close batch", exact: true }).click();
-  await expect(page.getByText("1 of 1 foil cards selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 foil card selected", { exact: true })).toBeVisible();
   let release: () => void = () => {};
   const saving = new Promise<void>((resolve) => { release = resolve; });
   await page.route("**/finishes", async (route) => { await saving; await route.fallback(); });
@@ -678,17 +678,15 @@ test("zero foils needs no selection and changing the count marks only selected c
   await panel.screenshot({ path: `../../artifacts/scan-defaults/finishes-${test.info().project.name}.png` });
 });
 
-test("setting zero foils clears the selections and saves every card as nonfoil", async ({ page }) => {
+test("unselecting every foil saves every card as nonfoil", async ({ page }) => {
   const mock = await fixture(page, 3, 0, [0], 0, 2);
   const panel = page.getByRole("region", { name: "Foil cards", exact: true });
   await panel.getByRole("button", { name: "Select foil cards", exact: true }).click();
   await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
   await panel.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
-  const count = panel.getByRole("spinbutton", { name: "How many cards are foil?", exact: true });
-  await count.fill(""); await expect(count).toHaveValue("");
-  await count.pressSequentially("2");
-  await expect(panel.getByText("2 of 2 foil cards selected", { exact: true })).toBeVisible();
-  await count.fill("0");
+  await expect(panel.getByText("2 foil cards selected", { exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
+  await panel.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
   await expect(panel.getByRole("button", { name: /^Foil card /, pressed: true })).toHaveCount(0);
   await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
   await expect(panel.getByRole("heading", { name: "0 foil · 3 nonfoil", exact: true })).toBeVisible();
@@ -701,14 +699,10 @@ test("foil selection updates auto-imported copies and preserves finishes in bulk
   const mock = await fixture(page, 15, 0, [0]);
   await page.getByRole("button", { name: "Select foil cards", exact: true }).click();
   const panel = page.getByRole("region", { name: "Foil cards", exact: true });
-  const foils = panel.getByRole("spinbutton", { name: "How many cards are foil?", exact: true });
-  await foils.click(); await foils.press("Backspace");
-  await expect(foils).toHaveValue("");
-  await foils.pressSequentially("2"); await expect(foils).toHaveValue("2");
   await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
-  await expect(panel.getByText("Choose 1 more, or confirm to save 1 foil card.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("1 foil card selected", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Foil card 3: Fixture Card 3", exact: true }).click();
-  await expect(panel.getByText("2 of 2 foil cards selected", { exact: true })).toBeVisible();
+  await expect(panel.getByText("2 foil cards selected", { exact: true })).toBeVisible();
   expect(mock.calls.filter((c) => c.path.endsWith("/finishes"))).toHaveLength(0);
   await page.screenshot({ path: `../../artifacts/scan-88-review/foil-selection-${test.info().project.name}.png`, fullPage: true });
   await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();

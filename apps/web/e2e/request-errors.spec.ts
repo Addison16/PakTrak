@@ -47,7 +47,6 @@ test("background errors explain server failures, stay dismissed, and clear after
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Refresh batches: The server is temporarily unavailable");
   await expect(alert).not.toContainText("Check the fields");
-  await page.getByLabel("How many cards are foil?").fill("4");
   await alert.getByText("Error details", { exact: true }).click();
   await expect(alert.locator("pre")).toContainText(reference);
   await alert.getByRole("button", { name: "Copy error details", exact: true }).click();
@@ -59,7 +58,6 @@ test("background errors explain server failures, stay dismissed, and clear after
   state.scansStatus = 503; await refresh(page); await expect(alert).toBeVisible();
   state.scansStatus = 200; await alert.getByRole("button", { name: "Retry refresh" }).click();
   await expect(alert).toHaveCount(0);
-  await expect(page.getByLabel("How many cards are foil?")).toHaveValue("4");
   expect(state.errors).toEqual([]); expect(state.unexpected).toEqual([]);
 });
 
@@ -87,13 +85,12 @@ test("a renewed session updates the verification token even for the same account
 
 test("refreshing stale sign-in preserves the upload draft and never replays a write", async ({ page }) => {
   const state = await fixture(page); state.postStatus = 403; state.postCode = "csrf_mismatch"; await ready(page);
-  await page.getByLabel("How many cards are foil?").fill("2");
   await page.getByTestId("photo-input").setInputFiles(photo);
   const alert = page.getByRole("alert"); await expect(alert).toContainText("verification changed");
   state.csrf = "refreshed-token";
   await alert.getByRole("button", { name: "Refresh sign-in", exact: true }).click();
   await expect(alert).toHaveCount(0); await expect(page.getByText("Sign-in refreshed. Try your action again.")).toBeVisible();
-  expect(state.posts).toHaveLength(1); await expect(page.getByLabel("How many cards are foil?")).toHaveValue("2");
+  expect(state.posts).toHaveLength(1);
   await page.getByTestId("photo-input").setInputFiles(photo);
   await expect(alert).toBeVisible(); expect(state.posts).toHaveLength(2);
   expect(state.posts[1]).toEqual({ csrf: "refreshed-token", key: state.posts[0].key });
@@ -101,7 +98,6 @@ test("refreshing stale sign-in preserves the upload draft and never replays a wr
 
 test("an expired session offers sign-in and pauses repeated polling while preserving the page", async ({ page }) => {
   await page.clock.install(); const state = await fixture(page); await ready(page);
-  await page.getByLabel("How many cards are foil?").fill("5");
   state.sessionStatus = 401; await refresh(page);
   const alert = page.getByRole("alert"); await expect(alert).toContainText("Your session ended");
   await expect(alert.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/api/auth/login");
@@ -109,7 +105,6 @@ test("an expired session offers sign-in and pauses repeated polling while preser
   await alert.getByRole("button", { name: "Dismiss error" }).click(); await page.clock.runFor(10000);
   await expect(alert).toHaveCount(0); expect(state.sessionReads).toBe(count);
   state.sessionStatus = 200; await refresh(page); await expect.poll(() => state.sessionReads).toBeGreaterThan(count);
-  await expect(page.getByLabel("How many cards are foil?")).toHaveValue("5");
 });
 
 test("a failed sign-in shows a safe reference and the normal signed-out probe is quiet", async ({ page }) => {

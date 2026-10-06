@@ -1,5 +1,5 @@
 export type PendingPhoto = {
-  owner: string; file: Blob; filename: string; savedAt: number; foilCount: number;
+  owner: string; file: Blob; filename: string; savedAt: number;
   targetDeck?: string; collect?: boolean;
 };
 type StoredPendingPhoto = Omit<PendingPhoto, "file"> & {
