@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from scanner import image_enhancement, recognition
+from scanner import recognition
 
 
 def jpeg(image):
@@ -74,9 +74,11 @@ def test_sleeved_title_is_read_lower_only_after_the_usual_strip_fails(monkeypatc
     found = recognition.recognize(jpeg(marked_card()), orientation=0)
     assert found["title_text"][-1] == "Bulk Up"
     # The footer is read alongside the usual title strips, which come first.
-    titles = [box for box in calls if box != recognition.FOOTER_BOX]
-    assert set(titles[:2]) == set(recognition.TITLE_BOXES)
-    assert recognition.FOOTER_BOX in calls
+    # This black card also has its dark title strips read inverted.
+    footers = (recognition.FOOTER_BOX, recognition.WIDE_FOOTER_BOX)
+    titles = [box for box in calls if box not in footers]
+    assert sorted(titles[:4]) == sorted(recognition.TITLE_BOXES * 2)
+    assert set(footers) <= set(calls)
     assert recognition.LOWER_TITLE_BOXES[1] not in calls
     calls.clear()
     lowered = recognition.TITLE_BOXES[0]
@@ -108,11 +110,33 @@ def test_light_title_text_on_a_dark_strip_is_read():
         pixels, "BRIGHT FALCON", (40, 75), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (235, 235, 235), 3
     )
     image = Image.fromarray(pixels)
-    assert recognition.normalized(recognition.read_text(image, (27, 32, 540, 92))) == (
+    box = (27, 32, 540, 92)
+    assert recognition.normalized(recognition.read_text(image, box, invert=None)) == (
         "brightfalcon"
     )
-    assert image_enhancement.dark_background(Image.fromarray(pixels))
-    assert not image_enhancement.dark_background(Image.fromarray(255 - pixels))
+    assert recognition.dark_strip(image, box)
+    assert not recognition.dark_strip(Image.fromarray(255 - pixels), box)
+
+
+def test_dark_title_strips_are_also_read_inverted(monkeypatch):
+    # A loose crop can darken an ordinary title strip, so the usual
+    # reading is kept alongside the inverted one.
+    monkeypatch.setattr(recognition, "catalog_index", lambda: {"bulkup": []})
+    monkeypatch.setattr(recognition, "identifier_index", lambda: ({}, {}))
+    reads = []
+
+    def read(image, box, psm=7, invert=False, **kwargs):
+        reads.append((box, invert))
+        return "Bulk Up" if box == recognition.TITLE_BOXES[0] and not invert else ""
+
+    monkeypatch.setattr(recognition, "read_text", read)
+    dark = recognition.recognize(jpeg(marked_card()), orientation=0)
+    assert dark["candidates"] == [] and dark["title_text"][0] == "Bulk Up"
+    assert {(box, True) for box in recognition.TITLE_BOXES} <= set(reads)
+    reads.clear()
+    recognition.recognize(jpeg(Image.new("RGB", (600, 840), "white")), orientation=0)
+    footers = (recognition.FOOTER_BOX, recognition.WIDE_FOOTER_BOX)
+    assert all(not invert for box, invert in reads if box not in footers)
 
 
 def test_shortlisted_fuzzy_names_agree_with_a_full_search(monkeypatch):

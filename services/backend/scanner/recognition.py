@@ -56,7 +56,7 @@ _references = OrderedDict()
 _references_lock = threading.Lock()
 # Tesseract runs as a separate process, so independent strips can be read at
 # once. Artwork comparison also releases the GIL inside OpenCV.
-_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="recognition")
+_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="recognition")
 # When a name has many printings and the footer is unreadable, compare this
 # many distinct artworks rather than the first few printings by ID.
 DISTINCT_ARTWORKS = 8
@@ -67,6 +67,10 @@ TITLE_BOXES = ((27, 32, 540, 92), (30, 38, 510, 77))
 # was found at the usual position.
 LOWER_TITLE_BOXES = ((27, 56, 560, 116), (27, 80, 560, 140))
 FOOTER_BOX = (9, 758, 400, 831)
+# Tight outlines can trim the card's black border, and modern footers start
+# close to the edge, so the set code's first letter can fall outside the
+# usual strip ("FRA" read as "RA"). A second, wider strip is read as well.
+WIDE_FOOTER_BOX = (0, 750, 420, 836)
 CONFIDENT_NAME = 0.80
 FLIP_NAME = 0.70
 # A collector number without its set code needs this much of the title.
@@ -220,8 +224,8 @@ def title_similarity(titles, name):
     return best
 
 
-def read_text(image, box, psm=7, invert=None, *, enhance=False, deadline=None):
-    """invert=None reads light text on a dark strip as dark text on light."""
+def read_text(image, box, psm=7, invert=False, *, enhance=False, deadline=None):
+    """invert=None inverts only a dark strip, so light text reads as dark."""
     remaining_timeout(deadline, 3)
     if enhance:
         part = prepare_text(image, box, invert)
@@ -243,6 +247,12 @@ def read_text(image, box, psm=7, invert=None, *, enhance=False, deadline=None):
         check=True,
     )
     return result.stdout.decode("utf-8", errors="replace").strip()[:4000]
+
+
+def dark_strip(image, box):
+    sx, sy = image.width / 600, image.height / 840
+    bounds = tuple(round(value * (sx if i % 2 == 0 else sy)) for i, value in enumerate(box))
+    return dark_background(ImageOps.autocontrast(image.convert("L").crop(bounds)))
 
 
 def pairs(value):
@@ -465,7 +475,7 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
             "rotation": rotation,
         }
 
-    def read(view, box, psm=7, invert=None):
+    def read(view, box, psm=7, invert=False):
         return read_text(view, box, psm, invert, enhance=enhance, deadline=deadline)
 
     def strength(found):
@@ -474,7 +484,18 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
     # Read both title strips and the footer at once. Most cards are upright,
     # so the footer read is rarely wasted; a turned card reads it again.
     title_reads = [_pool.submit(read, text_image, box) for box in TITLE_BOXES]
-    upright_footer = _pool.submit(read, text_image, FOOTER_BOX, 6, True)
+    upright_footer = [
+        _pool.submit(read, text_image, box, 6, True) for box in (FOOTER_BOX, WIDE_FOOTER_BOX)
+    ]
+    # Old black frames, showcase and borderless cards print light title text.
+    # A dark strip is also read inverted. This adds to the usual reads rather
+    # than replacing them, because a loose crop can darken a dark-on-light
+    # title strip with border or table above the card.
+    title_reads += [
+        _pool.submit(read, text_image, box, 7, True)
+        for box in TITLE_BOXES
+        if dark_strip(text_image, box)
+    ]
     titles = [future.result() for future in title_reads]
     matches = name_matches(titles, index)
     flipped = text_image.rotate(180) if orientation is None else None
@@ -503,9 +524,11 @@ def _recognize(data, set_hint=None, orientation=None, *, enhance=False, deadline
             180,
         )
     if rotation == (orientation or 0):
-        footer = upright_footer.result()
+        footer = "\n".join(future.result() for future in upright_footer)
     else:
-        footer = read(text_image, FOOTER_BOX, psm=6, invert=True)
+        footer = "\n".join(
+            _pool.map(lambda box: read(text_image, box, 6, True), (FOOTER_BOX, WIDE_FOOTER_BOX))
+        )
     codes, numbers = footer_codes(footer), footer_numbers(footer)
 
     def score_printing(row, score, *, named=True):
