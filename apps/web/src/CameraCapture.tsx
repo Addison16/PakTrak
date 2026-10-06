@@ -16,7 +16,7 @@ function rememberCamera(id: string) {
 type Props = {
   foilCount: number; progress: number | null; uploadError: string;
   onClose: () => void; onNativeCamera: () => void; onChoosePhoto: () => void;
-  onUpload: (file: File) => Promise<boolean>;
+  onUpload: (file: File, next?: boolean) => Promise<boolean>;
   onCapture?: (file: File) => Promise<void>; onDiscard?: () => Promise<void>;
 };
 
@@ -53,6 +53,10 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [photoSize, setPhotoSize] = useState({ width: 0, height: 0 });
   const [enlarged, setEnlarged] = useState(false);
+  const [uploaded, setUploaded] = useState(0);
+  // After "take another", the saved photo shrinks away toward the bottom while the camera reopens.
+  const [dropping, setDropping] = useState<string | null>(null);
+  useEffect(() => { if (!dropping) return; const timer = window.setTimeout(() => setDropping(null), 700); return () => { clearTimeout(timer); URL.revokeObjectURL(dropping); }; }, [dropping]);
 
   useNavigationGuard((from, to) => {
     if (from.overlay !== "camera" || to.overlay === "camera") return true;
@@ -241,10 +245,15 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
     } finally { if (token === generation.current) setAdjusting(false); }
   }
 
-  async function upload() {
+  async function upload(next = false) {
     if (!photo || submitting.current) return;
     submitting.current = true; setUploading(true); setAttemptedUpload(true);
-    try { if (await onUpload(photo.file)) onClose(); }
+    try {
+      if (!await onUpload(photo.file, next)) return;
+      if (!next) { onClose(); return; }
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setDropping(URL.createObjectURL(photo.file));
+      setUploaded((count) => count + 1); setPhoto(null); setAttemptedUpload(false); setError("");
+    }
     finally { submitting.current = false; setUploading(false); }
   }
 
@@ -259,6 +268,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
       <button type="button" className="menu-close" aria-label="Close camera" disabled={uploading || taking} onClick={() => void close()}><Icon name="close" /></button>
     </header>
     <div className="camera-stage">
+      {dropping && <img className="camera-drop" src={dropping} alt="" aria-hidden="true" />}
       <video ref={video} hidden={!!photo} autoPlay muted playsInline aria-label="Live camera preview" onResize={resize} onLoadedData={resize} onPlaying={() => {
         if (stream.current?.active) { resize(); setPhase("live"); }
       }} />
@@ -276,7 +286,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
     </div>
     <div className="camera-controls">
       <div className="camera-copy">
-        <strong>{photo ? "Check the edges, text and reflections." : "Keep every edge in view. Leave space between cards."}</strong>
+        <strong>{photo ? "Check the edges, text and reflections." : uploaded ? `${uploaded} ${uploaded === 1 ? "photo" : "photos"} saved as batches. Ready for the next one.` : "Keep every edge in view. Leave space between cards."}</strong>
         <p>{photo ? `${photoSize.width ? `${photoSize.width} × ${photoSize.height} · ` : ""}${foilCount} ${foilCount === 1 ? "foil" : "foils"} planned · ${uploading ? "Uploading" : "Awaiting upload"}` : ready ? `${dimensions.width} × ${dimensions.height} live view · Hold steady` : "Your photo is uploaded only after you confirm it."}</p>
       </div>
       {error && phase !== "error" && <p className="camera-feedback" role="alert">{error}</p>}
@@ -287,6 +297,7 @@ export default function CameraCapture({ foilCount, progress, uploadError, onClos
         {photoSize.width * photoSize.height > 60_000_000 && <p className="camera-feedback" role="alert">This photo is larger than the 60-megapixel limit. Use Phone camera and select a smaller photo size.</p>}
         {uploading && <div className="camera-upload" role="status"><p>{progress === null ? "Waiting for server acceptance…" : `Uploading ${progress}%…`} Keep this page open.</p>{progress !== null && <progress value={progress} max={100} aria-label="Camera photo upload progress" />}</div>}
         <div className="camera-review-actions"><button className="button secondary" disabled={uploading || taking} onClick={() => void retake()}>Retake</button><button className="button primary" disabled={uploading || taking || !photoSize.width || photoSize.width * photoSize.height > 60_000_000} onClick={() => void upload()}>{uploading ? "Uploading…" : "Upload & scan"}<Icon name="arrow" /></button></div>
+        <button className="text-button camera-next" disabled={uploading || taking || !photoSize.width || photoSize.width * photoSize.height > 60_000_000} onClick={() => void upload(true)}>Upload & take another photo</button>
       </> : <>
         {(cameras.length > 0 || deviceId) && <div className="camera-device">
           <label htmlFor="camera-device">Camera</label>

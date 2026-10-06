@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -24,6 +25,7 @@ from scanner.models import (
     Binder,
     CardPrice,
     DataFeed,
+    ExportRow,
     InventoryEvent,
     InventoryLot,
     Job,
@@ -661,3 +663,63 @@ def approve_cards(scan_id: uuid.UUID, data: Approvals, key: Key, identity: Ident
     return (
         {"imported": len(data.items)} if scan.add_to_collection else {"confirmed": len(data.items)}
     )
+
+
+UNDO_WINDOW_SECONDS = 120
+
+
+class UndoApproval(Strict):
+    expected_version: int = Field(ge=1)
+
+
+@router.post("/{scan_id}/observations/{observation_id}/undo-approval")
+def undo_approval(
+    scan_id: uuid.UUID, observation_id: uuid.UUID, data: UndoApproval, identity: Identity, db: DB
+):
+    """Reverse a just-made manual approval, as if it had not happened.
+
+    Only an untouched copy qualifies: approved by hand in this batch within the
+    last two minutes, never edited, moved, removed or exported. Anything else
+    stays a normal collection change and is corrected from the collection.
+    """
+    scan = owned_batch(db, scan_id, identity.owner_id, True)
+    row = db.scalar(
+        select(Observation)
+        .where(Observation.id == observation_id, Observation.scan_id == scan.id)
+        .with_for_update()
+    )
+    if not row:
+        raise HTTPException(404, "Card region not found.")
+    if not scan.add_to_collection or row.state != "COMMITTED":
+        raise HTTPException(409, "This card has no approval to undo.")
+    if row.version != data.expected_version:
+        raise HTTPException(409, "This card changed. Refresh before undoing.")
+    lot = db.scalar(
+        select(InventoryLot)
+        .where(InventoryLot.source_observation_id == row.id, InventoryLot.split_parent_id.is_(None))
+        .with_for_update()
+    )
+    events = (
+        list(db.scalars(select(InventoryEvent).where(InventoryEvent.lot_id == lot.id)))
+        if lot
+        else []
+    )
+    added = next((event for event in events if event.operation_key == f"add:{row.id}"), None)
+    if (
+        not lot
+        or not added
+        or len(events) != 1
+        or added.detail.get("decision") != "manual"
+        or lot.version != 1
+        or lot.quantity_remaining != 1
+        or now() - added.created_at > timedelta(seconds=UNDO_WINDOW_SECONDS)
+        or db.scalar(select(ExportRow.lot_id).where(ExportRow.lot_id == lot.id).limit(1))
+    ):
+        raise HTTPException(
+            409, "This copy can no longer be undone here. Edit or remove it from your collection."
+        )
+    # The add event cascades with the lot, so approving again later starts fresh.
+    db.delete(lot)
+    row.state, row.version = "NEEDS_REVIEW", row.version + 1
+    db.commit()
+    return {"state": row.state, "version": row.version}

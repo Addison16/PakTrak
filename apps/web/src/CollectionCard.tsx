@@ -26,11 +26,11 @@ export default function CollectionCard({ card, binder, locations, session, onSav
     return () => { stopped = true; };
   }, [open, card, binder, offset]);
 
-  async function removeCopies(lot: Lot, form: HTMLFormElement) {
+  async function removeCopies(lot: Lot, quantity: number) {
     setBusy(true); setError("");
     try {
       await request("/api/v1/collection/" + lot.id + "/quantity", mutation(session, {
-        quantity: Number(new FormData(form).get("quantity")), expected_version: lot.version,
+        quantity, expected_version: lot.version,
       }));
       await onSaved();
     } catch (e) { setError(e as Error); }
@@ -53,7 +53,8 @@ export default function CollectionCard({ card, binder, locations, session, onSav
           {lot.notes && <p className="fine">{lot.notes}</p>}
           <CardEditor lot={lot} session={session} onSaved={onCorrected} />
           <MoveCards lot={lot} locations={locations} session={session} onSaved={onSaved} />
-          <details><summary>Remove copies</summary><form onSubmit={(e) => { e.preventDefault(); void removeCopies(lot, e.currentTarget); }}><label>Copies to keep<input name="quantity" type="number" min={0} max={lot.quantity} defaultValue={lot.quantity} required /></label><button className="button secondary" disabled={busy}>Save remaining quantity</button></form></details>
+          <button type="button" className="text-button" disabled={busy || lot.quantity < 1} onClick={() => { if (window.confirm(`Remove 1 copy of ${card.printing.name} from ${lot.binder}?`)) void removeCopies(lot, lot.quantity - 1); }}>Remove 1 copy</button>
+          <details><summary>Remove copies</summary><form onSubmit={(e) => { e.preventDefault(); void removeCopies(lot, Number(new FormData(e.currentTarget).get("quantity"))); }}><label>Copies to keep<input name="quantity" type="number" min={0} max={lot.quantity} defaultValue={lot.quantity} required /></label><button className="button secondary" disabled={busy}>Save remaining quantity</button></form></details>
         </li>)}</ul>}
         <div className="pagination">{offset > 0 && <button className="text-button" disabled={loading} onClick={() => { setLots([]); setOffset(Math.max(0, offset - 40)); }}>Previous copies</button>}{next !== null && <button className="text-button" disabled={loading} onClick={() => { setLots([]); setOffset(next); }}>More copies</button>}</div>
       </>}

@@ -88,3 +88,16 @@
 @keyframes scan-tile-face { from { transform: rotateY(-180deg); } to { transform: rotateY(0); } }
 @keyframes scan-tile-back { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
 .scan-tile-art:not([data-flip]) > .scan-tile-back-turning { display: none; }
+.printing-quick-sets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 4px; }
+.printing-quick-sets > span { width: 100%; font-size: 12px; color: var(--muted); }
+.printing-quick-sets button { min-height: 40px; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 12px; text-align: left; }
+.printing-quick-sets button small { color: var(--muted); }
+.printing-quick-sets button[aria-pressed=true] { background: var(--forest); border-color: var(--forest); color: var(--on-forest); }
+.printing-quick-sets button[aria-pressed=true] small { color: inherit; }
+@media (prefers-reduced-motion: no-preference) {
+  .scan-tile[data-settle] > button { animation: scan-tile-settle 560ms cubic-bezier(.2, .65, .3, 1); }
+  .scan-tile[data-shimmer] > button { position: relative; overflow: hidden; }
+  .scan-tile[data-shimmer] > button::after { content: ""; position: absolute; inset: -20% -60%; pointer-events: none; background: linear-gradient(110deg, transparent 38%, #fff7d670 46%, #c9f1ff60 52%, transparent 60%); mix-blend-mode: screen; animation: foil-tap-sweep 650ms ease-out both; }
+}
+@keyframes scan-tile-settle { 0% { transform: translateY(-6px) scale(1.03); } 55% { transform: translateY(1px) scale(.995); } 100% { transform: none; } }
+@keyframes foil-tap-sweep { from { transform: translateX(-55%); } to { transform: translateX(55%); } }

@@ -323,3 +323,18 @@ test("browser history waits for server acceptance and never reuploads a saved ph
   await expect(page.getByRole("region", { name: "Selected batch", exact: true })).toBeVisible();
   expect(mock.creates).toHaveLength(1);
 });
+
+test("upload and take another keeps the camera open and saves each photo as its own batch", async ({ page }) => {
+  const mock = await cameraPage(page);
+  await openCamera(page);
+  await takePhoto(page);
+  await page.getByRole("button", { name: "Upload & take another photo", exact: true }).click();
+  await expect(page.locator(".camera-copy")).toContainText("1 photo saved as batches. Ready for the next one.");
+  await expect(page.locator(".camera-dialog")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Capture photo", exact: true })).toBeEnabled();
+  await takePhoto(page);
+  await page.getByRole("button", { name: "Upload & scan", exact: true }).click();
+  await expect(page.locator(".camera-dialog")).toHaveCount(0);
+  expect(mock.creates).toHaveLength(2);
+  expect(mock.creates[0].key).not.toBe(mock.creates[1].key);
+});

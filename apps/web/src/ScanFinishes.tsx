@@ -76,7 +76,10 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
     const draft = { count, foils: [...foils], etched: [...etched].filter((item) => foils.has(item)), token };
     writeDraft(recoveryKey, draft); setRecovery(draft); setOpen(false); onReviewCard?.(id);
   }
+  // A single light sweep marks a card as foil; it does not replay while the card stays selected.
+  const [shimmer, setShimmer] = useState<string | null>(null);
   function toggle(id: string, etchedOnly: boolean) {
+    if (!foils.has(id)) setShimmer(id);
     setFoils((before) => { const next = new Set(before); if (next.has(id)) next.delete(id); else next.add(id); return next; });
     if (etchedOnly) setEtched((before) => new Set(before).add(id));
   }
@@ -115,7 +118,7 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
         const number = data.items.indexOf(item) + 1;
         const name = card?.name || `Card ${number}`;
         const chosen = foils.has(item.id);
-        return <div className={"scan-tile" + (chosen ? " foil-selected" : "")} key={item.id}>
+        return <div className={"scan-tile" + (chosen ? " foil-selected" : "")} key={item.id} data-shimmer={chosen && shimmer === item.id || undefined} onAnimationEnd={(event) => { if (event.animationName === "foil-tap-sweep") setShimmer(null); }}>
           <button disabled={busy} aria-pressed={chosen} aria-label={`Foil card ${number}: ${name}`} onClick={() => toggle(item.id, !!card?.finishes.includes("etched") && !card.finishes.includes("foil"))}>
             {item.crop_url ? <img src={item.crop_url} alt="" loading="lazy" /> : card?.image_url ? <img src={card.image_url} alt="" loading="lazy" /> : <div className="scan-crop-missing">Card {number}</div>}
             <span className="scan-tile-number">{number}</span><span className={"foil-tile-check" + (chosen ? " checked" : "")} aria-hidden="true">{chosen ? "✓" : "+"}</span><strong>{name}</strong><span className="scan-match-state">{chosen ? "✓ Selected as foil" : "Tap to mark foil"}</span>

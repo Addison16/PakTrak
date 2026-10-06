@@ -69,6 +69,7 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
       row.rotation = body.rotation; row.version++; row.crop_url = base + "/observations/" + row.id + "/image?v=" + row.version;
       processing = row.state === "NEEDS_REVIEW"; json = { id: row.id };
     }
+    else if (path.endsWith("/undo-approval")) { const row = rows.find((r) => path.includes(r.id))!; expect(body.expected_version).toBe(row.version); row.state = "NEEDS_REVIEW"; row.lot = null; row.version++; json = { state: row.state, version: row.version }; }
     else if (path.endsWith("/geometry")) { const row = rows.find((r) => path.includes(r.id))!; row.polygon = body.polygon; row.version++; processing = true; json = { id: row.id }; }
     else if (path === base + "/observations" && method === "POST") { processing = true; json = { id: "new-region" }; status = 201; }
     else if (path === base + "/identify") { processing = true; json = { queued: true }; status = 202; }
@@ -859,4 +860,28 @@ test("the upload page starts with the photo controls on a phone", async ({ page 
   expect((await page.getByRole("button", { name: "Take photo", exact: true }).boundingBox())!.y).toBeLessThan(844);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.locator(".hero")).toBeVisible();
+});
+
+test("a just-approved card can be put back into review with Undo", async ({ page }) => {
+  const mock = await fixture(page, 3, 0, [], 0, 0);
+  await page.getByRole("button", { name: "Approve & import", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Card 2 · Review suggestion", exact: true })).toBeVisible();
+  await expect(page.getByText("1 copy imported into Scanned cards.")).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByText("Approval undone. The card is back in review.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Card 1 · Review suggestion", exact: true })).toBeVisible();
+  expect(mock.calls.filter((call) => call.path.endsWith("/undo-approval"))).toHaveLength(1);
+  expect(mock.rows[0].state).toBe("NEEDS_REVIEW");
+});
+
+test("the phone tab bar shows batches waiting for review and hides inside a batch", async ({ page }) => {
+  await fixture(page, 3, 0, [], 0, 0);
+  const tabs = page.getByRole("navigation", { name: "Quick navigation", exact: true });
+  await expect(tabs).toHaveCount(0);
+  await page.getByRole("button", { name: /Back to batches/ }).click();
+  await expect(tabs.getByRole("button", { name: "Batches, 1 to review", exact: true })).toHaveAttribute("aria-current", "page");
+  await tabs.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(tabs).toBeHidden();
 });

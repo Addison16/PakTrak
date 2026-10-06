@@ -1,5 +1,5 @@
 import ErrorNotice from "./ErrorNotice";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { mutation, request, type Session } from "./api";
 import type { ReviewState } from "./scanTypes";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
@@ -41,6 +41,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
   const receipt = useRef<{ body: string; key: string } | null>(null);
   const [zoom, setZoom] = useState(() => startZoom(region?.polygon));
   const centered = useRef(false);
+  const zoomRef = useRef(zoom); zoomRef.current = zoom;
   const history = useRef<number[][][]>([]);
   const [undoCount, setUndoCount] = useState(0);
   const [version, setVersion] = useState(region?.version);
@@ -83,7 +84,41 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     const x = polygon.reduce((sum, p) => sum + p[0], 0) / polygon.length, y = polygon.reduce((sum, p) => sum + p[1], 0) / polygon.length;
     view.scrollTo(x * box.width - view.clientWidth / 2, y * box.height - view.clientHeight / 2);
   }
+  // Two fingers zoom the photo around the point between them instead of placing a corner.
+  const fingers = useRef(new Set<number>());
+  const pinch = useRef<{ distance: number; zoom: number; fx: number; fy: number; mx: number; my: number; height: number } | null>(null);
+  const pinchScroll = useRef<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const target = pinchScroll.current; pinchScroll.current = null;
+    if (target) viewport.current?.scrollTo(target.left, target.top);
+  }, [zoom]);
+  useEffect(() => {
+    const view = viewport.current;
+    if (!view) return;
+    const spread = (touches: TouchList) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+    const begin = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !canvas.current) return;
+      const box = canvas.current.getBoundingClientRect(), frame = view.getBoundingClientRect();
+      const x = (event.touches[0].clientX + event.touches[1].clientX) / 2, y = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+      pinch.current = { distance: spread(event.touches) || 1, zoom: zoomRef.current, fx: (x - box.left) / box.width, fy: (y - box.top) / box.height, mx: x - frame.left, my: y - frame.top, height: box.height / zoomRef.current };
+    };
+    const change = (event: TouchEvent) => {
+      const start = pinch.current;
+      if (!start || event.touches.length !== 2) return;
+      event.preventDefault();
+      const next = Math.max(1, Math.min(4, start.zoom * spread(event.touches) / start.distance));
+      pinchScroll.current = { left: start.fx * view.clientWidth * next - start.mx, top: start.fy * start.height * next - start.my };
+      setZoom(next); setLoupe(null);
+    };
+    const end = (event: TouchEvent) => { if (event.touches.length < 2) pinch.current = null; };
+    view.addEventListener("touchstart", begin, { passive: true });
+    view.addEventListener("touchmove", change, { passive: false });
+    view.addEventListener("touchend", end); view.addEventListener("touchcancel", end);
+    return () => { view.removeEventListener("touchstart", begin); view.removeEventListener("touchmove", change); view.removeEventListener("touchend", end); view.removeEventListener("touchcancel", end); };
+  }, []);
   function start(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === "touch") fingers.current.add(e.pointerId);
+    if (fingers.current.size > 1) { stop(true); return; }
     if (busy || e.button > 0) return;
     const pointer = position(e), box = canvas.current!.getBoundingClientRect();
     const handle = (e.target as Element).closest<HTMLElement>("[data-corner]");
@@ -151,10 +186,10 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
   return <section ref={root} className="scan-crop-editor" aria-label="Card outline editor"><h3>{region ? "Adjust this card’s outline" : "Outline a missed card"}</h3>
     <p>Tap around the four corners in either direction, starting at any corner. Drag a corner to refine it; a magnifier shows the spot under your finger. Use arrow keys when a corner is focused; hold Shift for larger adjustments.</p>
     {recovery && <div className="scan-recovery" aria-label="Recovered outline draft"><div><strong>Your unfinished outline is available</strong><p>Restore your corners, then check the photo before saving.</p></div><div className="actions"><button className="button primary" disabled={busy} onClick={() => { setPoints(recovery.points); setSavedUncertain(!!region && recovery.version !== region.version); setVersion(region?.version); setRecovery(null); }}>Restore outline</button><button className="text-button" disabled={busy} onClick={() => { removeDraft(recoveryKey); setRecovery(null); }}>Discard outline draft</button></div></div>}
-    <div className="crop-precision-tools" role="group" aria-label="Crop magnification"><button className="button secondary" disabled={busy || zoom <= 1} onClick={() => setZoom((value) => Math.max(1, value - 1))}>− Zoom out</button><span aria-live="polite">{zoom}×</span><button className="button secondary" disabled={busy || zoom >= 4} onClick={() => setZoom((value) => Math.min(4, value + 1))}>+ Zoom in</button><button className="text-button" disabled={busy} onClick={() => { setZoom(1); canvas.current?.parentElement?.scrollTo(0, 0); }}>Fit photo</button></div>
+    <div className="crop-precision-tools" role="group" aria-label="Crop magnification"><button className="button secondary" disabled={busy || zoom <= 1} onClick={() => setZoom((value) => Math.max(1, Math.ceil(value) - 1))}>− Zoom out</button><span aria-live="polite">{Math.round(zoom * 10) / 10}×</span><button className="button secondary" disabled={busy || zoom >= 4} onClick={() => setZoom((value) => Math.min(4, Math.floor(value) + 1))}>+ Zoom in</button><button className="text-button" disabled={busy} onClick={() => { setZoom(1); canvas.current?.parentElement?.scrollTo(0, 0); }}>Fit photo</button></div>
     {savedUncertain && <p className="message" role="status">The saved outline changed. Your corners are preserved; review them before saving again.</p>}
     <div className="crop-viewport" ref={viewport} tabIndex={0} role="region" aria-label="Photo outline. Scroll when enlarged." onScroll={() => setLoupe(null)}>
-    <div className="crop-canvas" ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={() => stop(false)} onPointerCancel={() => stop(true)}
+    <div className="crop-canvas" ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={(e) => { fingers.current.delete(e.pointerId); stop(false); }} onPointerCancel={(e) => { fingers.current.delete(e.pointerId); stop(true); }}
       style={{ width: `${zoom * 100}%`, touchAction: "pan-x pan-y" }}>
       <img src={photo} alt="Tap around one card in your photo" draggable={false} onLoad={center} />
       <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon points={points.map((p) => p.join(",")).join(" ")} /></svg>

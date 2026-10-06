@@ -10,6 +10,7 @@ import type { Batch, Region, ReviewState } from "./scanTypes";
 import ImageViewer, { type ViewerImage } from "./ImageViewer";
 import { navigation } from "./navigation";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
+import CountUp from "./CountUp";
 import "./scan-qol.css";
 
 type CardDraft = { version: number; choice: Printing | null; editing: boolean; finish: string; condition: string };
@@ -71,6 +72,13 @@ export default function Review({ scanId, photo, session, onStateChange, processi
   const unread = useRef(new Set<string>());
   const flipTimers = useRef<number[]>([]);
   const [flipping, setFlipping] = useState<Set<string>>(new Set());
+  // A short window to take back an approval made by mistake; the server only allows it for untouched copies.
+  const [undo, setUndo] = useState<{ ids: string[]; at: number } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = window.setTimeout(() => setUndo((current) => current === undo ? null : current), 10000);
+    return () => clearTimeout(timer);
+  }, [undo]);
   const [cropEditor, setCropEditor] = useState<"new" | Region | null>(null);
   const detail = useRef<HTMLElement>(null);
   const foilSection = useRef<HTMLDivElement>(null);
@@ -103,6 +111,12 @@ export default function Review({ scanId, photo, session, onStateChange, processi
   const summary = data?.summary;
   const selectedRegions = regions.filter((r) => selected.has(r.id) && r.state === "NEEDS_REVIEW" && r.candidates?.length);
   // Cards with an unsaved printing choice stay out so a strong suggestion never overrides a correction.
+  // Cards in one photo usually share a few sets; offer them as one-tap search filters.
+  const batchSets = [...regions.reduce((sets, item) => {
+    const card = savedPrinting(item); if (!card) return sets;
+    const entry = sets.get(card.set_code) || { code: card.set_code, name: card.set_name || card.set_code.toUpperCase(), count: 0 };
+    entry.count++; return sets.set(card.set_code, entry);
+  }, new Map<string, { code: string; name: string; count: number }>()).values()].sort((a, b) => b.count - a.count).slice(0, 6);
   const strong = pending.filter((r) => (r.candidates?.[0]?.match_score ?? 0) >= strength && !finishConflict(r)
     && !(r.id === regionId ? choice : drafts.current.get(r.id)?.choice));
   function changed(item: Region, draft: CardDraft) {
@@ -131,6 +145,18 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     if (!revealed.length || reducedMotion()) return;
     setFlipping((current) => new Set([...current, ...revealed]));
     flipTimers.current.push(window.setTimeout(() => setFlipping((current) => { const next = new Set(current); revealed.forEach((id) => next.delete(id)); return next; }), 700));
+  }, [data]);
+  // A card that becomes approved while this page is open settles into place.
+  const committed = useRef<Set<string> | null>(null);
+  const [settling, setSettling] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!data) return;
+    const now = new Set(data.items.filter((item) => item.state === "COMMITTED").map((item) => item.id));
+    const fresh = committed.current ? [...now].filter((id) => !committed.current!.has(id)) : [];
+    committed.current = now;
+    if (!fresh.length || reducedMotion()) return;
+    setSettling((current) => new Set([...current, ...fresh]));
+    flipTimers.current.push(window.setTimeout(() => setSettling((current) => { const next = new Set(current); fresh.forEach((id) => next.delete(id)); return next; }), 650));
   }, [data]);
   useEffect(() => () => flipTimers.current.forEach(clearTimeout), []);
   useLayoutEffect(() => {
@@ -275,6 +301,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     await request("/api/v1/scans/" + scanId + "/approve", mutation(session, body, approvalKey.current.key));
     setNotice(deckOnly ? `${items.length} card matches saved for your deck.` : `${items.length} ${items.length === 1 ? "copy" : "copies"} imported into ${destination.trim()}.`);
     setSelected(new Set()); setBinderDirty(false);
+    setUndo(deckOnly ? null : { ids: items.map((item) => item.observation_id), at: Date.now() });
     if (items.some((item) => item.observation_id === region?.id)) { setChoice(null); setEditing(false); }
   }
   function flipPhoto() {
@@ -299,6 +326,15 @@ export default function Review({ scanId, photo, session, onStateChange, processi
   const approveStrong = () => act(() => approve(strong.map((r) => ({
     observation_id: r.id, expected_version: r.version, printing_id: r.candidates[0].printing_id, finish: r.finish,
   }))), (updated) => { for (const item of strong) drafts.current.delete(item.id); if (region && strong.some((r) => r.id === region.id)) advanceReview(updated, region.id); });
+  const undoApproval = () => undo && act(async () => {
+    const ids = undo.ids; setUndo(null);
+    const latest = await refresh();
+    for (const id of ids) {
+      const item = latest.items.find((row) => row.id === id);
+      if (item?.state === "COMMITTED") await request(`/api/v1/scans/${scanId}/observations/${id}/undo-approval`, mutation(session, { expected_version: item.version }));
+    }
+    setNotice(ids.length === 1 ? "Approval undone. The card is back in review." : `${ids.length} approvals undone. The cards are back in review.`);
+  }, (updated) => { const item = updated.items.find((row) => row.id === undo?.ids[0]); if (item) chooseRegion(item, true, false); });
   function toggle(id: string) { setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
 
   return <div className="review">
@@ -322,13 +358,13 @@ export default function Review({ scanId, photo, session, onStateChange, processi
       </div>
     </section>}
     {summary && <div className="scan-overview">
-      <div className="scan-value"><span className="eyebrow">BATCH ESTIMATE</span><strong>{range(summary.value_min, summary.value_max)}</strong>
+      <div className="scan-value"><span className="eyebrow">BATCH ESTIMATE</span><strong>{summary.value_min == null || summary.value_max == null ? range(summary.value_min, summary.value_max) : <><CountUp value={Number(summary.value_min)} format={money} />{summary.value_min !== summary.value_max && <>–<CountUp value={Number(summary.value_max)} format={money} /></>}</>}</strong>
         <span>{summary.priced_cards} priced · {summary.unpriced_cards} awaiting a match or price</span></div>
       <label className="scan-price-source">Price source<select value={provider} onChange={(e) => {
         const source = e.target.value as PriceSource; setProvider(source);
         void savePriceSource(session, source, false).catch((e: Error) => setError(e));
       }}>{Object.entries(providers).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <div className="scan-counts"><span><strong>{summary.cards}</strong> cards found</span><span><strong>{summary.identified}</strong> suggested</span><span><strong>{deckOnly ? summary.confirmed || 0 : summary.imported}</strong> {deckOnly ? "matched" : "imported"}</span></div>
+      <div className="scan-counts"><span><strong>{summary.cards}</strong> cards found</span><span><strong>{summary.identified}</strong> suggested</span><span><strong><CountUp value={deckOnly ? summary.confirmed || 0 : summary.imported} /></strong> {deckOnly ? "matched" : "imported"}</span></div>
       <details className="scan-estimate-notes"><summary>About prices and matching</summary>
         <p className="fine">Estimates use suggested printings and cached market prices. Ranges include available finishes until you choose one.{summary.prices_updated_at && <> Prices updated {new Date(summary.prices_updated_at).toLocaleString()}.</>}</p>
         <p className="fine">{summary.auto_add_enabled ? `Matches above ${Math.round(summary.auto_add_threshold * 100)}% strength ${deckOnly ? "are matched automatically" : "import automatically"}. Review the remaining suggestions below.` : "Review and approve suggested matches below."}</p>
@@ -377,7 +413,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
         const i = regions.indexOf(item);
         const suggested = item.candidates?.[0];
         const name = item.lot?.printing.name || item.confirmed_printing?.name || suggested?.printing.name || (item.recognition?.status ? "Choose a match" : "Identifying…");
-        return <div className={"scan-tile" + (item.id === regionId ? " current" : "")} key={item.id}>
+        return <div className={"scan-tile" + (item.id === regionId ? " current" : "")} key={item.id} data-settle={settling.has(item.id) || undefined}>
           {item.state === "NEEDS_REVIEW" && suggested && <label className="scan-select"><input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label={`Select card ${i + 1}: ${name}`} /></label>}
           <button disabled={busy} onClick={() => chooseRegion(item, true)} aria-pressed={item.id === regionId} aria-label={`${item.state === "NEEDS_REVIEW" ? "Review" : "View"} card ${i + 1}: ${name}`}>
             <span className="scan-tile-art" data-flip={flipping.has(item.id) || undefined}>
@@ -402,7 +438,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
         <div className="scan-review-heading"><h3>Card {regionIndex + 1} · {region.state === "COMMITTED" ? deckOnly ? "Matched" : "Imported" : region.state === "IGNORED" ? "Ignored" : "Review suggestion"}</h3>
 </div>
         {!processing && pending.length === 0 && <p className="saved" role="status">✓ All cards reviewed.{data?.finishes && !data.finishes.confirmed ? " Finish by confirming the foil cards above." : ""}</p>}
-        {notice && <p className="message success" role="status">{notice}</p>}
+        {notice && <p className="message success" role="status">{notice}{undo && <> <button type="button" className="text-button scan-undo" disabled={busy} onClick={() => void undoApproval()}>Undo</button></>}</p>}
         <div className="scan-comparison" ref={comparison}
           onPointerDown={(e) => { swiped.current = false; swipe.current = e.pointerType === "mouse" || !e.isPrimary ? null : { id: e.pointerId, x: e.clientX, y: e.clientY }; }}
           onPointerCancel={() => { swipe.current = null; }}
@@ -426,7 +462,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
         </>}
         {region.state !== "IGNORED" && <div className="actions"><button className="button secondary" disabled={busy} onClick={() => { if (!editing && region.lot) setFinish(region.lot.finish); setEditing(!editing); }}>{editing ? "Close card search" : "Edit card / printing"}</button>
           {region.state === "NEEDS_REVIEW" && photo && <button className="text-button" disabled={busy} onClick={() => setCropEditor(region)}>Adjust crop</button>}</div>}
-        {editing && <PrintingPicker key={region.id} initialPrinting={printing || undefined} selectedId={printing?.id} onSelect={changePrinting} />}
+        {editing && <PrintingPicker key={region.id} initialPrinting={printing || undefined} selectedId={printing?.id} onSelect={changePrinting} quickSets={batchSets} />}
         {(region.state === "NEEDS_REVIEW" || editing) && <>
           <div className="form-grid"><label>Finish<select value={finish} onChange={(e) => setFinish(e.target.value)}><option value="unknown">Unknown / mixed</option>{(printing?.finishes || ["nonfoil", "foil", "etched"]).map((value) => <option key={value} value={value}>{value === "nonfoil" ? "Nonfoil" : value === "foil" ? "Foil" : "Etched"}</option>)}</select></label>
             {!region.lot && !deckOnly && <label>Condition<select value={condition} onChange={(e) => changeCondition(e.target.value)}>{conditions.map((value) => <option key={value}>{value}</option>)}</select></label>}</div>

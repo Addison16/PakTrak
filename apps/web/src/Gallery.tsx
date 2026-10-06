@@ -10,6 +10,7 @@ import DataUpdates from "./DataUpdates";
 import Locations from "./Locations";
 import { Icon } from "./Icon";
 import BulkCollection from "./BulkCollection";
+import CountUp from "./CountUp";
 import "./collection-qol.css";
 import "./card-foil.css";
 
@@ -72,6 +73,9 @@ function AccountGallery({ session }: { session: Session }) {
   const [priceError, setPriceError] = useState("");
   const [sort, setSort] = useState(start.sort); const [seed, setSeed] = useState(start.seed);
   const [offset, setOffset] = useState(0); const [view, setView] = useState(start.view);
+  // "More cards" adds the next page below the cards already shown instead of replacing them.
+  const [kept, setKept] = useState<CollectionCard[]>([]);
+  useEffect(() => { if (offset === 0) setKept([]); }, [offset]);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
     const values = readSetting<unknown>(settingsKey + ".saved", []);
     return Array.isArray(values) ? values.filter((item): item is SavedView => item && typeof item.name === "string" && typeof item.value === "string" && item.value.length <= 2400).slice(0, 20) : [];
@@ -134,15 +138,21 @@ function AccountGallery({ session }: { session: Session }) {
 
   useEffect(() => { setOffset(0); }, [provider]);
   useEffect(() => { const timer = setTimeout(() => { setSearch(query.trim()); setOffset(0); }, 300); return () => clearTimeout(timer); }, [query]);
+  const metaLoaded = useRef(0);
+  // After an edit, locations and sets may have changed too.
+  const refreshAll = () => { metaLoaded.current = 0; return refresh(); };
   async function refresh(isCurrent = () => true) {
     const params = new URLSearchParams({ q: search, offset: String(offset), provider, sort, seed, ...filters });
     params.delete("binder"); if (filters.binder) params.set("binder_id", filters.binder);
     if (!filters.min_price) params.delete("min_price"); if (!filters.max_price) params.delete("max_price");
+    // Locations and the set list rarely change; refresh them with the cards about once a minute.
+    const meta = Date.now() - metaLoaded.current > 60000;
     const [result, bins, options] = await Promise.all([
-      request<Result>("/api/v1/collection/cards?" + params), request<{ items: Location[] }>("/api/v1/binders"), request<{ sets: { code: string; name: string }[] }>("/api/v1/collection/filters"),
+      request<Result>("/api/v1/collection/cards?" + params), meta ? request<{ items: Location[] }>("/api/v1/binders") : null, meta ? request<{ sets: { code: string; name: string }[] }>("/api/v1/collection/filters") : null,
     ]);
     if (!isCurrent()) return;
-    setData(result); setLocations(bins.items); setSets(options.sets); setShownProvider(provider); setLoading(false); backgroundError.recovered();
+    if (bins && options) { metaLoaded.current = Date.now(); setLocations(bins.items); setSets(options.sets); }
+    setData(result); setShownProvider(provider); setLoading(false); backgroundError.recovered();
     requestAnimationFrame(restoreScroll);
     if (selected) {
       try {
@@ -175,13 +185,19 @@ function AccountGallery({ session }: { session: Session }) {
     if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) { setPriceError("Minimum price must not exceed maximum price."); return; }
     setPriceError(""); setFilters({ ...filters, min_price: minPrice, max_price: maxPrice }); setOffset(0);
   }
-  const card = selectedCard?.printing.id === selected ? selectedCard : data?.items.find((item) => item.printing.id === selected);
+  const shown = [...kept.filter((item) => !data?.items.some((row) => row.printing.id === item.printing.id)), ...(data?.items || [])];
+  // Previous/next card in the order shown; replaces the history entry so Back still closes the card.
+  function stepCard(delta: number) {
+    const index = shown.findIndex((item) => item.printing.id === selected), target = index < 0 ? undefined : shown[index + delta];
+    return target ? () => { setCardFlight(null); navigation.go({ ...navigation.route, page: "collection", card: target.printing.id }, { replace: true }); } : null;
+  }
+  const card = selectedCard?.printing.id === selected ? selectedCard : shown.find((item) => item.printing.id === selected);
   const value = data?.valuation;
   return <section className="panel gallery-panel">
     <div className="collection-heading"><div><span className="eyebrow">A place for every pull</span><h2>Your collection</h2></div><span className="badge">{(data?.copies || 0).toLocaleString()} copies</span></div>
     <p className="gallery-intro">Follow a favorite. Find your next deck.</p>
     {notice && <p className="message" role="status">{notice}</p>}
-    <div className="library-stats"><div><strong>{(data?.cards || 0).toLocaleString()}</strong><span>unique printings</span></div><div><strong>{money(value?.amount)}</strong><span>{providers[shownProvider]} reference value</span></div></div>
+    <div className="library-stats"><div><strong>{(data?.cards || 0).toLocaleString()}</strong><span>unique printings</span></div><div><strong>{value?.amount == null ? money(null) : <CountUp value={Number(value.amount)} format={money} />}</strong><span>{providers[shownProvider]} reference value</span></div></div>
     <label className="gallery-price-source">Price source<select value={provider} disabled={!sourceReady || sourceSaving} aria-describedby="price-source-status" onChange={(e) => { if (isPriceSource(e.target.value)) void changeSource(e.target.value); }}>{Object.entries(providers).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
     <p id="price-source-status" className={sourceSaving || !sourceReady || preferenceError ? "fine" : "sr-only"} role="status">{sourceSaving ? "Saving your price source…" : !sourceReady ? preferenceError ? "Retry to load your saved price source." : "Loading your saved price source…" : preferenceError ? "Your choice is not saved to your account yet." : "Price source is remembered for your account."}</p>
     {preferenceError && <p className="message error" role="alert">{preferenceError} <button className="text-button" disabled={sourceSaving} onClick={() => void retrySave()}>{retry ? "Retry saving price source" : "Retry loading price source"}</button></p>}
@@ -212,16 +228,16 @@ function AccountGallery({ session }: { session: Session }) {
     <div className="gallery-result-note" role="status">{loading ? "Finding your cards…" : data?.cards ? `${data.cards.toLocaleString()} printings${search ? " matching “" + search + "”" : " to explore"}` : "No cards in this view"}</div>
     <div className="collection-selection-toolbar"><button className="button secondary" aria-pressed={selectionMode} onClick={() => { setSelectionMode(!selectionMode); setSelection([]); }}>{selectionMode ? "Done selecting" : "Select cards"}</button>{selectionMode && <><button className="text-button" disabled={loading} onClick={() => setSelection((current) => [...new Set([...current, ...(data?.items.map((item) => item.printing.id) || [])])].slice(0, 100))}>Select this page</button><button className="text-button" disabled={!selection.length} onClick={() => setSelection([])}>Clear selection</button><span className="fine" role="status">{selection.length} / 100 selected</span><button className="button primary" disabled={!selection.length} onClick={() => setOrganizing(true)}>Organize selected</button></>}</div>
     {!loading && data?.cards === 0 && <div className="gallery-empty"><span aria-hidden="true">✧</span><h3>{filterCount || search ? "Try another discovery" : "A collection worth exploring"}</h3><p>{filterCount || search ? "Clear a filter or try a different card name or ability." : "Import your card list or add cards from a scan. Their artwork, details and locations will be waiting here."}</p>{(filterCount > 0 || search) && <button className="button secondary" onClick={clearFilters}>Show all my cards</button>}</div>}
-    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{data?.items.map((item) => { const sheen = ownedSheen(item); return <li className="collection-card" data-selected={selection.includes(item.printing.id)} key={item.printing.id}>{selectionMode && <label className="collection-select"><input type="checkbox" aria-label={`Select ${item.printing.name}`} checked={selection.includes(item.printing.id)} disabled={!selection.includes(item.printing.id) && selection.length >= 100} onChange={(event) => setSelection((current) => event.target.checked ? [...current, item.printing.id] : current.filter((id) => id !== item.printing.id))} /><span>Select</span></label>}<button className="gallery-card" disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number + (sheen ? " · Includes " + sheen.description : "")} onClick={(event) => setSelected(item.printing.id, event.currentTarget)}>
+    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{shown.map((item) => { const sheen = ownedSheen(item); return <li className="collection-card" data-selected={selection.includes(item.printing.id)} key={item.printing.id}>{selectionMode && <label className="collection-select"><input type="checkbox" aria-label={`Select ${item.printing.name}`} checked={selection.includes(item.printing.id)} disabled={!selection.includes(item.printing.id) && selection.length >= 100} onChange={(event) => setSelection((current) => event.target.checked ? [...current, item.printing.id] : current.filter((id) => id !== item.printing.id))} /><span>Select</span></label>}<button className="gallery-card" disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number + (sheen ? " · Includes " + sheen.description : "")} onClick={(event) => setSelected(item.printing.id, event.currentTarget)}>
       <div className="card-finish-art" data-owned-finish={sheen?.finish}><CardArt url={item.printing.image_url} name={item.printing.name} />{sheen && <span className="card-finish-label" aria-hidden="true" title={"Includes " + sheen.description}><span>✧</span>{sheen.label}</span>}</div><div className="gallery-card-info"><div className="gallery-card-title"><strong>{item.printing.name}</strong><span className="quantity-badge">×{item.quantity.toLocaleString()}</span></div><span className="gallery-card-set">{item.printing.set_code.toUpperCase()} · #{item.printing.collector_number} <span className={"rarity-dot rarity-" + item.printing.rarity} title={item.printing.rarity} /></span>
         <span className="gallery-card-price">{item.price_min ? money(item.price_min) + (item.price_max !== item.price_min ? "–" + money(item.price_max) : "") : item.pricing_issues?.unknown_finish ? "Finish not set" : item.pricing_issues?.custom_value ? "Custom value" : "No price available"}<small>{item.price_min ? item.priced_copies < item.quantity ? "per priced copy" : "per copy" : item.pricing_issues?.unknown_finish ? "Normal, foil or etched?" : item.pricing_issues?.custom_value ? "Altered or misprinted" : "No quote from " + providers[shownProvider]}</small></span><span className="gallery-card-location"><Icon name="pin" /><span>{item.locations[0]?.name}{item.location_count > 1 ? ` +${item.location_count - 1}` : ""}</span></span>
       </div></button></li>; })}</ul>
-    <div className="pagination">{offset > 0 && <button className="button secondary" disabled={loading} onClick={() => setOffset(Math.max(0, offset - 40))}>Previous cards</button>}{data?.next_offset != null && <button className="button secondary" disabled={loading} onClick={() => setOffset(data.next_offset!)}>More cards</button>}</div>
-    <Locations locations={locations} session={session} onSaved={refresh} />
+    <div className="pagination">{data?.next_offset != null && <button className="button secondary" disabled={loading} onClick={() => { setKept((current) => [...current, ...data.items]); setOffset(data.next_offset!); }}>More cards</button>}{offset > 0 && <button className="text-button" disabled={loading} onClick={() => { setOffset(0); window.scrollTo(0, 0); }}>Back to the first cards</button>}</div>
+    <Locations locations={locations} session={session} onSaved={refreshAll} />
     <DataUpdates />
     <p className="fine gallery-credit">Card imagery © Wizards of the Coast · Card data and images via Scryfall</p>
     {selected && !card && <div className="message" role="status">{cardError ? <><ErrorNotice error={cardError} onDismiss={() => setSelected(null)} /><button className="text-button" onClick={() => setCardRetry((value) => value + 1)}>Retry opening card</button><button className="text-button" onClick={() => setSelected(null)}>Close card</button></> : "Opening card details…"}</div>}
-    {organizing && <BulkCollection ids={selection} binder={filters.binder} locations={locations} session={session} onClose={() => setOrganizing(false)} onSaved={async (copies) => { setNotice(`${copies} copies updated. Import history and notes are preserved.`); setSelection([]); try { await refresh(); } catch (error) { backgroundError.failed(error as Error); } }} />}
-    {card && <CardDetail key={card.printing.id} card={card} origin={cardFlight?.cardKey === card.printing.id ? cardFlight.origin : null} binder={filters.binder} locations={locations} session={session} onSaved={refresh} onCorrected={async () => { await refresh(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} />}
+    {organizing && <BulkCollection ids={selection} binder={filters.binder} locations={locations} session={session} onClose={() => setOrganizing(false)} onSaved={async (copies) => { setNotice(`${copies} copies updated. Import history and notes are preserved.`); setSelection([]); try { await refreshAll(); } catch (error) { backgroundError.failed(error as Error); } }} />}
+    {card && <CardDetail key={card.printing.id} card={card} origin={cardFlight?.cardKey === card.printing.id ? cardFlight.origin : null} binder={filters.binder} locations={locations} session={session} onSaved={refreshAll} onCorrected={async () => { await refreshAll(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} onStep={stepCard} />}
   </section>;
 }

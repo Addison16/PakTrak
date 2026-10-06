@@ -5,7 +5,7 @@ import "./scan-qol.css";
 
 type Options = { sets: { code: string; name: string }[]; rarities: string[]; languages: string[] };
 
-export default function PrintingPicker({ onSelect, initialPrinting, initialQuery, selectedId }: { onSelect: (printing: Printing) => void; initialPrinting?: Printing; initialQuery?: string; selectedId?: string }) {
+export default function PrintingPicker({ onSelect, initialPrinting, initialQuery, selectedId, quickSets = [] }: { onSelect: (printing: Printing) => void; initialPrinting?: Printing; initialQuery?: string; selectedId?: string; quickSets?: { code: string; name: string }[] }) {
   const [query, setQuery] = useState(initialPrinting?.name || initialQuery || "");
   const [results, setResults] = useState<Printing[]>([]);
   const [message, setMessage] = useState("");
@@ -38,6 +38,7 @@ export default function PrintingPicker({ onSelect, initialPrinting, initialQuery
   return <div className="printing-picker">
     <label>Find an exact printing<input type="search" value={query} maxLength={255} onChange={(e) => { setQuery(e.target.value); setOffset(0); }} placeholder="e.g. Plains #287" autoComplete="off" aria-describedby={hintId} /></label>
     <p className="fine" id={hintId}>Search by the name printed on the card or its original name. Add <strong># and the collector number</strong> to narrow it down. Use <strong>Set / expansion</strong> to choose the edition. Scryfall IDs also work.</p>
+    {quickSets.length > 0 && <div className="printing-quick-sets" role="group" aria-label="Sets in this batch"><span>Sets in this batch</span>{quickSets.map((set) => <button type="button" key={set.code} aria-pressed={filters.set_code === set.code} onClick={() => filter("set_code", filters.set_code === set.code ? "" : set.code)}>{set.name} <small>{set.code.toUpperCase()}</small></button>)}</div>}
     {(initialPrinting || query.trim().length >= 2) && <><div className="form-grid">
       <label>Set / expansion<select value={filters.set_code} onChange={(e) => filter("set_code", e.target.value)}><option value="">All sets</option>{options.sets.map((set) => <option key={set.code} value={set.code}>{set.name} ({set.code.toUpperCase()})</option>)}</select></label>
       <label>Rarity<select value={filters.rarity} onChange={(e) => filter("rarity", e.target.value)}><option value="">All rarities</option>{options.rarities.map((rarity) => <option key={rarity} value={rarity}>{rarity[0].toUpperCase() + rarity.slice(1)}</option>)}</select></label>
