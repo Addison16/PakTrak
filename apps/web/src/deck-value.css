@@ -1,4 +1,4 @@
-.deck-value { margin: 24px 0; padding: 20px; border: 1px solid var(--control-border); border-radius: 16px; background: var(--surface-muted); }
+.deck-value { margin: 24px 0; padding: 20px 0; border-block: 1px solid var(--line); }
 .deck-value-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .deck-value-heading h3 { margin: 5px 0 0; }
 .deck-value-heading .eyebrow { font-size: 10px; }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Simpler interface styling — October 6, 2026
+
+- Remove decorative dots and marks: the dot beside the current menu item, the hook before section labels, the dot in the home banner and the onboarding progress dots (the "1 of 5" step count stays).
+- Replace most nested boxes with plain sections divided by rules. Status badges are now plain labels, panels lose their drop shadows, and corners are smaller throughout, including the menu button, filters, dialogs and the menu drawer.
+- Notices that need attention (recoveries, password resets, foil cards to mark) keep their tinted background with a side rule.
+
 ## AGPL-3.0 relicense — October 5, 2026
 
 - Relicense original PakTrak code from PolyForm Noncommercial 1.0.0 to the GNU Affero General Public License v3.0 (AGPL-3.0-only). PakTrak is now free and open-source software, and commercial use is permitted under the AGPL's terms.
