@@ -42,7 +42,7 @@ Accepted photo/collection jobs and data updates do not need a connected phone. B
 
 The updater requests one Scryfall bulk manifest per refresh and downloads its referenced file. Imports and searches use PostgreSQL. This is below Scryfall's [documented endpoint limits](https://scryfall.com/docs/api/rate-limits): currently 2 requests/second for search/named/random/collection, 10/minute for manifest, and 10/second for other API endpoints. The `cards.scryfall.io` file origin has no hard API rate limit. Requests identify the app with `User-Agent` and `Accept` headers and use fixed HTTPS provider hosts.
 
-Full images preserve aspect ratio and artist/copyright text; quantity badges sit outside artwork. There are no watermarks, recoloring, art crops, or bundled card-art fixtures. Card details are available through free collection accounts. Provider data and Wizards' imagery retain their rights independently of the future non-commercial application license. See [source rights](DEPENDENCIES.md) and [Scryfall's usage rules](https://scryfall.com/docs/api).
+Full images preserve aspect ratio and artist/copyright text; quantity badges sit outside artwork. There are no watermarks, recoloring, art crops, or bundled card-art fixtures. Card details are available through free collection accounts. Provider data and Wizards' imagery retain their rights independently of PakTrak's software license. See [source rights](DEPENDENCIES.md) and [Scryfall's usage rules](https://scryfall.com/docs/api).
 
 ## Operations and boundaries
 
