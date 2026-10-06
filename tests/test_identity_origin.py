@@ -97,6 +97,7 @@ def provider(monkeypatch):
         "failure": None,
         "discovery": settings.oidc_issuer,
         "reset_calls": 0,
+        "created": [],
     }
 
     def respond(request):
@@ -110,6 +111,8 @@ def provider(monkeypatch):
         )
         if request.method == "GET":
             if path.endswith("/admin/realms/scanner"):
+                if state["realm"] is None:
+                    return httpx.Response(404)
                 return httpx.Response(200, json=state["realm"])
             if path.endswith("/clients"):
                 return httpx.Response(200, json=[state["client"]])
@@ -117,6 +120,11 @@ def provider(monkeypatch):
                 return httpx.Response(200, json=[{"id": "basic-id", "name": "basic"}])
             if path.endswith("/.well-known/openid-configuration"):
                 return httpx.Response(200, json={"issuer": state["discovery"]})
+        if request.method == "POST" and path.endswith("/admin/realms"):
+            payload = json.loads(request.content)
+            state["created"].append(payload)
+            state["realm"] = {"id": REALM, **payload}
+            return httpx.Response(201)
         if request.method == "PUT":
             payload = json.loads(request.content) if request.content else None
             state["writes"].append((path, payload))
@@ -174,6 +182,25 @@ def test_first_boot_and_repeat_preserve_existing_accounts_and_sessions(clients, 
         "post.logout.redirect.uris": settings.app_url + "/",
     }
     assert state["reset_calls"] == 2
+
+
+def test_fresh_installation_creates_the_realm_once_without_an_import_file(clients, provider):
+    state, settings = provider
+    state["realm"] = None
+    bootstrap.configure_registration()
+    bootstrap.configure_registration()
+    assert len(state["created"]) == 1
+    realm = state["created"][0]
+    assert realm["realm"] == "scanner" and realm["loginTheme"] == "paktrak"
+    assert realm["passwordPolicy"] == "length(8)"
+    login = realm["clients"][0]
+    assert login["clientId"] == settings.oidc_client_id
+    assert login["secret"] == settings.oidc_client_secret.get_secret_value()
+    assert login["redirectUris"] == [settings.app_url + "/api/auth/callback"]
+    assert "basic" in login["defaultClientScopes"]
+    assert state["reset_calls"] == 2
+    with session_factory()() as db:
+        assert db.get(IdentityBinding, 1).realm_id == REALM
 
 
 def test_subdomain_change_keeps_collection_decks_scans_roles_limits_and_account_ids(

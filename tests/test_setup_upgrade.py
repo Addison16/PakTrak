@@ -1,6 +1,5 @@
 """Startup can add a credential without rotating or exposing existing secrets."""
 
-import json
 import stat
 import subprocess
 import sys
@@ -25,9 +24,8 @@ def test_fresh_setup_includes_dedicated_reset_secret_and_authentication_time(tmp
     assert len(secret) >= 32 and secret != values["OIDC_CLIENT_SECRET"]
     assert secret not in result.stdout + result.stderr
     assert stat.S_IMODE((tmp_path / ".env").stat().st_mode) == 0o600
-    realm = json.loads((tmp_path / "infra/generated/scanner-realm.json").read_text())
-    assert "basic" in realm["clients"][0]["defaultClientScopes"]
-    assert realm["passwordPolicy"] == "length(8)"
+    # Compose needs no generated host files; bootstrap creates the sign-in realm.
+    assert not (tmp_path / "infra").exists()
 
 
 def test_parallel_upgrades_append_once_and_preserve_every_existing_setting(tmp_path):

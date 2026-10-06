@@ -27,7 +27,7 @@ sh scripts/setup.sh
 sh scripts/update.sh
 ```
 
-Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` and `infra/generated/` private; setup never prints their passwords. Complete first-admin setup before opening an installation for general access.
+Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` private (installations created by older versions also have a private `infra/generated/`); setup never prints its passwords. Complete first-admin setup before opening an installation for general access.
 
 Setup runs once and refuses to overwrite existing configuration. The update command selects the latest published stable GitHub release, checks out its matching source tag, pulls both app images from GHCR, and pins their version in `.env`. It preserves existing credentials and data volumes. Run it again to update:
 
@@ -36,6 +36,8 @@ sh scripts/update.sh
 ```
 
 To restart the installed version, run `sh scripts/start.sh`. To install a particular published version, use `sh scripts/update.sh --version v0.1.0`. Updates refuse tracked source edits; save those edits before updating. The [release guide](docs/RELEASING.md) covers publishing images and initial GHCR package visibility.
+
+You can also run PakTrak with only `compose.yaml` and `.env`, without a Git checkout. See [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
 
 For development or before the first images are published, build this checkout with `sh scripts/start.sh --build`. [compose.build.yaml](compose.build.yaml) adds local builds to the pull-based default Compose file. The build path also supports installations without the optional Buildx plugin.
 

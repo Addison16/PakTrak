@@ -21,6 +21,8 @@ VERSION = 1
 NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}\Z")
 IMAGE = re.compile(r"sha256:[a-f0-9]{64}\Z")
 CONTAINER = re.compile(r"[a-f0-9]{64}\Z")
+# Rebuilt from the installed images on every start, so never archived.
+REBUILT_VOLUMES = {"identity-theme"}
 SKIP = {
     ".git",
     ".venv",
@@ -79,7 +81,10 @@ def config():
     raw = json.load(sys.stdin)
     project = name(raw["name"])
     volumes = []
-    for key, value in raw.get("volumes", {}).items():
+    kept = {
+        key: value for key, value in raw.get("volumes", {}).items() if key not in REBUILT_VOLUMES
+    }
+    for key, value in kept.items():
         volumes.append(
             {
                 "key": name(key),
@@ -91,7 +96,7 @@ def config():
         fail("Expected exactly the database, broker and photos named volumes")
     if any(
         item.get("driver", "local") != "local" or item.get("driver_opts")
-        for item in raw["volumes"].values()
+        for item in kept.values()
     ):
         fail("Custom volume drivers require their own coordinated backup procedure")
     services = {
@@ -295,7 +300,8 @@ def verify():
         validate_archive(path)
     with tarfile.open(root / "installation.tar.gz", "r:gz") as archive:
         paths = {member.name for member in archive}
-        if not {"compose.yaml", ".env", "infra/generated"}.issubset(paths):
+        # Only installations created by older setup versions have infra/generated.
+        if not {"compose.yaml", ".env"}.issubset(paths):
             fail("Installation archive is missing matching configuration")
     print("Backup verified: all archives, paths and SHA-256 checksums are valid.")
 
@@ -362,6 +368,7 @@ def restore_installation(project):
         {"project": project, "backup_created_at": value["created_at"]},
     )
     os.chmod(root / ".env", 0o600)
+    # Older installations also carry generated provider files.
     for path in (root / "infra/generated").rglob("*"):
         if path.is_file():
             os.chmod(path, 0o600)
