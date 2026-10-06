@@ -61,7 +61,7 @@ test("captures the whole source frame without guides and uploads only on confirm
   expect((await cameraStats(page)).revoked).toBeGreaterThan(0);
   await navigate(page, "Upload photo");
   await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveValue("0");
-  await expect(page.getByText(/0 means every card is nonfoil/)).toBeVisible();
+  await expect(page.getByText(/Leave this at 0 and tap any foil cards/)).toBeVisible();
 });
 
 test("uses the still-photo API when available and displays actual photo dimensions", async ({ page }) => {
@@ -322,4 +322,19 @@ test("browser history waits for server acceptance and never reuploads a saved ph
   await page.evaluate(() => history.forward());
   await expect(page.getByRole("region", { name: "Selected batch", exact: true })).toBeVisible();
   expect(mock.creates).toHaveLength(1);
+});
+
+test("upload and take another keeps the camera open and saves each photo as its own batch", async ({ page }) => {
+  const mock = await cameraPage(page);
+  await openCamera(page);
+  await takePhoto(page);
+  await page.getByRole("button", { name: "Upload & take another photo", exact: true }).click();
+  await expect(page.locator(".camera-copy")).toContainText("1 photo saved as batches. Ready for the next one.");
+  await expect(page.locator(".camera-dialog")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Capture photo", exact: true })).toBeEnabled();
+  await takePhoto(page);
+  await page.getByRole("button", { name: "Upload & scan", exact: true }).click();
+  await expect(page.locator(".camera-dialog")).toHaveCount(0);
+  expect(mock.creates).toHaveLength(2);
+  expect(mock.creates[0].key).not.toBe(mock.creates[1].key);
 });

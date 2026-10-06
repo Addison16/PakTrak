@@ -6,6 +6,8 @@ x-backend-build: &backend-build
     target: runtime
 
 services:
+  database-setup:
+    <<: *backend-build
   migrate:
     <<: *backend-build
   api:
@@ -19,9 +21,11 @@ services:
   data-worker:
     <<: *backend-build
   web:
-    build:
+    build: &web-build
       context: .
       dockerfile: apps/web/Dockerfile
+  identity-theme:
+    build: *web-build
   tests:
     build:
       context: .

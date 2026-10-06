@@ -57,9 +57,43 @@ jobs:
         if: always()
         run: docker compose --profile test down --volumes --remove-orphans
 
+  verify-single-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the single-container image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/allinone/Dockerfile
+          load: true
+          tags: paktrak:verify
+          cache-from: type=gha,scope=paktrak-allinone
+          cache-to: type=gha,mode=max,scope=paktrak-allinone
+      - name: Start it, restart it and check the app answers
+        run: |
+          data=$(mktemp -d)
+          docker run -d --name paktrak -p 127.0.0.1:8095:8095 -e APP_URL=http://localhost:8095 -v "$data:/data" paktrak:verify
+          for attempt in 1 2; do
+            for i in $(seq 1 120); do
+              [ "$(docker logs paktrak 2>&1 | grep -c 'PakTrak is running')" -ge "$attempt" ] && break
+              docker logs paktrak 2>&1 | grep -q 'Startup stopped' && exit 1
+              sleep 3
+            done
+            curl --fail --silent --show-error http://localhost:8095/api/health/ready
+            curl --fail --silent --show-error -o /dev/null http://localhost:8095/
+            curl --fail --silent --show-error -o /dev/null http://localhost:8095/identity/realms/scanner/.well-known/openid-configuration
+            [ "$attempt" = 2 ] || docker restart -t 120 paktrak
+          done
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs --tail 200 paktrak
+
   publish:
     if: github.event_name == 'release'
-    needs: verify
+    needs: [verify, verify-single-container]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -70,9 +104,15 @@ jobs:
       matrix:
         include:
           - component: backend
+            image: paktrak-backend
             dockerfile: services/backend/Dockerfile
           - component: web
+            image: paktrak-web
             dockerfile: apps/web/Dockerfile
+          # Everything in one container, for Unraid and similar single-container hosts.
+          - component: allinone
+            image: paktrak
+            dockerfile: infra/allinone/Dockerfile
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -92,14 +132,14 @@ jobs:
           provenance: mode=max
           sbom: true
           tags: |
-            ghcr.io/addison16/paktrak-${{ matrix.component }}:${{ needs.verify.outputs.version }}
-            ghcr.io/addison16/paktrak-${{ matrix.component }}:sha-${{ github.sha }}
+            ghcr.io/addison16/${{ matrix.image }}:${{ needs.verify.outputs.version }}
+            ghcr.io/addison16/${{ matrix.image }}:sha-${{ github.sha }}
           labels: |
             org.opencontainers.image.title=PakTrak ${{ matrix.component }}
             org.opencontainers.image.source=https://github.com/Addison16/PakTrak
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.verify.outputs.version }}
-            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
+            org.opencontainers.image.licenses=AGPL-3.0-only
           cache-from: type=gha,scope=paktrak-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=paktrak-${{ matrix.component }}
 
@@ -117,11 +157,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Advance latest after both images publish
+      - name: Advance latest after every image publishes
         env:
           RELEASE_VERSION: ${{ needs.verify.outputs.version }}
         run: |
-          for component in backend web; do
-            image="ghcr.io/addison16/paktrak-$component"
+          for name in paktrak-backend paktrak-web paktrak; do
+            image="ghcr.io/addison16/$name"
             docker buildx imagetools create --tag "$image:latest" "$image:$RELEASE_VERSION"
           done

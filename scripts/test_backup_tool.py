@@ -1,13 +1,16 @@
 """Isolated archive extraction regressions; run in the pinned Python helper image."""
 
 import io
+import json
 import os
 import stat
 import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import backup_tool
 from backup_tool import extract, validate_archive
 
 
@@ -130,6 +133,30 @@ class BackupExtractionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "outside its destination"):
                     extract(self.archive, self.destination)
                 self.assertEqual(list(self.destination.iterdir()), [])
+
+
+class BackupPlanTests(unittest.TestCase):
+    def plan(self, volumes):
+        written = {}
+        raw = {"name": "mtg-scanner", "volumes": volumes, "services": {"api": {"image": "x"}}}
+        with (
+            patch.object(backup_tool.sys, "stdin", io.StringIO(json.dumps(raw))),
+            patch.object(backup_tool, "write_json", lambda path, value: written.update(value)),
+        ):
+            backup_tool.config()
+        return written
+
+    def test_rebuilt_theme_volume_is_not_archived(self):
+        volumes = {key: {} for key in ("database", "broker", "photos", "identity-theme")}
+        plan = self.plan(volumes)
+        self.assertEqual(
+            sorted(item["key"] for item in plan["volumes"]), ["broker", "database", "photos"]
+        )
+
+    def test_unexpected_data_volume_is_still_refused(self):
+        volumes = {key: {} for key in ("database", "broker", "photos", "uploads")}
+        with self.assertRaisesRegex(ValueError, "Expected exactly"):
+            self.plan(volumes)
 
 
 if __name__ == "__main__":

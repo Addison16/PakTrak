@@ -10,7 +10,7 @@
 
 > **Product goal:** Photograph the cards from an opened Magic: The Gathering pack laid out on a table. Detect and identify each physical card independently. Process the uploaded photo on a server. Automatically add valid server-computed matches with match strength strictly greater than 88%, per the owner’s updated direction below. Present everything else that might be a card for review, correction, or a closer photo. Preserve quantities, expose uncertainty, and make every addition reversible.
 
-**Owner direction, September 17, 2026:** Build primarily for self-hosting with Docker Compose and use from a phone browser. Follow the Paperless-ngx upload-then-process experience: once the server confirms durable acceptance, the phone may disconnect, close the browser, or turn off. Target phones four years old or newer at release; approximately 2022-and-newer hardware is the initial 2026 baseline. Built-in collection import/export, including tested ManaBox CSV migration and a mapping flow for similar tools, belongs in Version 1. Prepare for a free, source-available public GitHub release after refinement, with commercial reuse prohibited. The owner explicitly chose this licensing direction; see Section 16.5.
+**Owner direction, September 17, 2026:** Build primarily for self-hosting with Docker Compose and use from a phone browser. Follow the Paperless-ngx upload-then-process experience: once the server confirms durable acceptance, the phone may disconnect, close the browser, or turn off. Target phones four years old or newer at release; approximately 2022-and-newer hardware is the initial 2026 baseline. Built-in collection import/export, including tested ManaBox CSV migration and a mapping flow for similar tools, belongs in Version 1. Prepare for a free, open-source public GitHub release after refinement. On October 5, 2026 the owner changed the license to the GNU AGPL v3; see Section 16.5.
 
 **Additional owner direction, September 19, 2026 (supersedes the older owned-only deck scope):**
 
@@ -40,7 +40,7 @@
 - Display duplicate owned copies as one entry per exact printing with a quantity counter. Accumulate copies from separate scans/imports, show per-location counts, preserve variant details and source history, and update totals after removals or undo. Retries must not manufacture additional copies.
 - Make collection browsing a card-art gallery with enjoyable discovery, owned-card search, filters and full card details. Keep quantity counters, saved decks and physical locations.
 - Supply daily, source-labeled TCGplayer, Card Kingdom and ManaPool price references, with Scryfall metadata/artwork, respectful server caching and import/update time estimates. Missing prices and unknown finishes must stay explicit; never invent values.
-- Keep Docker-first deployment, phone-browser support, disconnected server processing, and the non-commercial source-available release direction.
+- Keep Docker-first deployment, phone-browser support, disconnected server processing, and the AGPL-3.0 open-source release direction.
 
 These additions are implemented in the current code; validation and limitations are recorded in [STATUS](../docs/STATUS.md). The current guest counter measures successfully persisted detected photo regions, not imports, simultaneous jobs, or remaining holdings. Deck format labels do not imply legality validation.
 
@@ -78,7 +78,7 @@ The earlier discussion proposed 15 cards as the everyday target, approximately 2
 | R14 | Explain failures and preserve partial results; never fabricate a match to fill a pack. | Failure-injection and unknown-card tests. |
 | R15 | Docker Compose is the primary installation, operation, development, and release path. | Clean-host install, container recreation, upgrade, and restore checks. |
 | R16 | Baseline scanning runs on a CPU server using local catalog/model assets without a required paid cloud recognition service. | Scan with provider networking unavailable after provisioning; hardware measurements. |
-| R17 | Prepare a free, source-available public GitHub release after qualification, with a license prohibiting commercial reuse, dependency notices, reproducible images, and contributor/operator documentation. | Release checklist, license matching the owner's direction, and evidence for compatibility claims. |
+| R17 | Prepare a free, open-source public GitHub release after qualification under the GNU AGPL v3, dependency notices, reproducible images, and contributor/operator documentation. | Release checklist, license matching the owner's direction, and evidence for compatibility claims. |
 
 ### 1.2 Version 1 scope
 
@@ -118,9 +118,9 @@ A user photographs a supported pack-sized layout, sees all detected regions, get
 | Hosting | Self-hosted Docker Compose is the primary deployment; CPU baseline, persistent volumes, no mandatory hosted service account. | Required deployment direction; machine/provider selection does not change it. |
 | Collection portability | ManaBox CSV import, canonical CSV import/export, tested ManaBox-compatible export, and generic CSV mapping in the web UI. | Required Version 1 scope; exact adapter behavior must be tested. |
 | Branding and domain | Placeholder name only. | Owner approval. |
-| Distribution | Free, source-available project intended for public GitHub release after refinement. | Required by owner; publication is a later release action. |
-| License | Commercial reuse prohibited; describe the project as source-available. | Explicit owner clarification; select compatible license text before publication. |
-| Monetization | No paid application tier, subscription, or scan charge in this project's release plan. | Owner's non-commercial direction; does not settle third-party license rights. |
+| Distribution | Free, open-source project intended for public GitHub release after refinement. | Required by owner; publication is a later release action. |
+| License | GNU Affero General Public License v3.0 (AGPL-3.0-only). | Owner direction, October 5, 2026; replaces the earlier PolyForm Noncommercial choice. |
+| Monetization | No paid application tier, subscription, or scan charge in this project's release plan. | Owner's direction; does not settle third-party license rights. |
 
 Support is determined by the image actually received and the evaluated browser/device path. A newer phone can still deliver a small preview frame. An older phone can deliver a useful still image. Do not infer scan capability from a camera's advertised megapixel count.
 
@@ -957,7 +957,7 @@ Implement these tests as automated tests where possible and documented physical-
 | A62 | Compose upgrade and backup restore into a fresh stack. | Collections, provenance, private assets, configuration, and identity linkage restore; pending work resumes without duplicate additions. |
 | A63 | Generic CSV headers differ from known adapters or contain unsupported fields. | Mobile mapping preview works; unresolved data is preserved; app-specific compatibility is not claimed without tests. |
 | A64 | Import preview mapping/rows change after confirmation was prepared. | Stale revision rejected; no unreviewed quantity or binder changes are committed. |
-| A65 | Required release packaging is checked. | Source-available/non-commercial license, third-party notices, reproducible images, setup, migration, recovery, and contribution guidance are present. |
+| A65 | Required release packaging is checked. | AGPL-3.0 license, third-party notices, reproducible images, setup, migration, recovery, and contribution guidance are present. |
 
 ---
 
@@ -993,15 +993,13 @@ Before public release, verify data-source terms, image use, reference-image stor
 
 Keep a source/license register covering code libraries, pretrained weights, reference images, and training photographs. A software library's license does not automatically settle the rights to model weights or artwork used with it.
 
-### 16.5 Source-available, non-commercial GitHub release
+### 16.5 Open-source GitHub release under the GNU AGPL v3
 
-The owner explicitly chose **source-available distribution with commercial reuse prohibited**. Public source visibility and a free download do not by themselves establish an open-source license. The Open Source Initiative's definition permits business use, so a license that forbids commercial reuse must be described accurately as source-available. [S24]
+On October 5, 2026 the owner relicensed PakTrak under the **GNU Affero General Public License v3.0** (AGPL-3.0-only), replacing the earlier source-available PolyForm Noncommercial 1.0.0 terms. The unmodified license text is in [LICENSE](../LICENSE), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). The AGPL is an OSI-approved open-source license: it permits use, modification and redistribution, including commercial use, provided derived works stay under the AGPL with source available. Section 13 additionally requires anyone running a modified version as a network service to offer its users the corresponding source. [S24]
 
-The September 23 source-publication update applies the unmodified **PolyForm Noncommercial License 1.0.0** in [LICENSE](../LICENSE), with [NOTICE](../NOTICE) and [third-party notices](../THIRD_PARTY_NOTICES.md). Those terms govern the intended noncommercial use, inspection, modification and redistribution; commercial use is not licensed. Do not silently substitute MIT, Apache, GPL or AGPL as though they prohibit commercial reuse.
+Review dependency, model, and asset distribution compatibility with the AGPL before adding components. Keep third-party notices and licenses separate and intact; the project's chosen license cannot replace the rights attached to dependencies, card data/artwork, or user photos. Publish code and only redistributable assets in GitHub and container images. Fetch other permitted catalog/model resources through documented setup steps; never bundle real private collections or photos as demo fixtures.
 
-Review dependency, model, and asset distribution compatibility with that restriction during M0, before choosing implementation components. Keep third-party notices and licenses separate and intact; the project's chosen license cannot replace the rights attached to dependencies, card data/artwork, or user photos. Publish code and only redistributable assets in GitHub and container images. Fetch other permitted catalog/model resources through documented setup steps; never bundle real private collections or photos as demo fixtures.
-
-Before public release, provide `LICENSE`, `THIRD_PARTY_NOTICES.md`, `CONTRIBUTING.md`, `SECURITY.md`, release notes, issue templates, and contributor instructions that state the non-commercial terms. Build versioned container images from tagged source, record their provenance/dependencies, and run the Docker installation and migration checks in CI. Publish only after refinement and the release gates; preparing these files does not itself authorize creating a public repository or publishing images.
+Before public release, provide `LICENSE`, `THIRD_PARTY_NOTICES.md`, `CONTRIBUTING.md`, `SECURITY.md`, release notes, issue templates, and contributor instructions that state the AGPL-3.0 terms. Build versioned container images from tagged source, record their provenance/dependencies, and run the Docker installation and migration checks in CI. Publish only after refinement and the release gates; preparing these files does not itself authorize creating a public repository or publishing images.
 
 ---
 
@@ -1082,7 +1080,7 @@ mtg-pack-scanner/
   docs/                      # ADRs, setup, API, privacy, runbooks
   .github/workflows/         # Checks, image builds, Compose smoke tests
   README.md
-  LICENSE                    # Non-commercial source-available license selected before publication
+  LICENSE                    # GNU AGPL v3 (AGPL-3.0-only)
   THIRD_PARTY_NOTICES.md
   CONTRIBUTING.md
   SECURITY.md
@@ -1105,7 +1103,7 @@ No secret may be prefixed for public frontend exposure. Validate configuration a
 
 ### 19.4 Completion package from the developer
 
-Deliver source code; lockfiles; database migrations; container/deployment configuration and versioned images; environment template; operating instructions; API specification; automated tests; import-format mappings/fixtures and destination compatibility evidence; dataset/evaluation manifests; measured device report; calibration report; non-commercial source-available license and third-party register; privacy/retention behavior; runbooks; backup/restore evidence; and a requirement-by-requirement completion checklist.
+Deliver source code; lockfiles; database migrations; container/deployment configuration and versioned images; environment template; operating instructions; API specification; automated tests; import-format mappings/fixtures and destination compatibility evidence; dataset/evaluation manifests; measured device report; calibration report; AGPL-3.0 license and third-party register; privacy/retention behavior; runbooks; backup/restore evidence; and a requirement-by-requirement completion checklist.
 
 State exactly what is implemented, what is mocked, what has been measured, and what remains unsupported. A styled camera screen connected to placeholder recognitions is not a finished scanner.
 
@@ -1115,7 +1113,7 @@ State exactly what is implemented, what is mocked, what has been measured, and w
 
 ### M0. Validate foundations
 
-Verify provider terms, source schemas, and compatibility with the chosen non-commercial source-available direction. Select containerized storage/authentication components and record current dependency versions. Establish the Compose foundation, HTTPS path, persistent volumes, and database-authoritative job recovery. Prove upload acceptance and disconnected completion with an explicitly labeled transport test before treating it as recognition evidence. Test real capture dimensions on the oldest target devices using both browser preview and native photo/upload paths. Collect authorized ManaBox CSV samples, define adapter mapping/fixtures, finalize the dataset plan, and agree on release metrics.
+Verify provider terms, source schemas, and compatibility with the chosen AGPL-3.0 license. Select containerized storage/authentication components and record current dependency versions. Establish the Compose foundation, HTTPS path, persistent volumes, and database-authoritative job recovery. Prove upload acceptance and disconnected completion with an explicitly labeled transport test before treating it as recognition evidence. Test real capture dimensions on the oldest target devices using both browser preview and native photo/upload paths. Collect authorized ManaBox CSV samples, define adapter mapping/fixtures, finalize the dataset plan, and agree on release metrics.
 
 **Exit evidence:** architecture decisions, clean-host Compose setup/acceptance recovery checks, source/license register, device capture samples, import-format evidence plan, and an owner-approved definition of a supported scan. Missing physical-device/photo/CSV evidence is reported explicitly; infrastructure and migration implementation can continue without claiming those gates passed.
 
@@ -1151,7 +1149,7 @@ Wire the qualified policy to transactional inventory. Complete cancel/undo races
 
 ### M5. Harden and release
 
-Complete physical-device tests, accessibility, performance/load tests, clean-host Docker installation/upgrades, backups/restores, retention/account deletion, secrets handling, monitoring, runbooks, and rollback. Finish the source-available license prohibiting commercial reuse, third-party notices, contributor/security documentation, image build/release pipeline, and migration guide. Prepare the GitHub release and publish only supported claims after the owner's release decision.
+Complete physical-device tests, accessibility, performance/load tests, clean-host Docker installation/upgrades, backups/restores, retention/account deletion, secrets handling, monitoring, runbooks, and rollback. Finish the AGPL-3.0 license notices, third-party notices, contributor/security documentation, image build/release pipeline, and migration guide. Prepare the GitHub release and publish only supported claims after the owner's release decision.
 
 **Exit evidence:** deployment from a clean Docker environment, migration compatibility report, release/license checklist, recovery rehearsal, and owner sign-off for publication.
 
@@ -1234,9 +1232,8 @@ unresolved-row repair, quantity/metadata preservation, and import undo.
 Warn about target-format losses. Qualify compatibility with real fixtures
 and destination tests; do not postpone migration until auto-add works.
 
-Prepare a free source-available GitHub release with commercial reuse
-prohibited. Select compatible license text and preserve third-party
-licenses; do not label the restricted project as OSI open source.
+Prepare a free, open-source GitHub release under the GNU AGPL v3.
+Preserve third-party licenses and their notices.
 Publication follows refinement and the owner's release decision.
 
 Implement the actual API, database migrations, workers, private storage,
@@ -1257,9 +1254,9 @@ failure rather than silently weakening safety or accuracy requirements.
 
 The owner can deploy the app through Docker Compose, sign in from a supported phone browser without installing a native app, import an existing ManaBox collection with a checked preview, photograph a supported 15-card layout, disconnect or power off the phone after upload acceptance, return to completed or actionable partial results, review uncertain items, inspect exact-printing and unknown metadata, verify quantities, export the collection, and undo an import or scan batch without harming prior holdings.
 
-The development team can reproduce the Docker deployment, disconnected/restart recovery, test suite, transfer round trips, recognition benchmark, qualification report, catalog import, backup restore, and model rollback. The GitHub release is labeled source-available under a selected license prohibiting commercial reuse. The released claims match measured evidence. No unqualified category is silently auto-added.
+The development team can reproduce the Docker deployment, disconnected/restart recovery, test suite, transfer round trips, recognition benchmark, qualification report, catalog import, backup restore, and model rollback. The GitHub release is published under the GNU AGPL v3. The released claims match measured evidence. No unqualified category is silently auto-added.
 
-**September 23 publication direction:** the owner authorized creating a GitHub repository and populating it with the current PakTrak source and features. The source publication uses PolyForm Noncommercial 1.0.0 and does not imply that the remaining release-qualification gates passed. Hosting/provider spend, a supported launch-device matrix and release metrics remain separate decisions. Changes to the requested confidence threshold, noncommercial direction, or use of customer photos for training need explicit authorization. Routine implementation can proceed under the recorded Docker, server-processing, mobile, migration, and licensing requirements without asking the owner to choose those directions again.
+**September 23 publication direction:** the owner authorized creating a GitHub repository and populating it with the current PakTrak source and features. The source publication originally used PolyForm Noncommercial 1.0.0; on October 5, 2026 the owner relicensed it under AGPL-3.0-only. Publication does not imply that the remaining release-qualification gates passed. Hosting/provider spend, a supported launch-device matrix and release metrics remain separate decisions. Changes to the requested confidence threshold, project license, or use of customer photos for training need explicit authorization. Routine implementation can proceed under the recorded Docker, server-processing, mobile, migration, and licensing requirements without asking the owner to choose those directions again.
 
 **Final instruction:** favor a correct, recoverable record over a confident guess. The scanner's job is to reduce work, not make the user audit hidden mistakes.
 
@@ -1352,13 +1349,13 @@ https://scryfall.com/docs/api/images
 
 ## 25. Contents of this handoff package
 
-The Markdown file is the authoritative editable specification, now version 1.3. The supplied PDF remains an **archived version 1.0 reading copy** and does not include the owner's clarified Docker, accounts, decks, file exchange, and source-available licensing requirements. Do not use the PDF to override the current Markdown.
+The Markdown file is the authoritative editable specification, now version 1.3. The supplied PDF remains an **archived version 1.0 reading copy** and does not include the owner's clarified Docker, accounts, decks, file exchange, and licensing requirements. Do not use the PDF to override the current Markdown.
 
 The initial folder contained only `Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.md` and `Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.pdf`. The repository now also contains the implementation, migrations, lockfiles, Docker configuration, automated tests, and operator/architecture/format/status documentation. The repository-level `README.md` is the entrypoint for running the current development build.
 
 The original handoff mentioned `assets/policy_reference.py`, `assets/config.example.json`, `tests/test_policy_reference.py`, `docs/ACCEPTANCE_CHECKLIST.md`, and `docs/REFERENCE_TEST_RESULTS.txt`, but none was present. They must be implemented or superseded by actual project assets; their tests cannot be described as run or passed.
 
-The current repository contains the runnable Compose stack and frontend/API, contour-based card detection, server-side Tesseract OCR and candidate artwork comparison, guided review, catalog/pricing workers, collections, decks, transfers, and synthetic integration/browser tests. It does not claim a trained or qualified recognizer, a full artwork index, authorized real third-party compatibility fixtures, or a measured physical-device benchmark. PolyForm Noncommercial 1.0.0 and publication notices are now included, and the owner has authorized GitHub source publication. The local catalog and private account/photo/collection data stay outside version-controlled source. The PDF remains the original archived specification; prebuilt application images are not published by this source update.
+The current repository contains the runnable Compose stack and frontend/API, contour-based card detection, server-side Tesseract OCR and candidate artwork comparison, guided review, catalog/pricing workers, collections, decks, transfers, and synthetic integration/browser tests. It does not claim a trained or qualified recognizer, a full artwork index, authorized real third-party compatibility fixtures, or a measured physical-device benchmark. The AGPL-3.0 license and publication notices are included, and the owner has authorized GitHub source publication. The local catalog and private account/photo/collection data stay outside version-controlled source. The PDF remains the original archived specification; prebuilt application images are not published by this source update.
 
 ### Version 1.2 change record
 

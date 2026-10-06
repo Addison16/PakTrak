@@ -109,6 +109,14 @@ function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
   </>;
 }
 
+// Phone shortcut bar for the four everyday screens; the menu keeps account and admin pages.
+function TabBar({ page, review, onNavigate }: { page: Page; review: number; onNavigate: (page: Page) => void }) {
+  const tabs: [Page, "camera" | "batches" | "collection" | "decks", string][] = [["scan", "camera", "Upload"], ["batches", "batches", "Batches"], ["collection", "collection", "Collection"], ["decks", "decks", "Decks"]];
+  return <nav className="tab-bar" aria-label="Quick navigation">{tabs.map(([id, icon, label]) => <button type="button" key={id} aria-current={page === id ? "page" : undefined}
+    aria-label={id === "batches" && review ? `Batches, ${review} to review` : label} onClick={() => onNavigate(id)}>
+    <Icon name={icon} /><span>{label}</span>{id === "batches" && review > 0 && <span className="tab-count" aria-hidden="true">{review}</span>}</button>)}</nav>;
+}
+
 function App() {
   const route = useRoute();
   const page = route.page;
@@ -140,6 +148,7 @@ function App() {
   const pendingPhotoRef = useRef<PendingPhoto | null>(null);
   const [photoRecoveryError, setPhotoRecoveryError] = useState("");
   const [pendingPreview, setPendingPreview] = useState("");
+  const [queue, setQueue] = useState<{ index: number; total: number } | null>(null);
   const foilCount = foilCountDraft === "" ? 0 : foilCountDraft;
   const cameraOpen = route.overlay === "camera";
   const setCameraOpen = (open: boolean) => open ? navigation.go({ ...route, overlay: "camera" }) : navigation.route.overlay === "camera" && navigation.close({ ...navigation.route, overlay: undefined }, true);
@@ -148,6 +157,9 @@ function App() {
   const selectedId = useRef<string | null>(null);
   const returnToBatch = useRef<{ id: string; y: number } | null>(null);
   const busyRef = useRef(false);
+  // Poll quickly only while the server is working on something this page shows.
+  const activeWork = useRef(false);
+  activeWork.current = busy || [...scans, ...(selected ? [selected] : [])].some((scan) => !scan.accepted_at || ["QUEUED", "RUNNING"].includes(scan.job?.state || ""));
   const storageKey = session ? "scanner-upload:" + session.owner_id : "";
 
   useEffect(() => {
@@ -355,6 +367,7 @@ function App() {
     let loading = false;
     let failures = 0;
     let nextAttempt = 0;
+    let lastLoaded = 0;
     const owner = session.owner_id;
     const controller = new AbortController();
     async function refresh(force = false) {
@@ -367,6 +380,8 @@ function App() {
         if (stopped) return;
         if (account.owner_id !== owner) throw new ApiError("Another account signed in in a different tab. Reload PakTrak before making changes.", {}, undefined, { code: "account_changed", action: "Refresh sign-in" });
         setSession((current) => current && (Object.keys(account) as (keyof Session)[]).every((key) => current[key] === account[key]) ? current : account);
+        // The small sign-in check keeps allowance changes live; the batch list waits longer while nothing is processing.
+        if (!force && !activeWork.current && Date.now() - lastLoaded < 15000) { setRefreshError(null); failures = 0; nextAttempt = 0; return; }
         const data = await request<{ items: Scan[]; next_offset: number | null }>(
           "/api/v1/scans?offset=" + offset, { signal: controller.signal },
         );
@@ -378,7 +393,7 @@ function App() {
           const updated = await request<Scan>("/api/v1/scans/" + readingSelected, { signal: controller.signal });
           if (!stopped && updated.id === selectedId.current) setSelected(updated);
         }
-        if (!stopped) { setRefreshError(null); dismissedRefresh.current = ""; failures = 0; nextAttempt = 0; }
+        if (!stopped) { setRefreshError(null); dismissedRefresh.current = ""; failures = 0; nextAttempt = 0; lastLoaded = Date.now(); }
       } catch (e) {
         if (stopped || (readingSelected && readingSelected !== selectedId.current)) return;
         const problem = e as Error;
@@ -430,17 +445,30 @@ function App() {
       ...(key ? { "Idempotency-Key": key } : {}) };
   }
 
-  async function accept(id: string, key: string, photoSavedAt?: number) {
+  async function accept(id: string, key: string, photoSavedAt?: number, stay = false) {
     await request("/api/v1/scans/" + id + "/finalize", { method: "POST", headers: headers(key) });
     // This message is shown only after the durable acceptance response, never at 100% bytes.
     setNotice("Upload complete. You can close this page or disconnect your phone. Results will be saved in Batches.");
     clearDraft();
     if (photoSavedAt !== undefined) await discardPhoto(photoSavedAt);
     setFoilCountDraft(0);
+    // Taking several photos in a row keeps the camera or queue going; each photo is still its own batch.
+    if (stay) { selectedId.current = null; setSelected(null); setNotice("Photo saved as a new batch. Results will appear in Batches."); return; }
     openBatch(await request<Scan>("/api/v1/scans/" + id), true);
   }
 
-  async function chooseFile(file: File | undefined, recovered?: PendingPhoto): Promise<boolean> {
+  async function chooseFiles(files: FileList | null) {
+    const list = [...(files || [])];
+    if (list.length < 2) { await chooseFile(list[0]); return; }
+    for (const [index, file] of list.entries()) {
+      setQueue({ index: index + 1, total: list.length });
+      const ok = await chooseFile(file, undefined, { stay: index < list.length - 1, foils: index ? 0 : undefined });
+      if (!ok) break;
+    }
+    setQueue(null);
+  }
+
+  async function chooseFile(file: File | undefined, recovered?: PendingPhoto, options: { stay?: boolean; foils?: number } = {}): Promise<boolean> {
     if (!file || !session || busyRef.current) return false;
     setError(""); setNotice(""); setProgress(null);
     if (session.scans_paused || session.scan_cards_remaining === 0) { setError(session.scans_paused ? "New scans are paused. Contact your administrator to resume scanning." : "Your lifetime scan allowance is used. Contact your administrator to raise the limit."); return false; }
@@ -453,7 +481,7 @@ function App() {
     try {
       const targetDeck = recovered ? recovered.targetDeck : route.targetDeck;
       const collect = recovered ? recovered.collect : route.collect;
-      const plannedFoils = recovered ? recovered.foilCount : foilCount;
+      const plannedFoils = recovered ? recovered.foilCount : options.foils ?? foilCount;
       const photo = recovered || await keepPhoto(file);
       const same = draft && !selected?.accepted_at && draft.filename === file.name &&
         draft.size === file.size && draft.content_type === contentType && draft.target_deck_id === targetDeck
@@ -497,7 +525,7 @@ function App() {
       select(uploaded);
       if (uploaded.duplicate_scan_id && !uploaded.accepted_at) {
         setNotice("This photo matches an earlier batch. Check that batch before submitting it again.");
-      } else await accept(scan.id, pending.key, pending.photo_saved_at);
+      } else await accept(scan.id, pending.key, pending.photo_saved_at, options.stay);
       setOffset(0);
       return true;
     } catch (e) { setError(e as Error); return false; }
@@ -526,15 +554,16 @@ function App() {
 
   const scanBlocked = !!session?.scans_paused || session?.scan_cards_remaining === 0 || !!route.targetDeck && (!scanDeck || !!scanDeck.archived);
   const terminal = selected && ["PHOTO_READY", "FAILED", "EXPIRED"].includes(selected.state);
+  const showTabs = !!session && !selected && !route.batch && ["scan", "batches", "collection", "decks"].includes(page) && !(page === "decks" && route.deck);
   return <div className="app">
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
       {session && <Navigation session={session} page={page} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} />}
     </header>
-    <main className={session ? "signed-in" + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "account" || page === "admin" ? " account-view" : "") : undefined}>
+    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "account" || page === "admin" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
-          <div className="edition"><span className="dot" /> YOUR COLLECTION, WITH PAKTRAK</div>
+          <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
           <h1>Every card.<br /><span>In reach.</span></h1>
           {!session && <p className="intro">Photograph your cards, find their place and build your next deck.</p>}
         </div>
@@ -577,9 +606,9 @@ function App() {
           <div className="capture-finishes"><label className="foil-count">How many cards are foil?<input type="number" inputMode="numeric" min={0} max={32} value={String(foilCountDraft)} disabled={busy}
             onFocus={(e) => e.currentTarget.select()} onBlur={() => setFoilCountDraft(foilCount)}
             onChange={(e) => setFoilCountDraft(e.target.value === "" ? "" : Math.max(0, Math.min(32, Math.trunc(Number(e.target.value) || 0))))} /></label>
-            <p className="fine">{foilCount === 0 ? "0 means every card is nonfoil. Include etched foils in your count." : `After scanning, tap the ${foilCount} foil ${foilCount === 1 ? "card" : "cards"}. The rest will be nonfoil.`} You can correct this in the batch later.</p></div>
+            <p className="fine">{foilCount === 0 ? "Optional. Leave this at 0 and tap any foil cards in the batch after scanning." : `After scanning, tap the ${foilCount} foil ${foilCount === 1 ? "card" : "cards"}. The rest will be nonfoil.`} Include etched foils.</p></div>
           <input ref={camera} data-testid="native-camera-input" hidden type="file" accept={photoAccept} capture="environment" onChange={(e) => void chooseFile(e.target.files?.[0])} />
-          <input ref={picker} data-testid="photo-input" hidden type="file" accept={photoAccept} onChange={(e) => void chooseFile(e.target.files?.[0])} />
+          <input ref={picker} data-testid="photo-input" hidden type="file" multiple accept={photoAccept} onChange={(e) => void chooseFiles(e.target.files)} />
           <div className="actions">
             <button className="button primary" disabled={busy || scanBlocked} onClick={() => { setError(""); setCameraOpen(true); }}><Icon name="camera" />Take photo</button>
             <button className="button secondary" disabled={busy || scanBlocked} onClick={() => picker.current?.click()}><Icon name="image" />Choose photo</button>
@@ -587,7 +616,7 @@ function App() {
           <p className="fine">HEIC/HEIF, JPEG, PNG, WebP + more · Up to {Math.floor(maxBytes / 1024 / 1024)} MB · Photos expire after 7 days</p>
           <details className="photo-format-help"><summary>Supported photo formats</summary><p>{photoFormatLabel}.</p><p>HEIC/HEIF files use the main photo. Save animated images and multi-page TIFFs as separate still photos before uploading.</p></details>
           {busy && <div className="upload-progress" role="status">
-            <p>{progress === null ? "Waiting for server acceptance…" : "Uploading " + progress + "%"} Keep this page open until acceptance is confirmed.</p>
+            <p>{queue ? `Photo ${queue.index} of ${queue.total} · ` : ""}{progress === null ? "Waiting for server acceptance…" : "Uploading " + progress + "%"} Keep this page open until acceptance is confirmed.</p>
             {progress !== null && <progress value={progress} max={100} aria-label="Photo upload progress" />}
           </div>}
           {pendingPhoto && !busy && !cameraOpen && <aside className="photo-recovery" aria-label="Unfinished photo">
@@ -615,7 +644,6 @@ function App() {
             <div className="actions"><button className="button secondary" disabled={reviewState.busy || reviewState.dirty || busy || deleting} onClick={() => navigation.go({ page: "decks", deck: selected.target_deck?.id, view: "scan", fromBatch: selected.id })}>{selected.target_deck ? "Continue building deck" : "Build a deck from this batch"}</button>
               {selected.target_deck && !selected.target_deck.archived && <button className="text-button" disabled={reviewState.busy || reviewState.dirty || busy || deleting} onClick={() => navigation.go({ page: "scan", targetDeck: selected.target_deck!.id, collect: selected.add_to_collection || undefined })}>Scan next deck photo</button>}</div>
           </div>}
-          {selected.accepted_at && !terminal && <p className="saved"><span aria-hidden="true">✓ </span>Saved on your server. You can disconnect.</p>}
           {selected.job && !terminal && <p role="status">{selected.job.stage}</p>}
           {selected.job?.error_message && <p className="message error">{selected.job.error_message}</p>}
           {!!selected.width && <Suspense fallback={<p>Opening saved card regions…</p>}><Review key={selected.id} scanId={selected.id} photo={selected.thumbnail_url} session={session} onStateChange={setReviewState} processing={!!selected.job && ["QUEUED", "RUNNING"].includes(selected.job.state)} progress={selected.job?.progress} onChange={refreshSelected} /></Suspense>}
@@ -636,9 +664,10 @@ function App() {
       <footer><img src="/brand/paktrak-mark.svg" alt="" width="24" height="24" /><span><strong>PakTrak</strong> · Every card. In reach.</span></footer>
     </main>
     {session && cameraOpen && <Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture foilCount={foilCount} progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
-      onClose={() => setCameraOpen(false)} onUpload={(file) => chooseFile(file)} onCapture={async (file) => { await keepPhoto(file); }} onDiscard={discardPhoto}
+      onClose={() => setCameraOpen(false)} onUpload={(file, next) => chooseFile(file, undefined, { stay: next })} onCapture={async (file) => { await keepPhoto(file); }} onDiscard={discardPhoto}
       onNativeCamera={() => { setCameraOpen(false); camera.current?.click(); }}
       onChoosePhoto={() => { setCameraOpen(false); picker.current?.click(); }} /></Suspense>}
+    {showTabs && <TabBar page={page} review={scans.filter(batchNeedsReview).length} onNavigate={navigate} />}
     {session?.membership_welcome && <MembershipWelcome key={session.owner_id + session.approved_at} session={session} onDismiss={() => setSession((current) => current ? { ...current, membership_welcome: false } : current)} />}
     {onboarding.active && !session?.membership_welcome && <Onboarding key={onboarding.active.owner} replay={onboarding.active.replay} onDismiss={() => {
       if (!onboarding.active?.replay) navigation.go({ page: "collection" }, { replace: true });

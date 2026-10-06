@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>PakTrak</Name>
+  <Repository>ghcr.io/addison16/paktrak:latest</Repository>
+  <Registry>https://github.com/Addison16/PakTrak/pkgs/container/paktrak</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Addison16/PakTrak/issues</Support>
+  <Project>https://github.com/Addison16/PakTrak</Project>
+  <Overview>Self-hosted Magic: The Gathering collection tracker. Scan cards from photos, manage your collection and build decks. Everything runs in this one container; your data is kept in the Data folder.</Overview>
+  <Category>Tools: Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:8095]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Addison16/PakTrak/main/infra/unraid/paktrak.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Addison16/PakTrak/main/apps/web/public/brand/paktrak-512.png</Icon>
+  <ExtraParams>--stop-timeout=120</ExtraParams>
+  <Config Name="App address" Target="APP_URL" Default="" Mode="" Description="The address you open PakTrak at, including the port, for example http://192.168.1.50:8095 or https://cards.example.net. Sign-in only works from this address." Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Web port" Target="8095" Default="8095" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8095</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/paktrak" Mode="rw" Description="Database, photos and private settings. Back up this folder while the container is stopped." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/paktrak</Config>
+</Container>

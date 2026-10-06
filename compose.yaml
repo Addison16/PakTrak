@@ -31,16 +31,29 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup first}
-      SCANNER_DB_PASSWORD: ${SCANNER_DB_PASSWORD}
-      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
     volumes:
       - database:/var/lib/postgresql/data
-      - ./infra/postgres-init.sh:/docker-entrypoint-initdb.d/00-scanner.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 3s
       timeout: 3s
       retries: 20
+    networks: [private]
+
+  # One-shot: creates missing application/identity roles and databases.
+  # Existing roles, passwords and databases are left unchanged.
+  database-setup:
+    image: ghcr.io/addison16/paktrak-backend:${PAKTRAK_VERSION:-latest}
+    command: ["python", "-m", "scanner.database_setup"]
+    restart: "no"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run setup first}
+      SCANNER_DB_PASSWORD: ${SCANNER_DB_PASSWORD:?Run setup first}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Run setup first}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    depends_on:
+      database: {condition: service_healthy}
     networks: [private]
 
   broker:
@@ -57,16 +70,36 @@ services:
 
   storage:
     image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
-    command: ["server", "-dir=/data", "-ip=storage", "-s3", "-s3.port=8333", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=1024", "-volume.max=64"]
+    command: ["server", "-dir=/data", "-ip=storage", "-s3", "-s3.port=8333", "-master.volumeSizeLimitMB=1024", "-volume.max=64"]
     restart: unless-stopped
+    environment:
+      # SeaweedFS creates its S3 admin identity from these; anonymous access is denied.
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:?Run setup first}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:?Run setup first}
     volumes:
       - photos:/data
-      - ./infra/generated/s3.json:/etc/seaweedfs/s3.json:ro
     networks: [private]
+
+  # One-shot: refreshes the login theme shipped in the web image.
+  identity-theme:
+    image: ghcr.io/addison16/paktrak-web:${PAKTRAK_VERSION:-latest}
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["rm -rf /srv/identity-themes/paktrak.next; cp -R /usr/share/paktrak/identity-theme /srv/identity-themes/paktrak.next; rm -rf /srv/identity-themes/paktrak; mv /srv/identity-themes/paktrak.next /srv/identity-themes/paktrak"]
+    restart: "no"
+    # Root with only DAC_OVERRIDE: the volume may first be initialised by the
+    # identity image, whose theme directory belongs to another user.
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    volumes:
+      - identity-theme:/srv/identity-themes
 
   identity:
     image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
-    command: ["start", "--import-realm"]
+    command: ["start"]
     restart: unless-stopped
     environment:
       KC_DB: postgres
@@ -82,12 +115,10 @@ services:
       KC_HEALTH_ENABLED: "true"
       JAVA_OPTS_KC_HEAP: "-Xms128m -Xmx512m"
     volumes:
-      - ./infra/generated/scanner-realm.json:/opt/keycloak/data/import/scanner-realm.json:ro
-      - ./infra/themes/paktrak:/opt/keycloak/themes/paktrak:ro
-      - ./apps/web/public/fonts:/opt/keycloak/themes/paktrak/login/resources/fonts:ro
-      - ./apps/web/public:/opt/keycloak/themes/paktrak/login/resources/shared:ro
+      - identity-theme:/opt/keycloak/themes:ro
     depends_on:
-      database: {condition: service_healthy}
+      database-setup: {condition: service_completed_successfully}
+      identity-theme: {condition: service_completed_successfully, restart: true}
     networks: [private]
 
   migrate:
@@ -99,7 +130,7 @@ services:
       SCANNER_IDENTITY_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       SCANNER_PASSWORD_RESET_CLIENT_SECRET: ${PASSWORD_RESET_CLIENT_SECRET:-}
     depends_on:
-      database: {condition: service_healthy}
+      database-setup: {condition: service_completed_successfully}
       storage: {condition: service_started}
       identity: {condition: service_started}
 
@@ -153,8 +184,9 @@ services:
     environment:
       APP_URL: ${APP_URL}
     depends_on:
-      api: {condition: service_healthy}
-      identity: {condition: service_started}
+      # Restart nginx when Compose replaces the API or identity containers.
+      api: {condition: service_healthy, restart: true}
+      identity: {condition: service_started, restart: true}
     networks: [private]
 
   tests:
@@ -173,6 +205,8 @@ volumes:
   database:
   broker:
   photos:
+  # Rebuilt from the web image on every start; not part of backups.
+  identity-theme:
 
 networks:
   private:

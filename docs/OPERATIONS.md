@@ -19,15 +19,15 @@ The account/deck migration preserves existing collectors as members and upgrades
 
 No host Python, Node, npm, uv, or Make installation is required. `make setup`, `make start`, `make update`, and the other Make targets are conveniences for the shell/Docker commands. Setup uses the pinned Python container and refuses to overwrite configuration. Normal installation pulls prebuilt GHCR images. `make dev` or `sh scripts/start.sh --build` builds the current source through `compose.build.yaml`, using Buildx when available or the legacy Docker builder as a fallback.
 
-Passwords require at least **8 characters**. Bootstrap applies this minimum to both new and existing installations, retaining any other operator-configured password rules. Existing credentials keep working. It also selects the `paktrak` login theme; Compose mounts [the theme](../infra/themes/paktrak/login/), bundled fonts and shared appearance assets read-only. Keep both theme `resources/fonts/` and `resources/shared/` directories, including their `.gitkeep` files, when copying the project: Docker needs those mount points inside the read-only theme.
+Passwords require at least **8 characters**. Bootstrap applies this minimum to both new and existing installations, retaining any other operator-configured password rules. Existing credentials keep working. It also selects the `paktrak` login theme. [The theme](../infra/themes/paktrak/login/), bundled fonts and shared appearance assets are built into the web image. On every start the one-shot `identity-theme` service copies them into the `identity-theme` volume, which the identity service mounts read-only. That volume is rebuilt each time, so backups skip it.
 
 The display name is **PakTrak**. Existing Compose project, volume, database, Python package and OIDC identifiers retain `mtg-scanner`/`scanner` for installation continuity. The normal start script selects the theme; no account or collection migration is needed for branding. Do not rename volumes or recreate the realm to update branding.
 
-When changing an existing login theme, use a new CSS resource filename in `theme.properties` and run `docker compose restart identity` after copying the files. Keycloak caches theme properties and compressed resources, while browsers cache theme assets for 30 days; a query string alone does not refresh the server's compressed resource. Keep the previous CSS file available for already-open sign-in pages. The current stylesheet is `css/paktrak-v6.css`, with shared `appearance-v1.css` / `appearance-v1.js` assets. It uses solid surfaces and follows the same Auto/Light/Dark choice as the application. When shared assets change after release, version their filenames in both `index.html` and `theme.properties` too.
+When changing an existing login theme, use a new CSS resource filename in `theme.properties`, rebuild the web image and run `sh scripts/start.sh`, which refreshes the theme volume and recreates the identity service. Keycloak caches theme properties and compressed resources, while browsers cache theme assets for 30 days; a query string alone does not refresh the server's compressed resource. Keep the previous CSS file available for already-open sign-in pages. The current stylesheet is `css/paktrak-v6.css`, with shared `appearance-v1.css` / `appearance-v1.js` assets. It uses solid surfaces and follows the same Auto/Light/Dark choice as the application. When shared assets change after release, version their filenames in both `index.html` and `theme.properties` too.
 
 Allow initial image downloads and time for Keycloak to start. The API readiness check covers the schema and private storage bucket. Bootstrap performs an actual private storage write/read/delete probe before startup. A temporarily unavailable identity provider can require a sign-in retry during initial startup.
 
-The start script validates and reloads nginx after Compose starts the services. This refreshes Docker service addresses when an API update replaces its container but leaves the existing web container running.
+nginx looks up the API and identity containers through Docker's DNS on each request (cached for 10 seconds), so it keeps working when Compose recreates either one on a new IP address instead of returning 502 errors. Compose also restarts the web service when it replaces the API or identity containers, and the start script validates and reloads nginx after startup.
 
 ## Installing updates
 
@@ -37,9 +37,9 @@ From the installation directory:
 sh scripts/update.sh
 ```
 
-The updater looks up the latest **published stable** GitHub release, fetches its tag, and switches the checkout to that tag. Login themes, database initialization files, setup scripts and Compose configuration stay paired with the release images. The checkout is intentionally detached from `main`; subsequent updates use the same script. There is no need to run `git pull`. The updater refuses tracked source edits and concurrent updates. Ignored `.env`, generated configuration and data volumes remain in place.
+The updater looks up the latest **published stable** GitHub release, fetches its tag, and switches the checkout to that tag. An installation unpacked from a source archive instead of a Git clone (as on [Unraid](UNRAID.md)) downloads the release's source archive and unpacks it over the installation; `.env` and data volumes are kept. Setup scripts and Compose configuration stay paired with the release images; the login theme and database setup ship inside the images. The checkout is intentionally detached from `main`; subsequent updates use the same script. There is no need to run `git pull`. The updater refuses tracked source edits and concurrent updates. Ignored `.env`, generated configuration and data volumes remain in place.
 
-It pins `PAKTRAK_VERSION` in `.env` to the release version, then starts the installation. Startup downloads all required images before pausing services, stops application processes before schema changes, refreshes the identity theme, and reruns the one-shot bootstrap. Application services start only after successful migration, and the API must pass its readiness check before the web service starts. nginx is validated and reloaded. There is a short maintenance pause during migration/startup.
+It pins `PAKTRAK_VERSION` in `.env` to the release version, then starts the installation. Startup downloads all required images before pausing services and stops application processes before schema changes. It then runs the one-shot `database-setup` service (which creates missing database roles and databases and leaves existing ones unchanged), refreshes the identity theme, recreates the identity service and reruns the one-shot bootstrap. Application services start only after successful migration, and the API must pass its readiness check before the web service starts. nginx is validated and reloaded. There is a short maintenance pause during migration/startup.
 
 Use `sh scripts/start.sh` to repeat startup at the installed version without changing the Git checkout. To select a specific **published** release:
 
@@ -49,9 +49,40 @@ sh scripts/update.sh --version v0.1.0
 
 A prerelease can be selected explicitly; it is never selected by the default update command. Selecting an older image does not reverse database migrations. For recovery across schema changes, restore a matching [installation backup](#upgrades-and-backups) into a new project rather than mixing an old application with a newer schema.
 
-If an image cannot be pulled, running application services have not yet been stopped. If bootstrap fails after the pause, inspect `docker compose logs migrate api identity`, fix the cause, and rerun `sh scripts/start.sh`. Existing credentials and named volumes are retained. Keep the installed `.env` and generated configuration with your normal installation backups.
+If an image cannot be pulled, running application services have not yet been stopped. If startup fails after the pause, inspect `docker compose logs database-setup migrate api identity`, fix the cause, and rerun `sh scripts/start.sh`. Existing credentials and named volumes are retained. Keep the installed `.env` with your normal installation backups.
 
-The simple `docker compose pull` / `docker compose up -d --no-build` commands use the pinned image version and retain volumes, but use the update script for a new release so runtime files and configuration upgrades are applied too. [The release guide](RELEASING.md) documents image publishing and package visibility.
+The simple `docker compose pull` / `docker compose up -d --no-build` commands use the pinned image version and retain volumes. In a Git checkout, use the update script for a new release so the matching Compose file and configuration upgrades are applied too. [The release guide](RELEASING.md) documents image publishing and package visibility.
+
+Installations created by older versions keep working after an update. Their `infra/generated/` files are no longer mounted: the database roles already exist, SeaweedFS reads the same `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` from `.env`, and the existing sign-in realm, accounts and passwords stay in the database. Keep `infra/generated/` with your private backups; nothing needs to be deleted.
+
+## Docker Compose without Git
+
+PakTrak needs only `compose.yaml` and `.env`; no other host files are mounted. To install without a Git checkout, download the `compose.yaml` and `.env.example` from the release you want (replace `vX.Y.Z` with its tag):
+
+```sh
+mkdir paktrak && cd paktrak
+curl -fsSLo compose.yaml https://raw.githubusercontent.com/Addison16/PakTrak/vX.Y.Z/compose.yaml
+curl -fsSLo .env https://raw.githubusercontent.com/Addison16/PakTrak/vX.Y.Z/.env.example
+chmod 600 .env
+```
+
+Edit `.env`: set `PAKTRAK_VERSION` to the release tag without its leading `v`, set `APP_URL`, and fill every empty secret with its own random value, for example from `openssl rand -hex 32`. Then start it:
+
+```sh
+docker compose up -d
+```
+
+Compose runs the one-shot `database-setup` and `identity-theme` services, then identity, the `migrate` bootstrap (which creates the sign-in realm on a fresh installation), the API and workers, and finally the web service. One-shot containers show as exited after they finish; that is expected.
+
+To update, take a [backup](#upgrades-and-backups), download the new release's `compose.yaml`, change `PAKTRAK_VERSION` in `.env`, then stop the application before migrations run:
+
+```sh
+docker compose pull
+docker compose down
+docker compose up -d
+```
+
+`down` keeps named volumes. Never add `-v`. The backup scripts can back up this layout from a separate checkout with `sh scripts/backup.sh --directory /path/to/paktrak`.
 
 ## HTTPS and access from a phone
 
@@ -62,7 +93,7 @@ sh scripts/setup.sh --url https://cards.example.net --bind 127.0.0.1 --port 8095
 sh scripts/update.sh
 ```
 
-Replace the example hostname with one you control. Terminate HTTPS at your existing reverse proxy on the same server and forward to `127.0.0.1:8095`. For example, using [Caddy's documented reverse-proxy configuration](https://caddyserver.com/docs/quick-starts/reverse-proxy), a host-installed Caddy configuration is:
+Replace the example hostname with one you control. Setup refuses a plain HTTP address other than `localhost` unless you add `--allow-http`; that suits a home network, but browsers then turn off the live in-app camera, while **Phone camera** and **Library** uploads still work. Terminate HTTPS at your existing reverse proxy on the same server and forward to `127.0.0.1:8095`. For example, using [Caddy's documented reverse-proxy configuration](https://caddyserver.com/docs/quick-starts/reverse-proxy), a host-installed Caddy configuration is:
 
 ```caddy
 cards.example.net {
@@ -134,7 +165,7 @@ sh scripts/start.sh
 
 `down` without volume deletion retains named volumes. Never use `down -v` against a collection you want to keep. This stack does not expose a Docker socket or manage unrelated Docker projects.
 
-The `database` volume contains application and identity databases, `photos` contains both SeaweedFS data and filer metadata, and `broker` contains Valkey persistence. `.env` and `infra/generated/` contain the matching credentials/provider configuration. Database records are authoritative for broker recovery.
+The `database` volume contains application and identity databases, `photos` contains both SeaweedFS data and filer metadata, and `broker` contains Valkey persistence. `.env` contains the matching credentials (older installations also keep provider configuration in `infra/generated/`). Database records are authoritative for broker recovery.
 
 ## Error logs and sign-in recovery
 
@@ -175,7 +206,7 @@ Run a coordinated backup before upgrading:
 sh scripts/backup.sh
 ```
 
-The command saves the exact installed container images, then stops this project's containers, copies all three named volumes, and resumes only containers that were previously running. The maintenance pause lasts while the volumes and matching installation are copied; archive checksums and full verification then run with the installation available again. The backup contains application and identity PostgreSQL databases, SeaweedFS photos and filer metadata, Valkey persistence, `.env`, generated provider configuration, source, lockfiles, themes and the installed images. Build caches, dependencies, Git history, previous backups and test artifacts are excluded. A collection CSV is a separate export, not an installation backup.
+The command saves the exact installed container images, then stops this project's containers, copies all three named volumes, and resumes only containers that were previously running. The maintenance pause lasts while the volumes and matching installation are copied; archive checksums and full verification then run with the installation available again. The backup contains application and identity PostgreSQL databases, SeaweedFS photos and filer metadata, Valkey persistence, `.env`, any older generated provider configuration, source, lockfiles, themes and the installed images. The `identity-theme` volume is rebuilt on every start and is not copied. Completed one-shot containers (`database-setup`, `identity-theme`, `migrate`) stay exited; only containers that were running are resumed. Build caches, dependencies, Git history, previous backups and test artifacts are excluded. A collection CSV is a separate export, not an installation backup.
 
 Backups default to `backups/paktrak-YYYYMMDDTHHMMSSZ/`. Each new directory is private (`0700`), its archives and SHA-256 manifest are owner-readable (`0600`), and successful completion verifies checksums and complete archive contents. Backups contain credentials and private photos; use encrypted storage and an off-machine copy. SHA-256 detects damage but does not authenticate an untrusted backup. These scripts need Docker and Compose; their Python helper runs in the pinned setup container with networking disabled, without a host Python installation.
 

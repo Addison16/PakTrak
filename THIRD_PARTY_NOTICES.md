@@ -1,6 +1,6 @@
 # Third-party notices
 
-PakTrak's [PolyForm Noncommercial license](LICENSE) applies to its original project files. The following components retain their own terms; the project license does not replace them.
+PakTrak's [GNU AGPL v3 license](LICENSE) applies to its original project files. The following components retain their own terms; the project license does not replace them.
 
 ## Fonts distributed with the source
 
@@ -35,4 +35,4 @@ The test image files are original synthetic transport/geometry/codec fixtures de
 
 ## License text
 
-The project license is the unmodified [official PolyForm Noncommercial License 1.0.0](https://github.com/polyformproject/polyform-licenses/blob/1.0.0/PolyForm-Noncommercial-1.0.0.md). The PolyForm Project grants permission to use its license texts in its [license-text notice](https://github.com/polyformproject/polyform-licenses/blob/1.0.0/README.md#license).
+The project license is the unmodified [GNU Affero General Public License, version 3](https://www.gnu.org/licenses/agpl-3.0.html), copyright © 2007 Free Software Foundation, Inc. Everyone is permitted to copy and distribute verbatim copies of that license document.

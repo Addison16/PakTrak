@@ -12,6 +12,10 @@ COPY --from=build /app/node_modules/react-dom/LICENSE /usr/share/doc/paktrak/rea
 COPY --from=build /app/node_modules/scheduler/LICENSE /usr/share/doc/paktrak/scheduler-LICENSE
 COPY --from=build /app/package-lock.json /usr/share/doc/paktrak/npm-package-lock.json
 COPY infra/nginx.conf /etc/nginx/templates/default.conf.template
+# Login theme for the identity service, copied into a volume by identity-theme.
+COPY infra/themes/paktrak /usr/share/paktrak/identity-theme
+COPY --from=build /app/public/fonts /usr/share/paktrak/identity-theme/login/resources/fonts
+COPY --from=build /app/public /usr/share/paktrak/identity-theme/login/resources/shared
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/paktrak/
 COPY docs/DEPENDENCIES.md /usr/share/doc/paktrak/DEPENDENCIES.md
 ENV NGINX_ENVSUBST_FILTER=^APP_URL$

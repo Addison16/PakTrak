@@ -1,6 +1,6 @@
 .deck-scan h2 { overflow-wrap: anywhere; }
 .deck-scan form { display: grid; gap: 16px; }
-.deck-scan-start { padding: 16px; margin: 18px 0 24px; border: 1px solid var(--control-border); border-radius: 14px; background: var(--surface-muted); }
+.deck-scan-start { padding: 16px 0; margin: 18px 0 24px; border-block: 1px solid var(--line); }
 .deck-scan-start p:first-child { margin-top: 0; }
 .deck-scan-batches > li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .deck-scan-batch { display: flex; flex: 1 1 210px; gap: 12px; align-items: center; min-width: 0; min-height: 48px; }
@@ -17,6 +17,6 @@
 .deck-scan-cards small, .deck-scan-cards label { color: var(--muted); font-size: 11px; }
 .deck-scan-cards label { margin-top: auto; padding-top: 5px; }
 .deck-scan-cards select { min-width: 0; font-size: 16px; }
-.deck-scan-save { margin: 22px 0 0; padding: 16px; border-radius: 12px; background: var(--surface-muted); }
+.deck-scan-save { margin: 22px 0 0; padding: 16px 0 0; border-top: 1px solid var(--line); }
 .deck-scan-save .button { width: 100%; white-space: normal; }
 @media (min-width: 650px) { .deck-scan-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 16px; } }

@@ -4,12 +4,12 @@
 .collection-select input { width: 20px; height: 20px; margin: 0; }
 .collection-card { position: relative; }
 .collection-card[data-selected=true] .gallery-card { outline: 3px solid var(--forest); outline-offset: 2px; }
-.saved-collection-views { margin: 14px 0; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-muted); }
+.saved-collection-views { margin: 14px 0; padding: 14px 0; border-block: 1px solid var(--line); }
 .saved-view-list { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; }
-.saved-view-list > span { display: inline-flex; border: 1px solid var(--control-border); background: var(--paper); border-radius: 22px; overflow: hidden; }
+.saved-view-list > span { display: inline-flex; border: 1px solid var(--control-border); background: var(--paper); border-radius: 6px; overflow: hidden; }
 .saved-view-list button { background: transparent; color: var(--forest); border: 0; min-height: 40px; padding: 8px 12px; font-size: 12px; }
 .saved-view-list button + button { padding-left: 8px; border-left: 1px solid var(--line); }
-.bulk-collection-dialog { width: min(660px, calc(100% - 28px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); padding: 26px; border-radius: 20px; background: var(--paper); color: var(--ink); overflow: auto; }
+.bulk-collection-dialog { width: min(660px, calc(100% - 28px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); padding: 26px; border-radius: 10px; background: var(--paper); color: var(--ink); overflow: auto; }
 .bulk-collection-dialog::backdrop { background: var(--backdrop, #1d252566); }
 .bulk-collection-dialog h2 { font-size: 25px; margin: 0; }
 .bulk-collection-dialog fieldset { border: 0; padding: 0; margin: 20px 0; min-width: 0; }
@@ -20,5 +20,8 @@
 .bulk-preview li { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .bulk-preview li strong { display: flex; justify-content: space-between; gap: 12px; }
 .bulk-preview li p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.import-attention-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-muted); }
+.import-attention-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; padding: 14px 0; border-block: 1px solid var(--line); }
 @media (max-width: 480px) { .bulk-collection-dialog { padding: 18px; } .collection-selection-toolbar .button { flex: 1; } }
+.card-step { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; }
+.card-step .text-button { min-width: 44px; min-height: 44px; font-size: 18px; text-decoration: none; }
+.detail-art { touch-action: pan-y pinch-zoom; }

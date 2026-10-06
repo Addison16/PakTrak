@@ -28,7 +28,7 @@
 .camera-current { overflow-wrap: anywhere; }
 .camera-adjustments { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin-top: 10px; }
 .camera-zoom { display: flex; gap: 5px; }
-.camera-option { display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--control-border); border-radius: 24px; padding: 8px 11px; background: var(--paper); color: var(--forest); font-size: 12px; }
+.camera-option { display: inline-flex; gap: 6px; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--control-border); border-radius: 6px; padding: 8px 11px; background: var(--paper); color: var(--forest); font-size: 12px; }
 .camera-option[aria-pressed=true] { background: var(--forest); color: var(--on-forest); border-color: var(--forest); }
 .camera-shutter-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; max-width: 360px; margin: 13px auto 3px; }
 .camera-shutter { display: grid; place-items: center; width: 78px; height: 78px; padding: 5px; border: 2px solid var(--forest); border-radius: 50%; background: var(--paper); color: var(--on-forest); }
@@ -65,6 +65,10 @@
   .camera-native { margin-top: 0; }
 }
 @media (min-width: 1000px) and (min-height: 650px) {
-  .camera-dialog { width: min(1100px, calc(100% - 64px)); height: min(820px, calc(100% - 64px)); margin: auto; border: 1px solid var(--line); border-radius: 22px; }
+  .camera-dialog { width: min(1100px, calc(100% - 64px)); height: min(820px, calc(100% - 64px)); margin: auto; border: 1px solid var(--line); border-radius: 10px; }
   .camera-dialog::backdrop { background: var(--backdrop, #1d252566); }
 }
+.camera-next { display: block; width: 100%; margin-top: 6px; min-height: 44px; text-align: center; }
+.camera-drop { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transform-origin: 50% 100%; }
+@media (prefers-reduced-motion: no-preference) { .camera-drop { animation: camera-drop 600ms cubic-bezier(.4, 0, .2, 1) both; } }
+@keyframes camera-drop { 0% { transform: none; opacity: 1; } 100% { transform: translateY(40%) scale(.18); opacity: 0; } }

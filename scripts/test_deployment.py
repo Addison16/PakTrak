@@ -8,6 +8,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,7 +26,7 @@ class DeploymentTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         (self.root / "scripts").mkdir()
-        for name in ("start.sh", "update.sh", "setup.sh", "setup.py", "release.py"):
+        for name in ("start.sh", "update.sh", "setup.sh", "setup.py", "release.py", "move-to-single-container.sh"):
             shutil.copy(ROOT / "scripts" / name, self.root / "scripts" / name)
         self.config = self.root / ".env"
         self.original = "APP_URL=https://example.invalid\nSESSION_SECRET=fixture-secret\nPASSWORD_RESET_CLIENT_SECRET=fixture-reset-secret\n"
@@ -41,6 +42,10 @@ if [ -n "${DEPLOY_TEST_FAIL:-}" ]; then
 fi
 case "$*" in
   *'/release.py resolve'*) printf '%s\\n' 'v0.1.0';;
+  *'rev-parse --show-toplevel'*) pwd -P;;
+  *'service=api'*) printf '%s\\n' 'ghcr.io/addison16/paktrak-backend:0.2.0 mtg-scanner';;
+  *'project.working_dir'*) printf '%s\\n' "$DEPLOY_TEST_DIR";;
+  *'ps -q --filter'*) printf '%s\\n' abc123;;
   *'config --images api'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest';;
   *'config --images web'*) printf '%s\\n' 'postgres:fixture' 'ghcr.io/addison16/paktrak-backend:latest' 'ghcr.io/addison16/paktrak-web:latest';;
 esac
@@ -53,6 +58,7 @@ esac
             **os.environ,
             "PATH": str(binary) + os.pathsep + os.environ["PATH"],
             "DEPLOY_TEST_LOG": str(self.log),
+            "DEPLOY_TEST_DIR": str(self.root),
         }
 
     def run_script(self, name, *args, fail=""):
@@ -83,12 +89,27 @@ esac
         result = self.run_script("start.sh")
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.commands()
-        fragments = ["compose.yaml pull", "stop --timeout", "restart identity", "--exit-code-from migrate", "--wait-timeout 180 api", "--wait-timeout 60 web", "nginx -t", "nginx -s reload"]
+        fragments = ["compose.yaml pull", "stop --timeout", "--wait-timeout 180 database broker storage", "--exit-code-from database-setup", "--exit-code-from identity-theme", "--force-recreate --wait --wait-timeout 180 identity", "--exit-code-from migrate", "--wait-timeout 180 api", "--wait-timeout 60 web", "nginx -t", "nginx -s reload"]
         positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
         self.assertEqual(positions, sorted(positions))
         self.assertNotIn(" build ", "\n".join(commands))
         self.assertNotIn("--volumes", "\n".join(commands))
         self.assertEqual(self.config.read_text(), self.original)
+
+    def test_failed_database_setup_blocks_identity_and_migrations(self):
+        result = self.run_script("start.sh", fail="--exit-code-from database-setup")
+        self.assertNotEqual(result.returncode, 0)
+        commands = "\n".join(self.commands())
+        self.assertNotIn("identity-theme", commands)
+        self.assertNotIn("--exit-code-from migrate", commands)
+        self.assertNotIn("nginx -s reload", commands)
+
+    def test_compose_layout_needs_no_host_configuration_files(self):
+        compose = (ROOT / "compose.yaml").read_text()
+        for line in compose.splitlines():
+            entry = line.strip().removeprefix("- ")
+            self.assertFalse(entry.startswith(("./", "../", "/")), line)
+        self.assertNotIn("infra/", compose)
 
     def test_local_build_fallback_uses_resolved_image_names_and_never_pulls_app(self):
         result = self.run_script("start.sh", "--build", fail="buildx version")
@@ -118,6 +139,114 @@ esac
         positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
         self.assertEqual(positions, sorted(positions))
         self.assertFalse((self.root / ".paktrak-update.lock").exists())
+
+    def use_release_archive(self, *, complete=True):
+        """Make this directory a Git-free install whose curl serves a release archive."""
+        (self.root / "bin" / "git").write_text("#!/bin/sh\nexit 1\n")
+        archive = self.root / "fixture.tar.gz"
+        with tarfile.open(archive, "w:gz") as bundle:
+            if complete:
+                marker = self.root / "release-compose.yaml"
+                marker.write_text("# release fixture\n")
+                bundle.add(marker, "PakTrak-0.1.0/compose.yaml")
+            for name in ("start.sh", "update.sh", "setup.sh", "setup.py", "release.py"):
+                bundle.add(ROOT / "scripts" / name, "PakTrak-0.1.0/scripts/" + name)
+        curl = self.root / "bin" / "curl"
+        curl.write_text(f"""#!/bin/sh
+set -eu
+printf 'curl %s\\n' "$*" >> "$DEPLOY_TEST_LOG"
+while [ "$#" -gt 0 ]; do
+  [ "$1" = -o ] && cp '{archive}' "$2"
+  shift
+done
+""")
+        curl.chmod(0o755)
+
+    def test_update_without_git_installs_release_archive_and_keeps_settings(self):
+        self.use_release_archive()
+        result = self.run_script("update.sh", "--version", "v0.1.0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = self.commands()
+        fragments = ["/release.py resolve v0.1.0", "archive/refs/tags/v0.1.0.tar.gz", "--upgrade --image-version 0.1.0", "compose.yaml pull"]
+        positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
+        self.assertEqual(positions, sorted(positions))
+        self.assertFalse(any(line.startswith("git ") and ("fetch" in line or "checkout" in line) for line in commands))
+        self.assertEqual((self.root / "compose.yaml").read_text(), "# release fixture\n")
+        # The archive has no .env; the pinned version is written by setup (stubbed here).
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertEqual(sorted(path.name for path in self.root.glob(".paktrak-update*")), [])
+
+    def test_archive_install_inside_another_checkout_does_not_use_that_checkout(self):
+        self.use_release_archive()
+        (self.root / "bin" / "git").write_text("#!/bin/sh\nprintf 'git %s\\n' \"$*\" >> \"$DEPLOY_TEST_LOG\"\n[ \"$*\" = 'rev-parse --show-toplevel' ] && dirname \"$(pwd -P)\"\nexit 0\n")
+        result = self.run_script("update.sh", "--version", "v0.1.0")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = self.commands()
+        self.assertTrue(any("archive/refs/tags/v0.1.0.tar.gz" in line for line in commands))
+        self.assertFalse(any(line.startswith("git ") and ("fetch" in line or "checkout" in line or "diff" in line) for line in commands))
+
+    def test_incomplete_release_archive_changes_nothing(self):
+        self.use_release_archive(complete=False)
+        result = self.run_script("update.sh", "--version", "v0.1.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("incomplete", result.stderr)
+        self.assertFalse(any("--upgrade" in line or "compose" in line for line in self.commands()))
+        self.assertFalse((self.root / "compose.yaml").exists())
+        self.assertEqual(self.config.read_text(), self.original)
+        self.assertEqual(sorted(path.name for path in self.root.glob(".paktrak-update*")), [])
+
+    def test_plain_http_home_network_address_needs_explicit_opt_in(self):
+        self.config.unlink()
+        args = [sys.executable, str(ROOT / "scripts/setup.py"), "--url", "http://192.168.1.20:8095", "--bind", "0.0.0.0"]
+        result = subprocess.run(args, cwd=self.root, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--allow-http", result.stderr)
+        self.assertFalse(self.config.exists())
+        result = subprocess.run([*args, "--allow-http"], cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        settings = dict(line.split("=", 1) for line in self.config.read_text().splitlines())
+        self.assertEqual(settings["APP_URL"], "http://192.168.1.20:8095")
+        self.assertEqual(settings["HTTP_BIND"], "0.0.0.0")
+        self.assertEqual(settings["ALLOW_INSECURE_HTTP"], "true")
+        self.assertEqual(stat.S_IMODE(self.config.stat().st_mode), 0o600)
+
+    def write_full_settings(self):
+        names = ["POSTGRES_PASSWORD", "SCANNER_DB_PASSWORD", "KEYCLOAK_DB_PASSWORD", "SESSION_SECRET", "OIDC_CLIENT_SECRET", "PASSWORD_RESET_CLIENT_SECRET", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY", "KEYCLOAK_ADMIN_PASSWORD"]
+        self.config.write_text("APP_URL=http://192.168.1.20:8095\nHTTP_BIND=0.0.0.0\n" + "".join(f"{name}=secret-{name.lower()}\n" for name in names))
+        return names
+
+    def test_move_to_single_container_copies_data_and_secrets_only(self):
+        names = self.write_full_settings()
+        target = self.root / "single"
+        result = self.run_script("move-to-single-container.sh", str(target))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("http://192.168.1.20:8095", result.stdout)
+        commands = self.commands()
+        fragments = ["volume inspect mtg-scanner_database", "pull ghcr.io/addison16/paktrak:latest", "stop -t 90 abc123", "mtg-scanner_photos:/from/photos:ro"]
+        positions = [next(i for i, line in enumerate(commands) if part in line) for part in fragments]
+        self.assertEqual(positions, sorted(positions))
+        self.assertFalse(any(line.startswith("docker start") for line in commands))
+        moved = target / "paktrak.env"
+        self.assertEqual(moved.read_text(), "".join(f"{name}=secret-{name.lower()}\n" for name in names))
+        self.assertEqual(stat.S_IMODE(moved.stat().st_mode), 0o600)
+
+    def test_failed_move_restarts_the_compose_installation(self):
+        self.write_full_settings()
+        result = self.run_script("move-to-single-container.sh", str(self.root / "single"), fail="--network none")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("docker start abc123", self.commands())
+        self.assertFalse((self.root / "single" / "paktrak.env").exists())
+
+    def test_move_refuses_a_folder_that_already_has_data(self):
+        self.write_full_settings()
+        target = self.root / "single"
+        target.mkdir()
+        (target / "paktrak.env").write_text("existing\n")
+        result = self.run_script("move-to-single-container.sh", str(target))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not empty", result.stderr)
+        self.assertFalse(any("stop" in line or "pull" in line for line in self.commands()))
+        self.assertEqual((target / "paktrak.env").read_text(), "existing\n")
 
     def test_concurrent_update_refused_without_docker_or_checkout(self):
         (self.root / ".paktrak-update.lock").mkdir()

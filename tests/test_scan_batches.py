@@ -555,3 +555,45 @@ def test_recheck_separates_pending_merged_cards_without_duplicate_copies_or_char
         with session_factory()() as db:
             assert db.get(User, owner).scan_cards_used == 2
             assert db.get(Job, uuid.UUID(job_id)).state == "SUCCEEDED"
+
+
+def test_undo_approval_restores_review_only_for_an_untouched_recent_copy(clients, catalog):
+    client, _ = clients()
+    scan_id, _, rows = prepared(client)
+    assert approve(client, scan_id, rows, catalog[0]).status_code == 200
+    data = client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"]
+    first, second = data
+    undo = f"/api/v1/scans/{scan_id}/observations/{first['id']}/undo-approval"
+    assert client.post(undo, json={"expected_version": first["version"] - 1}).status_code == 409
+    response = client.post(undo, json={"expected_version": first["version"]})
+    assert response.status_code == 200, response.text
+    assert response.json()["state"] == "NEEDS_REVIEW"
+    assert (
+        client.post(undo, json={"expected_version": response.json()["version"]}).status_code == 409
+    )
+    assert client.get("/api/v1/collection").json()["copies"] == 1
+    # Approving the same card again works after an undo.
+    restored = {**first, "version": response.json()["version"]}
+    assert approve(client, scan_id, [restored], catalog[1]).status_code == 200
+    assert client.get("/api/v1/collection").json()["copies"] == 2
+    # A copy changed after approval, or an old approval, stays in the collection.
+    lot = client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"][1]["lot"]
+    moved = client.post(
+        f"/api/v1/collection/{lot['id']}/quantity",
+        json={"quantity": 1, "expected_version": lot["version"]},
+        headers=key(),
+    )
+    assert moved.status_code == 200, moved.text
+    second = client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"][1]
+    undo_second = f"/api/v1/scans/{scan_id}/observations/{second['id']}/undo-approval"
+    assert client.post(undo_second, json={"expected_version": second["version"]}).status_code == 409
+    with session_factory()() as db:
+        event = db.scalar(
+            select(InventoryEvent).where(InventoryEvent.operation_key == f"add:{first['id']}")
+        )
+        event.created_at = now() - timedelta(minutes=5)
+        db.commit()
+    latest = client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"][0]
+    stale = f"/api/v1/scans/{scan_id}/observations/{first['id']}/undo-approval"
+    assert client.post(stale, json={"expected_version": latest["version"]}).status_code == 409
+    assert client.get("/api/v1/collection").json()["copies"] == 2

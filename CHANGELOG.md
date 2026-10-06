@@ -9,6 +9,35 @@
 - Read both title strips and the printed code in parallel, shortlist fuzzy name search by shared letter pairs, and reuse earlier title searches. On synthetic cards with a 32,000-name catalog, the text stage dropped from about 845 ms to about 397 ms per card on a 4-core machine.
 - Keep recently compared catalog artwork features in memory, look up compared printings in one query, and skip rereading an unchanged catalog every five minutes.
 
+## Single-container image — October 6, 2026
+
+- Publish `ghcr.io/addison16/paktrak`, one container with the database, sign-in service, photo storage, app and web server, started in order and stopped cleanly. It keeps everything in one `/data` folder and creates its private passwords on first start.
+- Add an Unraid template so PakTrak can be added and updated from Unraid's Docker page, and rewrite the [Unraid guide](docs/UNRAID.md) around it.
+- Add `scripts/move-to-single-container.sh`, which copies a Compose installation's database, photos and passwords into the single container's data folder and leaves the old volumes untouched.
+
+## Unraid installs — October 6, 2026
+
+- Add an [Unraid guide](docs/UNRAID.md): install from a downloaded archive, set up and start from the Unraid terminal.
+- `sh scripts/update.sh` now works without Git. An installation unpacked from a source archive downloads each release's archive instead of checking out its tag, keeping `.env` and data volumes.
+- `sh scripts/setup.sh --allow-http` accepts a plain HTTP home-network address such as `http://192.168.1.50:8095`. Without it, plain HTTP is still limited to `localhost`.
+
+## Simpler interface styling — October 6, 2026
+
+- Remove decorative dots and marks: the dot beside the current menu item, the hook before section labels, the dot in the home banner and the onboarding progress dots (the "1 of 5" step count stays).
+- Replace most nested boxes with plain sections divided by rules. Status badges are now plain labels, panels lose their drop shadows, and corners are smaller throughout, including the menu button, filters, dialogs and the menu drawer.
+- Notices that need attention (recoveries, password resets, foil cards to mark) keep their tinted background with a side rule.
+
+## Smoother self-hosted updates — October 6, 2026
+
+- Run PakTrak from just `compose.yaml` and `.env`, with no Git checkout or host files mounted. A one-shot `database-setup` service creates missing database roles and databases, the login theme ships in the web image and is copied by a one-shot `identity-theme` service, SeaweedFS reads its S3 keys from `.env`, and bootstrap creates the sign-in realm on fresh installations.
+- Keep the site up when Compose recreates the API or identity service on a new IP address: nginx re-resolves them instead of returning 502 errors, and Compose restarts the web service when they are replaced.
+- Upgrade existing installations in place with `sh scripts/update.sh` or `sh scripts/start.sh`. Collections, photos, S3 credentials and sign-in accounts are kept; the older `infra/generated/` files are simply no longer needed.
+- Back up installations without `infra/generated/`, skip the rebuilt theme volume, and leave completed one-shot containers stopped when resuming after a backup.
+## AGPL-3.0 relicense — October 5, 2026
+
+- Relicense original PakTrak code from PolyForm Noncommercial 1.0.0 to the GNU Affero General Public License v3.0 (AGPL-3.0-only). PakTrak is now free and open-source software, and commercial use is permitted under the AGPL's terms.
+- Update the notice, README, contribution guide, third-party notices, dependency register and published image license label.
+
 ## Container dependency notices — October 4, 2026
 
 - Include the complete React, React DOM and Scheduler MIT licenses and the npm lockfile in the production web image, alongside project notices and bundled font licenses.

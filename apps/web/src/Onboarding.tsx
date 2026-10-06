@@ -124,7 +124,7 @@ export default function Onboarding({ onDismiss, replay = false }: OnboardingProp
       <p className="tour-note"><Icon name={step === 3 ? "spark" : step === 2 ? "batches" : step === 1 ? "pin" : "arrow"} /><span>{current.note}</span></p>
     </div>
     <footer className="tour-footer">
-      <div className="tour-progress"><span id="tour-progress" aria-live="polite" aria-atomic="true">{step + 1} of {steps.length}</span><span className="tour-progress-dots" aria-hidden="true">{steps.map((_, index) => <i key={index} className={index === step ? "is-current" : index < step ? "is-done" : ""} />)}</span></div>
+      <div className="tour-progress"><span id="tour-progress" aria-live="polite" aria-atomic="true">{step + 1} of {steps.length}</span></div>
       <div className="tour-actions">{step > 0 && <button type="button" className="tour-back" onClick={() => setStep((value) => value - 1)}>Back</button>}<button type="button" className="tour-next" onClick={() => last ? dismiss() : setStep((value) => value + 1)}>{last ? replay ? "Done" : "Start exploring" : "Next"}{!last && <Icon name="arrow" />}</button></div>
     </footer>
   </dialog>;

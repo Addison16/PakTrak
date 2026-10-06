@@ -2,7 +2,7 @@
 
 **Every card. In reach.**
 
-**Source-available for noncommercial use.** Original PakTrak code is licensed under [PolyForm Noncommercial 1.0.0](LICENSE); commercial use is not licensed. See [third-party notices](THIRD_PARTY_NOTICES.md) for separately licensed components.
+**Free and open source.** Original PakTrak code is licensed under the [GNU AGPL v3](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for separately licensed components.
 
 A Magic: The Gathering collection app for phone browsers, built around Docker Compose. Upload a photo, wait for **server acceptance**, then put your phone away. Processing and collection transfers continue on the server. Explore your cards, track their binders and boxes, and save your next deck.
 
@@ -27,7 +27,7 @@ sh scripts/setup.sh
 sh scripts/update.sh
 ```
 
-Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` and `infra/generated/` private; setup never prints their passwords. Complete first-admin setup before opening an installation for general access.
+Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` private (installations created by older versions also have a private `infra/generated/`); setup never prints its passwords. Complete first-admin setup before opening an installation for general access.
 
 Setup runs once and refuses to overwrite existing configuration. The update command selects the latest published stable GitHub release, checks out its matching source tag, pulls both app images from GHCR, and pins their version in `.env`. It preserves existing credentials and data volumes. Run it again to update:
 
@@ -36,6 +36,8 @@ sh scripts/update.sh
 ```
 
 To restart the installed version, run `sh scripts/start.sh`. To install a particular published version, use `sh scripts/update.sh --version v0.1.0`. Updates refuse tracked source edits; save those edits before updating. The [release guide](docs/RELEASING.md) covers publishing images and initial GHCR package visibility.
+
+On Unraid, or any host where one container is easier to manage, use the single PakTrak container (`ghcr.io/addison16/paktrak`); see the [Unraid guide](docs/UNRAID.md). You can also run PakTrak with only `compose.yaml` and `.env`, without a Git checkout. See [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
 
 For development or before the first images are published, build this checkout with `sh scripts/start.sh --build`. [compose.build.yaml](compose.build.yaml) adds local builds to the pull-based default Compose file. The build path also supports installations without the optional Buildx plugin.
 
@@ -105,7 +107,7 @@ The integration suite uses a separate `scanner_test` database and `scanner-test`
 
 Calibrated exact-printing recognition, targeted replacement close-ups, account deletion, backup/restore automation, and release hardening remain. A development photo now produces all 15 expected regions and card-name suggestions; a held-out real-photo benchmark, physical-phone testing and destination file interoperability checks are still needed. No universal 15-card accuracy or file compatibility claim is made.
 
-PakTrak uses the [PolyForm Noncommercial License 1.0.0](LICENSE), with its [required notice](NOTICE). It permits the noncommercial uses, modifications and redistribution described in those terms; commercial use is not licensed. This is a source-available project, not an OSI open-source project. Third-party software, fonts and card data keep their own rights and notices; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies and source rights](docs/DEPENDENCIES.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+PakTrak is free and open-source software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only), with the project [notice](NOTICE). You may use, modify and redistribute it, including commercially. Redistributed or modified versions must remain under the AGPL with their source available, and if you run a modified version as a network service, you must offer its users the corresponding source. Third-party software, fonts and card data keep their own rights and notices; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies and source rights](docs/DEPENDENCIES.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 See [import formats](docs/IMPORT_FORMATS.md), [architecture decisions](docs/ARCHITECTURE.md), [PakTrak's visual identity](docs/BRAND.md), and the authoritative [product specification](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.md). The supplied [PDF](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.pdf) remains the original version 1.0 snapshot. It does not describe this implementation.
 

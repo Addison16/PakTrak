@@ -1,7 +1,6 @@
-"""Generate local secrets and identity/storage configuration without printing passwords."""
+"""Generate a private .env with local secrets without printing passwords."""
 
 import argparse
-import json
 import os
 import re
 import secrets
@@ -20,6 +19,11 @@ def main():
     parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8095)
     parser.add_argument("--image-version", help="Pin the installation to a published Docker image version")
+    parser.add_argument(
+        "--allow-http",
+        action="store_true",
+        help="Allow a plain HTTP address on a home network; the in-app camera then needs HTTPS",
+    )
     args = parser.parse_args()
     if args.image_version:
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?", args.image_version) or len(args.image_version) > 127:
@@ -79,8 +83,11 @@ def main():
         parser.error("--url must be an HTTP(S) origin without a path")
     if "\n" in origin or "$" in origin or "#" in origin or "'" in origin:
         parser.error("Unsupported origin characters")
-    if parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1"}:
-        parser.error("Use HTTPS for phone access; plain HTTP setup is limited to localhost")
+    if parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1"} and not args.allow_http:
+        parser.error(
+            "Use HTTPS for phone access. For plain HTTP on a home network, add --allow-http; "
+            "the in-app camera then needs HTTPS, while phone camera and library uploads still work"
+        )
     if Path(".env").exists() or Path("infra/generated").exists():
         parser.error("Configuration already exists. It will not be overwritten.")
     os.umask(0o077)
@@ -105,57 +112,7 @@ def main():
     ):
         values[name] = secrets.token_urlsafe(36)
     Path(".env").write_text("".join(f"{key}={value}\n" for key, value in values.items()))
-    generated = Path("infra/generated")
-    generated.mkdir(parents=True)
-    realm = {
-        "realm": "scanner",
-        "enabled": True,
-        "displayName": "PakTrak",
-        "sslRequired": "none" if parsed.scheme == "http" else "external",
-        "registrationAllowed": True,
-        "passwordPolicy": "length(8)",
-        "loginTheme": "paktrak",
-        "resetPasswordAllowed": False,
-        "bruteForceProtected": True,
-        "clients": [
-            {
-                "clientId": "mtg-scanner",
-                "enabled": True,
-                "publicClient": False,
-                "secret": values["OIDC_CLIENT_SECRET"],
-                "standardFlowEnabled": True,
-                "directAccessGrantsEnabled": False,
-                "redirectUris": [origin + "/api/auth/callback"],
-                "webOrigins": [origin],
-                "attributes": {
-                    "pkce.code.challenge.method": "S256",
-                    "post.logout.redirect.uris": origin + "/",
-                },
-                "defaultClientScopes": ["web-origins", "profile", "email", "basic"],
-            }
-        ],
-    }
-    (generated / "scanner-realm.json").write_text(json.dumps(realm, indent=2))
-    s3 = {
-        "identities": [
-            {
-                "name": "scanner",
-                "credentials": [
-                    {
-                        "accessKey": values["STORAGE_ACCESS_KEY"],
-                        "secretKey": values["STORAGE_SECRET_KEY"],
-                    }
-                ],
-                "actions": ["Admin", "Read", "Write", "List", "Tagging"],
-            }
-        ]
-    }
-    (generated / "s3.json").write_text(json.dumps(s3, indent=2))
-    # The 0700 parent protects host access. Individual files are mounted read-only
-    # into their designated service, whose uid may differ from the operator's.
-    (generated / "scanner-realm.json").chmod(0o644)
-    (generated / "s3.json").chmod(0o644)
-    print("Created .env and infra/generated (private, excluded from git).")
+    print("Created .env (private, excluded from git).")
     print("Open the application to create your administrator account on first launch.")
     print("Run sh scripts/update.sh for the latest release, or sh scripts/start.sh --build for this source checkout. Application origin: " + origin)
 
