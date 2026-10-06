@@ -1,5 +1,11 @@
 # Changelog
 
+## Unraid installs — October 6, 2026
+
+- Add an [Unraid guide](docs/UNRAID.md): install from a downloaded archive, set up and start from the Unraid terminal.
+- `sh scripts/update.sh` now works without Git. An installation unpacked from a source archive downloads each release's archive instead of checking out its tag, keeping `.env` and data volumes.
+- `sh scripts/setup.sh --allow-http` accepts a plain HTTP home-network address such as `http://192.168.1.50:8095`. Without it, plain HTTP is still limited to `localhost`.
+
 ## Simpler interface styling — October 6, 2026
 
 - Remove decorative dots and marks: the dot beside the current menu item, the hook before section labels, the dot in the home banner and the onboarding progress dots (the "1 of 5" step count stays).
