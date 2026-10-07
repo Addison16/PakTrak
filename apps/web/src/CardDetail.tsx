@@ -42,7 +42,7 @@ function PriceHistoryChart({ printingId, finish }: { printingId: string; finish:
     request<PriceHistory>(`/api/v1/collection/printings/${printingId}/price-history`, { signal: controller.signal, quiet: true }).then(setHistory).catch(() => { /* The chart is optional. */ });
     return () => controller.abort();
   }, [printingId]);
-  if (!history) return null;
+  if (!history?.finishes) return null;
   const series = history.finishes[finish];
   const change = series && changeText(series.change);
   return <div className="card-history">
@@ -60,7 +60,7 @@ function DeckUsage({ printingId }: { printingId: string }) {
     request<DeckUse>(`/api/v1/collection/printings/${printingId}/decks`, { signal: controller.signal, quiet: true }).then(setUsage).catch(() => { /* Optional. */ });
     return () => controller.abort();
   }, [printingId]);
-  if (!usage) return null;
+  if (!Array.isArray(usage?.decks)) return null;
   return <section className="card-decks" aria-label="In your decks">
     <h3>In your decks</h3>
     {usage.decks.length === 0 ? <p className="fine">No saved deck uses {usage.name}. You own {usage.owned} {usage.owned === 1 ? "copy" : "copies"} of this card in any printing.</p> : <>

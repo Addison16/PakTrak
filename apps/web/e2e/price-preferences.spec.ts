@@ -65,6 +65,8 @@ async function accountApi(context: BrowserContext, preference: Source) {
       if (sort === "price_asc" || sort === "price_desc") items.sort((a, b) => a.price_min == null ? 1 : b.price_min == null ? -1 : (Number(a.price_min) - Number(b.price_min)) * (sort === "price_asc" ? 1 : -1));
       return json({ copies: 3, cards: 3, items, next_offset: null, valuation: { provider, amount: "12.00", priced_copies: 2, unpriced_copies: 1, feed: null } });
     }
+    if (/^\/api\/v1\/collection\/printings\/printing-[0-2]\/decks$/.test(path)) return json({ name: "Alpha", owned: 1, used: 0, free: 1, decks: [] });
+    if (/^\/api\/v1\/collection\/printings\/printing-[0-2]\/price-history$/.test(path)) return json({ provider: "tcgplayer", days: 365, finishes: {} });
     state.unexpected.push(path);
     return json({ detail: "Unexpected mocked endpoint " + path }, 404);
   });
