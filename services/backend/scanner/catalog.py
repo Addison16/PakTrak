@@ -52,6 +52,7 @@ def printing_json(printing):
         "set_name": raw.get("set_name") or printing.set_code.upper(),
         "type_line": raw.get("type_line", ""),
         "mana_cost": raw.get("mana_cost", ""),
+        "cmc": raw.get("cmc"),
         "rarity": raw.get("rarity", ""),
         "colors": raw.get("color_identity", []),
         "image_url": f"/api/v1/card-images/{printing.id}/0/grid"

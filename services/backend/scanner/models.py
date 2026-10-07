@@ -1,10 +1,11 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -107,6 +108,11 @@ class User(Base):
     )
     preferred_price_source: Mapped[str | None] = mapped_column(String(32))
     tour_dismissed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # A private code another account enters to send a friend request. Empty means
+    # no one can find this account, and accounts are never listed to each other.
+    friend_code: Mapped[str | None] = mapped_column(String(16), unique=True)
+    share_collection: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    share_wishlist: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     # A change must meet every threshold that is set, so cheap cards don't alert on cents.
     price_alerts_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     price_alert_percent: Mapped[int | None] = mapped_column(
@@ -536,3 +542,125 @@ class ExportRow(Base):
     )
     lot_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     payload: Mapped[dict] = mapped_column(JSONB)
+
+
+class WishlistItem(Base):
+    """Cards an account wants; never counted as owned copies."""
+
+    __tablename__ = "wishlist_items"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "printing_id", "finish"),
+        CheckConstraint("quantity > 0 AND quantity <= 999", name="wishlist_quantity_valid"),
+        CheckConstraint(
+            "finish IN ('any','nonfoil','foil','etched')", name="wishlist_finish_valid"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    printing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("card_printings.id", ondelete="CASCADE")
+    )
+    finish: Mapped[str] = mapped_column(String(16), default="any", server_default="any")
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    notes: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CardPriceHistory(Base):
+    """One daily price per provider and finish, kept for owned or wanted printings."""
+
+    __tablename__ = "card_price_history"
+    __table_args__ = (CheckConstraint("amount > 0", name="price_history_positive"),)
+    printing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("card_printings.id", ondelete="CASCADE"), primary_key=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    finish: Mapped[str] = mapped_column(String(16), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    amount: Mapped[float] = mapped_column(Numeric(16, 4))
+
+
+class CollectionValueHistory(Base):
+    __tablename__ = "collection_value_history"
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    amount: Mapped[float] = mapped_column(Numeric(16, 4))
+    priced_copies: Mapped[int] = mapped_column(Integer)
+    copies: Mapped[int] = mapped_column(Integer)
+
+
+class Friendship(Base):
+    """A pair of accounts, stored once with the smaller ID first."""
+
+    __tablename__ = "friendships"
+    __table_args__ = (
+        UniqueConstraint("user_a", "user_b"),
+        CheckConstraint("user_a < user_b", name="friendship_ordered_pair"),
+        CheckConstraint("requested_by IN (user_a, user_b)", name="friendship_requester_member"),
+        CheckConstraint("state IN ('pending','accepted')", name="friendship_state_valid"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_a: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_b: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    requested_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    state: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TradeOffer(Base):
+    __tablename__ = "trade_offers"
+    __table_args__ = (
+        UniqueConstraint("sender_id", "request_key"),
+        CheckConstraint("sender_id <> recipient_id", name="trade_offer_not_self"),
+        CheckConstraint(
+            "state IN ('pending','accepted','declined','cancelled')",
+            name="trade_offer_state_valid",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    sender_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    recipient_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    request_key: Mapped[str] = mapped_column(String(128))
+    message: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    state: Mapped[str] = mapped_column(String(16), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Each person updates their own collection after acceptance; these record that.
+    sender_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recipient_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sender_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recipient_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TradeOfferCard(Base):
+    """side = sender: cards the sender gives; side = recipient: cards the recipient gives."""
+
+    __tablename__ = "trade_offer_cards"
+    __table_args__ = (
+        CheckConstraint("side IN ('sender','recipient')", name="trade_card_side_valid"),
+        CheckConstraint("quantity > 0 AND quantity <= 999", name="trade_card_quantity_valid"),
+        CheckConstraint(
+            "finish IN ('nonfoil','foil','etched')", name="trade_card_finish_valid"
+        ),
+    )
+    offer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("trade_offers.id", ondelete="CASCADE"), primary_key=True
+    )
+    side: Mapped[str] = mapped_column(String(16), primary_key=True)
+    printing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("card_printings.id", ondelete="CASCADE"), primary_key=True
+    )
+    finish: Mapped[str] = mapped_column(String(16), primary_key=True)
+    quantity: Mapped[int] = mapped_column(Integer)

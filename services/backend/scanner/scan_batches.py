@@ -13,7 +13,7 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import Response
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from scanner import detection, storage
 from scanner.account_access import check_scan_access, check_scan_allowance
@@ -138,6 +138,34 @@ def finish_info(scan, rows, lots):
     }
 
 
+def owned_elsewhere(db, owner_id, names, batch_lot_ids):
+    """Copies of each card name already in the collection, not counting this batch."""
+    names = {name.lower() for name in names}
+    if not names:
+        return {}
+    condition = [
+        InventoryLot.owner_id == owner_id,
+        InventoryLot.quantity_remaining > 0,
+        func.lower(Printing.name).in_(names),
+    ]
+    if batch_lot_ids:
+        condition.append(InventoryLot.id.not_in(batch_lot_ids))
+    found = {}
+    for name, location, quantity in db.execute(
+        select(func.lower(Printing.name), Binder.name, func.sum(InventoryLot.quantity_remaining))
+        .join(Printing, Printing.id == InventoryLot.printing_id)
+        .join(Binder, Binder.id == InventoryLot.binder_id)
+        .where(*condition)
+        .group_by(func.lower(Printing.name), Binder.name)
+        .order_by(func.sum(InventoryLot.quantity_remaining).desc(), Binder.name)
+    ):
+        entry = found.setdefault(name, {"copies": 0, "locations": []})
+        entry["copies"] += int(quantity)
+        if len(entry["locations"]) < 2:
+            entry["locations"].append(location)
+    return found
+
+
 def batch_data(db, scan, provider=None):
     if provider is None:
         provider = db.get(User, scan.owner_id).preferred_price_source or "tcgplayer"
@@ -167,6 +195,12 @@ def batch_data(db, scan, provider=None):
         }
         if lots
         else {}
+    )
+    elsewhere = owned_elsewhere(
+        db,
+        scan.owner_id,
+        {card.name for card in cards.values()},
+        {lot.id for lot in lots},
     )
     low = high = Decimal(0)
     priced = unknown_finish = 0
@@ -225,6 +259,12 @@ def batch_data(db, scan, provider=None):
                 if row.confirmed_printing_id in cards
                 else None,
                 "estimate": estimate,
+                "owned_elsewhere": {
+                    **elsewhere[cards[card_id].name.lower()],
+                    "name": cards[card_id].name,
+                }
+                if card_id in cards and cards[card_id].name.lower() in elsewhere
+                else None,
                 "lot": {
                     "id": str(lot.id),
                     "version": lot.version,

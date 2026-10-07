@@ -64,7 +64,7 @@ for (const viewport of [{ width: 320, height: 660 }, { width: 1280, height: 900 
       await expect(menu).toHaveAttribute("aria-expanded", "false");
       const navigation = await openNavigation(page);
       await expect(navigation.locator("[aria-current=page]")).toHaveText(destination);
-      await expect(navigation.getByRole("button")).toHaveCount(8);
+      await expect(navigation.getByRole("button")).toHaveCount(12);
       await navigation.getByRole("button", { name: destination, exact: true }).click();
       await expect(page.getByRole("dialog", { name: "Menu", exact: true })).not.toBeVisible();
     }

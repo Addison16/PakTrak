@@ -1,0 +1,114 @@
+/* Wishlist, friends, trade offers, set completion and the value chart. */
+.social-page h2 { margin: 0 0 6px; }
+.social-block { margin: 22px 0 0; padding: 18px 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0; }
+.social-block > h3, .social-block > legend { margin: 0 0 8px; padding: 0; font-size: 16px; }
+.social-rows > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.social-rows > li:last-child { border-bottom: 0; }
+.social-rows > li > div:first-child, .social-open { min-width: 0; }
+.social-rows strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.social-rows small { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.social-rows > li > span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.social-rows .actions { margin: 0; flex-shrink: 0; }
+.social-open { flex: 1 1 auto; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--forest); text-align: left; }
+.social-code { margin: 4px 0 10px; color: var(--forest); font-size: clamp(24px, 7vw, 32px); font-weight: 700; letter-spacing: .08em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.social-code-entry input { text-transform: uppercase; letter-spacing: .06em; max-width: 260px; }
+.social-sharing .checkbox { margin: 6px 0; }
+.social-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 18px 0 4px; }
+.social-total > span { color: var(--muted); font-size: 13px; font-weight: 600; }
+.social-total > strong { color: var(--forest); font-size: clamp(24px, 6vw, 32px); font-weight: 750; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.social-total > small { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.social-add { margin-top: 12px; }
+.social-paste { margin-top: 12px; }
+.social-paste textarea { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.social-stores { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.social-stores h3 { margin: 0 0 8px; font-size: 16px; }
+
+.offer-list > .offer { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.offer-list > .offer:last-child { border-bottom: 0; }
+.offer-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.offer-heading span { color: var(--muted); font-size: 12px; }
+.offer-message { margin: 6px 0 0; color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+.offer-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 10px; }
+.offer-sides h4 { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+.offer-sides h4 span { color: var(--ink); font-variant-numeric: tabular-nums; }
+.offer-cards > li { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; }
+.offer-cards img, .offer-cards .printing-art-placeholder { width: 32px; height: 45px; object-fit: contain; border-radius: 3px; background: var(--surface-muted); }
+.offer-cards strong { display: block; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.offer-cards small { display: block; color: var(--muted); font-size: 11px; }
+.offer-price { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 550px) { .offer-sides { grid-template-columns: minmax(0, 1fr); } }
+
+/* Home: offers that need this person, shown above the scan screen. */
+.offer-notice { display: grid; gap: 8px; margin: 18px 0 0; }
+.offer-notice-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--copper); border-radius: 8px; background: var(--paper); }
+.offer-notice-item > svg { color: var(--copper); }
+.offer-notice-item strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.offer-notice-item span { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.offer-notice-actions { display: flex; align-items: center; gap: 4px; }
+.offer-notice-actions .button { min-height: 40px; padding: 8px 12px; font-size: 13px; }
+.offer-notice-actions .text-button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--muted); }
+@media (max-width: 550px) {
+  .offer-notice-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .offer-notice-item > svg { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .offer-notice-item { animation: offer-notice-in .28s ease-out; }
+  @keyframes offer-notice-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+}
+
+/* Single-series line chart: thin line, readout above, dates below. */
+.value-chart { margin: 12px 0 0; }
+.value-chart-readout { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.value-chart-readout strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.value-chart-readout span { color: var(--muted); font-size: 12px; }
+.value-chart svg { display: block; width: 100%; height: auto; max-height: 140px; touch-action: pan-y; cursor: crosshair; }
+.value-chart-line { fill: none; stroke: var(--forest); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.value-chart-base { stroke: var(--line); stroke-width: 1; }
+.value-chart-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.value-chart-dot { fill: var(--forest); stroke: var(--paper); stroke-width: 2; }
+.value-chart-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+.value-chart-empty { margin: 8px 0 0; }
+.value-change { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+/* Set completion */
+.set-list > li { display: block; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.set-list > li:last-child { border-bottom: 0; }
+.set-open { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.set-open strong { font-size: 14px; overflow-wrap: anywhere; }
+.set-open small { color: var(--muted); font-size: 12px; }
+.set-open > span { grid-row: span 2; align-self: center; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+.set-progress { grid-column: 1 / -1; height: 6px; margin-top: 6px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.set-progress i { display: block; height: 100%; border-radius: 3px; background: var(--forest); }
+.set-filter { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin: 14px 0 6px; }
+.set-filter label { margin: 0; }
+.set-cards > li { display: grid; grid-template-columns: 3.5em minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.set-cards > li:last-child { border-bottom: 0; }
+.set-cards > li > span:first-child { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.set-cards > li > span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.set-cards > li[data-owned=true] > strong { font-weight: 500; color: var(--muted); }
+
+/* Deck mana curve and sample hand */
+.mana-curve { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; align-items: end; height: 96px; margin: 10px 0 2px; }
+.mana-curve-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.mana-curve-bar i { display: block; width: 100%; max-width: 32px; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--forest); }
+.mana-curve-bar span { font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.mana-curve-axis { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; color: var(--muted); font-size: 11px; text-align: center; }
+.sample-hand { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 12px 0; }
+.sample-hand figure { margin: 0; }
+.sample-hand img, .sample-hand .printing-art-placeholder { display: block; width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: var(--card-corner-radius); background: var(--surface-muted); }
+.sample-hand figcaption { margin-top: 3px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.deck-also { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.card-decks { margin-top: 16px; }
+.card-decks h3, .card-history h3 { margin: 0 0 4px; font-size: 14px; }
+.card-history { margin-top: 16px; }
+.value-history { margin: 4px 0 12px; }
+.value-history summary { min-height: 40px; padding: 8px 0; font-size: 13px; font-weight: 600; color: var(--forest); cursor: pointer; }
+.value-history-range { display: inline-block; margin: 0; font-size: 12px; }
+.value-history-range select { min-height: 36px; width: auto; margin-left: 6px; padding: 5px 30px 5px 8px; font-size: 13px; }
+.deck-stats { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.deck-stats h3 { margin: 0; font-size: 16px; }
+.deck-stats h3 + .actions { margin-top: 8px; }
+.deck-stats .fine + h3 { margin-top: 18px; }
+.social-sharing > legend { float: left; width: 100%; font-weight: 600; color: var(--forest); }
+.social-sharing > legend + * { clear: both; }
+.social-code + .actions .button { white-space: nowrap; }

@@ -1,31 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { money, mutation, providers, request, type DataFeed, type Lot, type PriceSource, type Printing, type Session } from "./api";
+import { money, mutation, providers, request, type CollectionCard, type DataFeed, type Friend, type Lot, type PriceSource, type Printing, type Session } from "./api";
 import CountUp from "./CountUp";
 import ErrorNotice from "./ErrorNotice";
 import PrintingPicker from "./PrintingPicker";
 import usePriceSource from "./usePriceSource";
+import { navigation } from "./navigation";
+import { appliedMessage, applyTrade, finishNames, TRADE_BINDER, type PickedLot } from "./tradeApply";
 import "./trade-value.css";
 
 type Side = "give" | "get";
+type Source = "collection" | "catalog" | "friend";
 type Finish = "nonfoil" | "foil" | "etched";
 // Lots record which collection copies a row was picked from, so ownership is never shown as a total.
-type PickedLot = { id: string; binder: string; quantity: number };
 type TradeCard = { key: string; printing: Printing; finish: Finish; quantity: number; lots?: PickedLot[] };
 const joinLots = (a: PickedLot[] = [], b: PickedLot[] = []) => [...a, ...b.filter((lot) => !a.some((known) => known.id === lot.id))];
-type Trade = Record<Side, TradeCard[]>;
+type TradeFriend = { id: string; name: string };
+type Trade = Record<Side, TradeCard[]> & { friend?: TradeFriend | null };
 type Quote = { unit_amount: string | null; finish: string | null; printing_id: string };
 type Valuation = { items: Quote[]; feed: DataFeed | null; price_kind: string };
-type ImportBatch = { id: string; state: string; revision: number; error?: string | null; summary: { ready_copies: number; committed_copies: number; unresolved_rows: number } | null };
-type Removal = { card: TradeCard; lot: Lot; take: number };
-
-const finishNames: Record<Finish, string> = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 const sideNames: Record<Side, string> = { give: "You give", get: "You get" };
 const MAX_ROWS = 100;
-const TRADE_BINDER = "Trades";
-const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
+const LOAD_EVENT = "paktrak:trade-load";
 const finishesOf = (printing: Printing) => (["nonfoil", "foil", "etched"] as Finish[]).filter((finish) => printing.finishes.includes(finish));
 const priceKey = (provider: string, printing: string, finish: Finish) => `${provider}:${printing}:${finish}`;
+
+/** Open Trade value with cards already listed, such as cards a friend has that you want. */
+export function openTrade(owner: string, trade: Trade) {
+  try { sessionStorage.setItem("paktrak:trade:" + owner, JSON.stringify(trade)); } catch { /* The event below still reaches an open page. */ }
+  window.dispatchEvent(new CustomEvent(LOAD_EVENT, { detail: { owner, trade } }));
+  navigation.go({ page: "trade" });
+}
 
 // A trade is a scratch comparison: it lives in this browser tab only and never changes the collection.
 function readTrade(key: string): Trade {
@@ -54,16 +58,38 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const preference = usePriceSource(session);
   const [trade, setTrade] = useState<Trade>(() => readTrade(storageKey));
   const [adding, setAdding] = useState<Side | null>(null);
-  const [source, setSource] = useState<Record<Side, "collection" | "catalog">>({ give: "collection", get: "catalog" });
+  const [source, setSource] = useState<Record<Side, Source>>({ give: "collection", get: "catalog" });
   const [prices, setPrices] = useState<Record<string, string | null>>({});
   const [feed, setFeed] = useState<{ provider: string; feed: DataFeed | null; kind: string } | null>(null);
   const [priceError, setPriceError] = useState("");
   const [retry, setRetry] = useState(0);
   const pricedAt = useRef(0);
+  const offerReceipt = useRef<{ body: string; key: string } | null>(null);
   const [error, setError] = useState<Error | string>("");
   const [accepting, setAccepting] = useState("");
   const [accepted, setAccepted] = useState("");
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
   const provider = preference.provider;
+  const partner = trade.friend || null;
+
+  useEffect(() => {
+    const load = (event: Event) => {
+      const detail = (event as CustomEvent<{ owner: string; trade: Trade }>).detail;
+      if (detail?.owner !== session.owner_id) return;
+      setTrade(detail.trade); setAdding(null); setAccepted(""); setError("");
+      if (detail.trade.friend) setSource((current) => ({ ...current, get: "friend" }));
+    };
+    window.addEventListener(LOAD_EVENT, load);
+    return () => window.removeEventListener(LOAD_EVENT, load);
+  }, [session.owner_id]);
+  useEffect(() => {
+    if (!active) return;
+    let stopped = false;
+    request<{ friends: Friend[] }>("/api/v1/friends", { quiet: true }).then((data) => { if (!stopped) setFriends(data.friends); }).catch(() => { /* Trading with a friend is optional. */ });
+    return () => { stopped = true; };
+  }, [active]);
 
   useEffect(() => { try { sessionStorage.setItem(storageKey, JSON.stringify(trade)); } catch { /* The trade still works without tab storage. */ } }, [trade, storageKey]);
 
@@ -139,79 +165,45 @@ export default function TradeValue({ session, active }: { session: Session; acti
     if (!rows.length || window.confirm("Clear both sides of this trade?")) { setTrade({ give: [], get: [] }); setAdding(null); }
   }
 
-  // Find collection copies for every give row, preferring the copies it was picked from.
-  async function plan(): Promise<Removal[]> {
-    const removals: Removal[] = [], used = new Map<string, number>();
-    for (const card of trade.give) {
-      const lots: Lot[] = [];
-      for (let offset: number | null = 0; offset !== null;) {
-        const page: { items: Lot[]; next_offset: number | null } = await request(`/api/v1/collection?printing_id=${card.printing.id}&offset=${offset}`);
-        lots.push(...page.items); offset = page.next_offset;
-      }
-      const picked = new Set(card.lots?.map((lot) => lot.id));
-      const matching = lots.filter((lot) => lot.finish === card.finish || lot.finish === "unknown")
-        .sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)) || Number(b.finish === card.finish) - Number(a.finish === card.finish));
-      let needed = card.quantity;
-      for (const lot of matching) {
-        const take = Math.min(needed, lot.quantity - (used.get(lot.id) || 0));
-        if (take < 1) continue;
-        used.set(lot.id, (used.get(lot.id) || 0) + take); removals.push({ card, lot, take }); needed -= take;
-        if (!needed) break;
-      }
-      if (needed) {
-        const have = card.quantity - needed;
-        throw new Error(`Your collection has ${have} ${finishNames[card.finish].toLowerCase()} ${have === 1 ? "copy" : "copies"} of ${card.printing.name}, but this trade gives ${card.quantity}. Change the copies or finish, then accept again.`);
-      }
-    }
-    return removals;
-  }
-  // Received cards enter the collection as an ordinary import, so they keep a source and can be undone.
-  async function addReceived() {
-    const lines = trade.get.map((card) => [card.printing.id, card.printing.name, card.printing.set_code, card.printing.collector_number, card.printing.language, card.quantity, card.finish, TRADE_BINDER, `Trade accepted ${new Date().toLocaleDateString()}`].map(csvCell).join(","));
-    const body = ["Scryfall ID,Name,Set Code,Collector Number,Language,Quantity,Finish,Binder Name,Notes", ...lines].join("\r\n") + "\r\n";
-    let batch = await request<ImportBatch>(`/api/v1/imports?filename=${encodeURIComponent(`trade-${new Date().toISOString().slice(0, 10)}.csv`)}&format=generic&repeat=true`, {
-      method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": crypto.randomUUID() }, action: "Add traded cards" });
-    // The server previews, then adds, imported copies in the background; follow it until both finish.
-    for (let attempt = 0; ; attempt++) {
-      if (batch.state === "REVIEW") {
-        if (batch.summary?.unresolved_rows) throw new Error("Some cards you get couldn’t be matched to this server’s catalog. Open Import / export to review that import.");
-        batch = await request<ImportBatch>(`/api/v1/imports/${batch.id}/confirm`, { ...mutation(session, { expected_revision: batch.revision, owned_cards: true }), action: "Add traded cards" });
-      }
-      if (batch.state === "COMPLETED") return batch.summary?.committed_copies ?? get.copies;
-      if (batch.state === "FAILED") throw new Error(batch.error || "Adding the cards you get failed. Open Import / export to retry that import.");
-      if (attempt > 240) throw new Error("Adding the cards you get is still running. Check Import / export in a moment.");
-      await pause(1000);
-      batch = await request<ImportBatch>(`/api/v1/imports/${batch.id}`, { action: "Add traded cards" });
-    }
-  }
   async function accept() {
     if (accepting || !rows.length) return;
     setError(""); setAccepted("");
     const plural = (n: number) => `${n} ${n === 1 ? "copy" : "copies"}`;
     const summary = [give.copies && `remove ${plural(give.copies)} you give from your collection`, get.copies && `add ${plural(get.copies)} you get to a binder named “${TRADE_BINDER}”`].filter(Boolean).join(" and ");
     if (!window.confirm(`Accept this trade?\n\nThis will ${summary}. Cards you get can be undone later from Import / export.`)) return;
-    let added = 0, removed = 0;
     try {
-      setAccepting("Checking your collection…");
-      const removals = await plan();
-      if (trade.get.length) {
-        setAccepting("Adding the cards you get…");
-        added = await addReceived();
+      const { added, removed } = await applyTrade(session, trade.give, trade.get, {
+        note: `Trade accepted ${new Date().toLocaleDateString()}`, onStep: setAccepting,
         // The received side is done; retrying after a later failure must not add it twice.
-        setTrade((current) => ({ ...current, get: [] }));
-      }
-      setAccepting("Removing the cards you give…");
-      for (const { card, lot, take } of removals) {
-        await request(`/api/v1/collection/${lot.id}/quantity`, { ...mutation(session, { expected_version: lot.version, quantity: lot.quantity - take }), action: "Remove traded cards" });
-        removed += take;
-        update("give", (cards) => cards.flatMap((row) => row.key !== card.key ? [row] : row.quantity > take ? [{ ...row, quantity: row.quantity - take }] : []));
-      }
+        onReceived: () => setTrade((current) => ({ ...current, get: [] })),
+        onRemoved: (card, take) => update("give", (cards) => cards.flatMap((row) => row.key !== card.key ? [row] : row.quantity > take ? [{ ...row, quantity: row.quantity - take }] : [])),
+      });
       setAdding(null);
-      setAccepted(`Trade accepted. ${[added && `Added ${plural(added)} to “${TRADE_BINDER}”`, removed && `${added ? "removed" : "Removed"} ${plural(removed)} from your collection`].filter(Boolean).join(" and ")}.`);
-    } catch (reason) {
-      const done = [added && `added ${plural(added)} you get`, removed && `removed ${plural(removed)} you give`].filter(Boolean).join(" and ");
-      setError(done ? `The trade was only partly saved: PakTrak ${done}. What’s left is still listed below. ${(reason as Error).message}` : reason as Error);
-    } finally { setAccepting(""); }
+      setAccepted(appliedMessage(added, removed));
+    } catch (reason) { setError(reason as Error); }
+    finally { setAccepting(""); }
+  }
+  async function sendOffer() {
+    if (!partner || sending || !rows.length) return;
+    setError(""); setAccepted(""); setSending(true);
+    const lines = (cards: TradeCard[]) => cards.map((card) => ({ printing_id: card.printing.id, finish: card.finish, quantity: card.quantity }));
+    try {
+      // A retry of the same offer reuses its key, so a lost reply can't send it twice.
+      const body = { friend_id: partner.id, give: lines(trade.give), get: lines(trade.get), message: message.trim() };
+      const encoded = JSON.stringify(body);
+      if (offerReceipt.current?.body !== encoded) offerReceipt.current = { body: encoded, key: crypto.randomUUID() };
+      await request("/api/v1/trade-offers", { ...mutation(session, body, offerReceipt.current.key), action: "Send trade offer" });
+      offerReceipt.current = null;
+      setTrade({ give: [], get: [], friend: partner }); setMessage(""); setAdding(null);
+      setAccepted(`Offer sent to ${partner.name}. Their answer shows on Home and in Trade offers.`);
+    } catch (reason) { setError(reason as Error); }
+    finally { setSending(false); }
+  }
+  function choosePartner(id: string) {
+    const person = friends.find((item) => item.user_id === id);
+    setTrade((current) => ({ ...current, friend: person ? { id: person.user_id, name: person.name } : null }));
+    setSource((current) => ({ ...current, get: person?.shares_collection ? "friend" : "catalog" }));
+    setAccepted("");
   }
 
   const sideTotals = { give, get };
@@ -219,6 +211,11 @@ export default function TradeValue({ session, active }: { session: Session; acti
     <div className="eyebrow">TRADE CHECK</div>
     <h2 id="trade-title">Trade value</h2>
     <p>Add the cards on each side to see whether a trade is fair. Nothing here changes your collection.</p>
+    {friends.length > 0 && <label className="trade-partner">Trading with<select value={partner?.id || ""} onChange={(event) => choosePartner(event.target.value)}>
+      <option value="">Someone else (just checking)</option>
+      {friends.map((person) => <option key={person.user_id} value={person.user_id}>{person.name}</option>)}
+      {partner && !friends.some((person) => person.user_id === partner.id) && <option value={partner.id}>{partner.name}</option>}
+    </select></label>}
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
 
     <div className="trade-summary" aria-label="Trade balance" role="group">
@@ -272,14 +269,19 @@ export default function TradeValue({ session, active }: { session: Session; acti
             </div>
           </li>;
         })}</ul>}
-      {adding === side ? <TradeAdder side={side} source={source[side]} onSource={(value) => setSource({ ...source, [side]: value })}
-        onLot={(lot) => addLot(side, lot)} onPrinting={(printing) => addPrinting(side, printing)} onDone={() => setAdding(null)} />
+      {adding === side ? <TradeAdder side={side} source={source[side]} onSource={(value) => setSource({ ...source, [side]: value })} partner={side === "get" ? partner : null}
+        onLot={(lot) => addLot(side, lot)} onPrinting={(printing, finish) => finish ? add(side, printing, finish) : addPrinting(side, printing)} onDone={() => setAdding(null)} />
         : <button type="button" className="button secondary trade-add" onClick={() => setAdding(side)}>Add a card you {side}</button>}
     </section>)}
 
     <div className="trade-accept">
       {accepted && <p className="message success" role="status">{accepted}</p>}
-      <button type="button" className="button primary" disabled={!rows.length || !!accepting} onClick={() => void accept()}>{accepting || "Accept trade"}</button>
+      {partner && <>
+        <label className="trade-message">Message for {partner.name} (optional)<input value={message} maxLength={500} onChange={(event) => setMessage(event.target.value)} /></label>
+        <button type="button" className="button primary" disabled={!rows.length || sending || !!accepting} onClick={() => void sendOffer()}>{sending ? "Sending offer…" : `Send offer to ${partner.name}`}</button>
+        <p className="fine">{partner.name} sees the offer on their Home screen. Nothing changes in either collection until they accept.</p>
+      </>}
+      <button type="button" className={partner ? "button secondary" : "button primary"} disabled={!rows.length || !!accepting || sending} onClick={() => void accept()}>{accepting || (partner ? "Accept now in person" : "Accept trade")}</button>
       <p className="fine">Accepting removes the cards you give from your collection and adds the cards you get to a “{TRADE_BINDER}” binder.</p>
     </div>
 
@@ -290,10 +292,11 @@ export default function TradeValue({ session, active }: { session: Session; acti
   </section>;
 }
 
-function TradeAdder({ side, source, onSource, onLot, onPrinting, onDone }: {
-  side: Side; source: "collection" | "catalog"; onSource: (value: "collection" | "catalog") => void;
-  onLot: (lot: Lot) => void; onPrinting: (printing: Printing) => void; onDone: () => void;
+function TradeAdder({ side, source, onSource, partner, onLot, onPrinting, onDone }: {
+  side: Side; source: Source; onSource: (value: Source) => void; partner: TradeFriend | null;
+  onLot: (lot: Lot) => void; onPrinting: (printing: Printing, finish?: Finish) => void; onDone: () => void;
 }) {
+  const shown = source === "friend" && !partner ? "catalog" : source;
   const [added, setAdded] = useState("");
   const timer = useRef(0);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -301,13 +304,15 @@ function TradeAdder({ side, source, onSource, onLot, onPrinting, onDone }: {
   return <div className="trade-adder" aria-label={`Add a card you ${side}`} role="group">
     <div className="trade-adder-heading">
       <div className="view-switch" aria-label="Where to find the card">
-        <button type="button" aria-pressed={source === "collection"} onClick={() => onSource("collection")}>My collection</button>
-        <button type="button" aria-pressed={source === "catalog"} onClick={() => onSource("catalog")}>All cards</button>
+        {partner ? <button type="button" aria-pressed={shown === "friend"} onClick={() => onSource("friend")}>{partner.name}’s cards</button>
+          : <button type="button" aria-pressed={shown === "collection"} onClick={() => onSource("collection")}>My collection</button>}
+        <button type="button" aria-pressed={shown === "catalog"} onClick={() => onSource("catalog")}>All cards</button>
       </div>
       <button type="button" className="text-button" onClick={onDone}>Done adding</button>
     </div>
     <p className="fine trade-added" role="status">{added}</p>
-    {source === "collection" ? <CollectionSearch onPick={(lot) => { onLot(lot); confirm(lot.printing.name); }} />
+    {shown === "friend" && partner ? <FriendSearch friend={partner} onPick={(printing, finish) => { onPrinting(printing, finish); confirm(printing.name); }} />
+      : shown === "collection" ? <CollectionSearch onPick={(lot) => { onLot(lot); confirm(lot.printing.name); }} />
       : <PrintingPicker onSelect={(printing) => { onPrinting(printing); confirm(printing.name); }} />}
   </div>;
 }
@@ -334,6 +339,36 @@ function CollectionSearch({ onPick }: { onPick: (lot: Lot) => void }) {
       <button type="button" className="printing-choice printing-choice-art" onClick={() => onPick(lot)}>
         {lot.printing.image_url ? <img src={lot.printing.image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <span className="printing-art-placeholder" aria-hidden="true" />}
         <div><strong>{lot.printing.display_name || lot.printing.name}</strong><span>{lot.printing.set_code.toUpperCase()} #{lot.printing.collector_number} · {finishNames[lot.finish as Finish] || "Finish not recorded"} · {lot.quantity} in {lot.binder}</span></div>
+      </button>
+    </li>)}</ul>
+    <div className="pagination">{offset > 0 && <button type="button" className="text-button" onClick={() => setOffset(Math.max(0, offset - 40))}>Previous cards</button>}{current?.next != null && <button type="button" className="text-button" onClick={() => setOffset(current.next!)}>More cards</button>}</div>
+  </div>;
+}
+
+// A friend's shared collection, grouped by printing; storage locations stay private.
+function FriendSearch({ friend, onPick }: { friend: TradeFriend; onPick: (printing: Printing, finish: Finish) => void }) {
+  const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [answer, setAnswer] = useState<{ key: string; items: CollectionCard[]; next: number | null; error?: string } | null>(null);
+  const key = `${friend.id}:${query}:${offset}`;
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      request<{ items: CollectionCard[]; next_offset: number | null }>(`/api/v1/friends/${friend.id}/collection?q=${encodeURIComponent(query.trim())}&offset=${offset}`, { signal: controller.signal })
+        .then((data) => { if (!controller.signal.aborted) setAnswer({ key, items: data.items, next: data.next_offset }); })
+        .catch((reason: Error) => { if (!controller.signal.aborted) setAnswer({ key, items: [], next: null, error: reason.message }); });
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [key]);
+  const current = answer?.key === key ? answer : null;
+  const finishOf = (card: CollectionCard): Finish => (["nonfoil", "foil", "etched"] as Finish[]).find((finish) => (card.finish_counts?.[finish] || 0) > 0) || finishesOf(card.printing)[0] || "nonfoil";
+  return <div className="trade-collection-search">
+    <label>Search {friend.name}’s cards<input type="search" value={query} maxLength={255} autoComplete="off" placeholder="Card name" onChange={(event) => { setQuery(event.target.value); setOffset(0); }} /></label>
+    <p className="fine" role="status">{!current ? "Loading their cards…" : current.error ? current.error : current.items.length ? "Tap a card to add it." : "No cards match that name."}</p>
+    <ul className="plain-list printing-options" aria-label={`${friend.name}’s cards`}>{current?.items.map((card) => <li key={card.printing.id}>
+      <button type="button" className="printing-choice printing-choice-art" onClick={() => onPick(card.printing, finishOf(card))}>
+        {card.printing.image_url ? <img src={card.printing.image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <span className="printing-art-placeholder" aria-hidden="true" />}
+        <div><strong>{card.printing.display_name || card.printing.name}</strong><span>{card.printing.set_code.toUpperCase()} #{card.printing.collector_number} · They have {card.quantity}{(card.finish_counts?.foil || 0) > 0 ? ` (${card.finish_counts!.foil} foil)` : ""}</span></div>
       </button>
     </li>)}</ul>
     <div className="pagination">{offset > 0 && <button type="button" className="text-button" onClick={() => setOffset(Math.max(0, offset - 40))}>Previous cards</button>}{current?.next != null && <button type="button" className="text-button" onClick={() => setOffset(current.next!)}>More cards</button>}</div>
