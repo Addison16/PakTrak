@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
-export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "trade" | "admin" | "account";
+export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "trade" | "queue" | "admin" | "account";
 export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean; collectionQuery?: string };
 type Entry = { paktrak: 1; chain: string; index: number; route: Route; y: number };
 type Guard = (from: Route, to: Route) => boolean;
-const pages: Page[] = ["scan", "batches", "collection", "transfers", "decks", "trade", "admin", "account"];
+const pages: Page[] = ["scan", "batches", "collection", "transfers", "decks", "trade", "queue", "admin", "account"];
 const identifier = (value: string | null | undefined) => value && /^[a-zA-Z0-9_-]{1,80}$/.test(value) ? value : undefined;
 
 function parse(): Route {

@@ -1,6 +1,7 @@
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { ApiError, mutation, request, type Lot, type Printing, type Session } from "./api";
+import { ApiError, isQueued, mutation, queuedNotice, request, send, type Lot, type Printing, type Queued, type Session } from "./api";
+import { pendingPreviews } from "./offline";
 
 import DeckImport from "./DeckImport";
 import DeckScan from "./DeckScan";
@@ -169,14 +170,26 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     if (!active) return;
     void list().catch((e: Error) => setError(e));
   }, [active, offset]);
+  // Queued edits reached the server: reload so the next save starts from its version.
+  useEffect(() => {
+    if (!active) return;
+    const synced = () => {
+      void list().catch(() => {});
+      if (deck && !dirty && !working.current) void request<Deck>("/api/v1/decks/" + deck.id).then((value) => { if (!working.current) fill(value); }).catch(() => {});
+    };
+    window.addEventListener("paktrak:synced", synced);
+    return () => window.removeEventListener("paktrak:synced", synced);
+  }, [active, deck?.id, dirty]);
   useEffect(() => {
     if (!active || !route.deck) { resetView(); return; }
     setImportState({ dirty: false, busy: false });
     if (deck?.id === route.deck) { if (restoringDraft.current) { restoringDraft.current = false; return; } if (dirty) fill(deck); return; }
     setDeck(null); setError("");
     const controller = new AbortController();
-    void request<Deck>("/api/v1/decks/" + route.deck, { signal: controller.signal }).then((value) => {
-      if (!controller.signal.aborted) { fill(value); requestAnimationFrame(restoreScroll); }
+    void request<Deck>("/api/v1/decks/" + route.deck, { signal: controller.signal }).then(async (value) => {
+      // Deck edits still waiting in the queue show on top of the saved copy.
+      const pending = (await pendingPreviews<Deck>("deck:")).get("deck:" + value.id);
+      if (!controller.signal.aborted) { fill({ ...value, ...pending }); requestAnimationFrame(restoreScroll); }
     }).catch((e: Error) => { if (!controller.signal.aborted) setError(e); });
     return () => controller.abort();
   }, [active, route.deck, route.view]);
@@ -273,9 +286,13 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     };
     const encoded = JSON.stringify(body);
     if (saveReceipt.current?.body !== encoded) saveReceipt.current = { body: encoded, key: crypto.randomUUID() };
-    let result: Deck;
-    try { result = await request<Deck>("/api/v1/decks/" + deck.id, mutation(session, body, saveReceipt.current.key)); }
+    let result: Deck | Queued;
+    const copies = body.cards.reduce((sum, card) => sum + card.quantity, 0);
+    const offlineDeck: Deck = { ...deck, name: body.name, format, notes, match_mode: matchMode, cards: cards.filter((card) => card.quantity > 0).map((card) => ({ ...card, quantityInput: undefined })) };
+    try { result = await send<Deck>(session, "/api/v1/decks/" + deck.id, mutation(session, body, saveReceipt.current.key), { label: `Save changes to ${body.name || deck.name}`, detail: `${copies.toLocaleString()} ${copies === 1 ? "card" : "cards"}`, resource: "deck:" + deck.id, preview: offlineDeck }); }
     catch (e) { if (e instanceof ApiError && e.status === 409) { setSaveConflict(true); setConflictSaved(null); } throw e; }
+    // Offline: keep the edits on screen as the deck; the queue sends them later.
+    if (isQueued(result)) { fill(offlineDeck, true); setNotice(queuedNotice); return; }
     fill(result, true); await list(); setNotice("Deck saved.");
   }
   function add(lot: Lot) {

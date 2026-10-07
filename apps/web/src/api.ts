@@ -1,4 +1,5 @@
 import type { StoreLinks } from "./storeLinks";
+import { checkConnection, connection, enqueue, markReachable, markSavedCopy, offlineReadable, queuedActions, savedOrDerived, saveResponse } from "./offline";
 export type PriceSource = "tcgplayer" | "cardkingdom" | "manapool";
 export type Session = { store_links?: StoreLinks; scans_paused?: boolean; suspended?: boolean; scan_card_limit_override?: number | null; account_version?: number; membership_welcome?: boolean; approved_at?: string | null; tour_dismissed: boolean; preferred_price_source: PriceSource | null; owner_id: string; display_name: string; csrf_token: string; role: "admin" | "member" | "guest"; scan_cards_used: number; scan_card_limit: number | null; scan_cards_remaining: number | null };
 export type Location = { id: string; name: string; kind: "binder" | "box" | "other"; notes: string; version: number; copies: number };
@@ -63,14 +64,41 @@ function fieldMessage(details: { loc?: (string | number)[]; msg?: string }[]) {
   }).join(" ") || "Some request fields were invalid. Review your entries and try again.";
 }
 
+const unavailable = (status: number) => status === 502 || status === 503 || status === 504;
+const savedCopyWait = 8000;
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { quiet, action = requestAction(path, options.method), ...init } = options;
+  // Reads a screen opted into keep a copy on this device and fall back to it
+  // when the server can't be reached (see offline.ts).
+  const cacheable = (init.method || "GET").toUpperCase() === "GET" && offlineReadable(path);
+  let lookup: Promise<{ data: T } | undefined> | undefined;
+  const saved = cacheable ? () => lookup ||= savedOrDerived<T>(path) : undefined;
+  if (saved && !connection().reachable) {
+    const copy = await saved();
+    if (copy) { markSavedCopy(); void checkConnection(false); return copy.data; }
+  }
   let response: Response;
-  try { response = await fetch(path, { ...init, credentials: "same-origin" }); }
+  try {
+    const pending = fetch(path, { ...init, credentials: "same-origin" });
+    // A server that has gone quiet (for example a home server seen from mobile
+    // data) can take a minute to fail; show the saved copy sooner.
+    response = await withSavedCopyTimeout(pending, saved);
+  }
   catch (e) {
     if (init.signal?.aborted || (e as Error).name === "AbortError") throw e;
-    throw reportError(new ApiError(navigator.onLine ? "The server could not be reached. Check your connection and try again." : "You’re offline. Reconnect and try again.", {}, undefined, { action, code: "network_error" }), quiet);
+    if (e instanceof SavedCopy) { markReachable(false, true); return e.data as T; }
+    markReachable(false);
+    const copy = await saved?.();
+    if (copy) { markReachable(false, true); return copy.data; }
+    throw reportError(new ApiError(cacheable ? "You’re offline, and this hasn’t been saved on this device yet. Open it once while connected to keep a copy for offline use."
+      : navigator.onLine ? "The server could not be reached. Check your connection and try again." : "You’re offline. Reconnect and try again.", {}, undefined, { action, code: "network_error" }), quiet);
   }
+  if (unavailable(response.status)) {
+    markReachable(false);
+    const copy = await saved?.();
+    if (copy) { markReachable(false, true); return copy.data; }
+  } else markReachable(true);
   const rawId = response.headers.get("X-Request-ID");
   const requestId = rawId && /^[a-f0-9-]{36}$/i.test(rawId) ? rawId : undefined;
   if (!response.ok) {
@@ -85,12 +113,66 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const detail = typeof data.detail === "string" ? data.detail : Array.isArray(data.detail) ? fieldMessage(data.detail) : typeof data.detail?.message === "string" ? data.detail.message : fallback;
     throw reportError(new ApiError(response.status === 401 ? "Your session ended. Sign in again to see your saved work." : detail, data.detail && typeof data.detail === "object" && !Array.isArray(data.detail) ? data.detail : {}, response.status, { action, requestId, code: typeof data.error_code === "string" ? data.error_code : undefined }), quiet);
   }
-  try { return await response.json(); }
+  try {
+    const data = await response.json();
+    if (cacheable) void saveResponse(path, data);
+    return data;
+  }
   catch (e) {
     if (init.signal?.aborted || (e as Error).name === "AbortError") throw e;
     throw reportError(new ApiError("The server returned an unreadable response. Try the action again.", {}, response.status, { action, requestId, code: "invalid_response" }), quiet);
   }
 }
+
+class SavedCopy { data: unknown; constructor(data: unknown) { this.data = data; } }
+// Resolves with the response, or rejects with the saved copy once the server
+// has been silent for a while. The request keeps going and still marks the
+// server reachable if it answers later.
+function withSavedCopyTimeout(pending: Promise<Response>, saved?: () => Promise<{ data: unknown } | undefined>) {
+  if (!saved) return pending;
+  return new Promise<Response>((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => void saved().then((copy) => {
+      if (settled || !copy) return;
+      settled = true; reject(new SavedCopy(copy.data));
+    }), savedCopyWait);
+    pending.then((value) => { window.clearTimeout(timer); if (!settled) { settled = true; resolve(value); } else if (!unavailable(value.status)) markReachable(true); },
+      (error) => { window.clearTimeout(timer); if (!settled) { settled = true; reject(error); } });
+  });
+}
+
+export type Queued = { queued: true; id: string };
+export const isQueued = (value: unknown): value is Queued => !!value && typeof value === "object" && (value as Queued).queued === true;
+export const queuedNotice = "Saved on this device. It will be sent when PakTrak is reachable again; see Queued actions in the menu.";
+/**
+ * Sends an edit, or keeps it in the offline queue when the server can't be
+ * reached. Only use it for edits that are safe to replay later in order: the
+ * queue keeps the Idempotency-Key, adds a fresh CSRF token when it sends, and
+ * for edits sharing a resource updates expected_version from each response.
+ */
+export async function send<T>(session: Session, path: string, init: RequestInit & { action?: string }, offline: { label: string; detail?: string; resource?: string; preview?: unknown }): Promise<T | Queued> {
+  const queue = async () => {
+    const headers = new Headers(init.headers);
+    const action = await enqueue({ ...offline, path, method: (init.method || "POST").toUpperCase(), body: typeof init.body === "string" ? init.body : undefined,
+      contentType: headers.get("Content-Type") || undefined, idempotencyKey: headers.get("Idempotency-Key") || crypto.randomUUID() });
+    window.dispatchEvent(new CustomEvent("paktrak:queued", { detail: { owner: session.owner_id } }));
+    return { queued: true, id: action.id } as Queued;
+  };
+  // Later edits wait behind earlier queued ones so they reach the server in order.
+  if (!connection().reachable || (await queuedActions(session.owner_id)).some((item) => item.state !== "failed")) return queue();
+  // A server that stopped answering can take a minute to fail. Queue instead; the
+  // Idempotency-Key keeps a copy that did arrive from being applied twice.
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), sendWait);
+  try { return await request<T>(path, { ...init, signal: controller.signal }); }
+  catch (e) {
+    if (controller.signal.aborted) { markReachable(false); return queue(); }
+    if (e instanceof ApiError && (e.code === "network_error" || e.status !== undefined && unavailable(e.status))) return queue();
+    throw e;
+  }
+  finally { window.clearTimeout(timer); }
+}
+const sendWait = 15000;
 
 export function mutation(session: Session, data?: unknown, key: string = crypto.randomUUID()): RequestInit {
   return { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": key },

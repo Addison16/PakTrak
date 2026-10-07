@@ -12,8 +12,15 @@ import type { Deck } from "./deckTypes";
 import { photoAccept, photoFormatLabel, photoMime } from "./photoFormats";
 import "./style.css";
 import "./qol.css";
+import "./offline.css";
 import { readPendingPhoto, savePendingPhoto, removePendingPhoto, type PendingPhoto } from "./pendingPhoto";
 import { navigation, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
+import ConnectionStatus from "./ConnectionStatus";
+import { useConnection } from "./offline";
+import { clearOfflineData, connection, forgetResponse, onReconnect, queuedActions, setOfflineOwner } from "./offline";
+import { flushQueue } from "./offlineSync";
+import { saveDaily } from "./offlineSave";
+import { registerServiceWorker } from "./serviceWorker";
 
 const Collections = lazy(() => import("./Collections"));
 const Review = lazy(() => import("./Review"));
@@ -22,6 +29,10 @@ const MyAccount = lazy(() => import("./MyAccount"));
 const Admin = lazy(() => import("./Admin"));
 const TradeValue = lazy(() => import("./TradeValue"));
 const CameraCapture = lazy(() => import("./CameraCapture"));
+const QueuedActions = lazy(() => import("./QueuedActions"));
+// Load the screens that work offline right after sign-in, so they open even if
+// the connection drops before they were first visited.
+const offlineScreens = () => Promise.all([import("./Collections"), import("./Decks"), import("./QueuedActions")]).catch(() => {});
 type AccountStatus = { setup_required: boolean; guest_signup_enabled: boolean };
 type Draft = { id?: string; key: string; filename: string; size: number; content_type: string; foil_count?: number; target_deck_id?: string; add_to_collection?: boolean; photo_saved_at?: number };
 
@@ -99,6 +110,7 @@ function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
         <button type="button" aria-current={page === "decks" ? "page" : undefined} onClick={() => navigate("decks")}><Icon name="decks" />Decks</button>
         <button type="button" aria-current={page === "trade" ? "page" : undefined} onClick={() => navigate("trade")}><Icon name="trade" />Trade value</button>
         <button type="button" aria-current={page === "transfers" ? "page" : undefined} onClick={() => navigate("transfers")}><Icon name="transfer" />Import / export</button>
+        <button type="button" aria-current={page === "queue" ? "page" : undefined} aria-label="Queued actions" onClick={() => navigate("queue")}><Icon name="queue" />Queued actions<QueueCount /></button>
         <button type="button" aria-current={page === "account" ? "page" : undefined} onClick={() => navigate("account")}><Icon name="user" />My account</button>
         {session.role === "admin" && <button type="button" aria-current={page === "admin" ? "page" : undefined} onClick={() => navigate("admin")}><Icon name="settings" />Administration</button>}
       </nav>
@@ -109,6 +121,11 @@ function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
       </div>
     </dialog>
   </>;
+}
+
+function QueueCount() {
+  const { waiting, failed } = useConnection();
+  return waiting + failed ? <span className="menu-count">{waiting + failed}</span> : null;
 }
 
 // Phone shortcut bar for the four everyday screens; the menu keeps account and admin pages.
@@ -231,8 +248,9 @@ function App() {
       navigation.cleanQuery();
     }
     request<AccountStatus>("/api/auth/status").then(setAccountStatus).catch((e: Error) => { setError(e); setAccountStatus(null); });
-    request<Session>("/api/auth/session", { quiet: true }).then(setSession).catch((e: Error) => {
+    request<Session>("/api/auth/session", { quiet: true }).then((value) => { setOfflineOwner(value.owner_id); setSession(value); }).catch((e: Error) => {
       if (!(e instanceof ApiError && e.status === 401)) setError(e);
+      else void forgetResponse("/api/auth/session");
       setSession(null);
     });
     request<{ max_upload_bytes: number }>("/api/v1/capabilities")
@@ -285,7 +303,7 @@ function App() {
     if (session && session.role !== "admin" && page === "admin") navigation.go({ page: "account" }, { replace: true, force: true });
   }, [session?.role, page]);
   useEffect(() => {
-    const titles: Record<Page, string> = { scan: "Upload photo", batches: "Batches", collection: "Collection", transfers: "Import / export", decks: "Decks", trade: "Trade value", admin: "Administration", account: "My account" };
+    const titles: Record<Page, string> = { scan: "Upload photo", batches: "Batches", collection: "Collection", transfers: "Import / export", decks: "Decks", trade: "Trade value", queue: "Queued actions", admin: "Administration", account: "My account" };
     document.title = titles[page] + " · PakTrak";
   }, [page]);
   function leaveReview(next: () => void) {
@@ -372,7 +390,7 @@ function App() {
     const owner = session.owner_id;
     const controller = new AbortController();
     async function refresh(force = false) {
-      if (stopped || loading || document.hidden || !navigator.onLine || (!force && Date.now() < nextAttempt)) return;
+      if (stopped || loading || document.hidden || (!force && Date.now() < nextAttempt)) return;
       loading = true;
       let readingSelected: string | null = null;
       try {
@@ -401,6 +419,8 @@ function App() {
         failures += 1;
         // Stop repeated unauthorized requests; try again when the user returns or asks us to.
         nextAttempt = problem instanceof ApiError && (problem.status === 401 || problem.code === "account_changed" || problem.code === "account_suspended") ? Infinity : Date.now() + Math.min(60000, 2500 * 2 ** Math.min(failures, 5));
+        // The header already says PakTrak is offline; saved copies fill in what they can.
+        if (problem instanceof ApiError && problem.code === "network_error" && !connection().reachable) return;
         if (dismissedRefresh.current !== refreshFingerprint(problem)) setRefreshError(problem);
       }
       finally { loading = false; }
@@ -420,6 +440,16 @@ function App() {
       window.removeEventListener("focus", resume);
     };
   }, [session?.owner_id, offset]);
+
+  useEffect(() => {
+    if (!session) return;
+    setOfflineOwner(session.owner_id);
+    void flushQueue(); void offlineScreens();
+    const daily = window.setTimeout(() => saveDaily(session), 20000);
+    // Lists open from saved copies while offline; load fresh ones once the server is back.
+    const stop = onReconnect(() => void refreshNow.current?.(true));
+    return () => { window.clearTimeout(daily); stop(); };
+  }, [session?.owner_id]);
 
   function refreshFingerprint(problem: Error) {
     return problem instanceof ApiError ? `${problem.action}:${problem.status}:${problem.code}` : problem.message;
@@ -544,9 +574,13 @@ function App() {
   }
 
   async function logout() {
+    const unsent = (await queuedActions()).length;
+    if (unsent && !window.confirm(`${unsent} queued ${unsent === 1 ? "change hasn’t" : "changes haven’t"} reached PakTrak yet.\n\nSigning out removes ${unsent === 1 ? "it" : "them"} from this device.`)) return;
+    if (!connection().reachable) { setError("You’re offline. Connect to PakTrak to sign out."); return; }
     try {
       const result = await request<{ logout_url: string }>("/api/auth/logout", { method: "POST", headers: headers() });
       clearDraft();
+      await clearOfflineData(); setOfflineOwner("");
       window.location.assign(result.logout_url);
     } catch (e) { setError(e as Error); }
   }
@@ -557,9 +591,9 @@ function App() {
   return <div className="app">
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
-      {session && <Navigation session={session} page={page} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} />}
+      {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /></div>}
     </header>
-    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : page === "account" || page === "admin" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
+    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : page === "account" || page === "admin" || page === "queue" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
           <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
@@ -654,6 +688,7 @@ function App() {
         {openedDecks && <div hidden={page !== "decks"}><Suspense fallback={<p role="status">Opening your decks…</p>}><Decks session={session} active={page === "decks"} navigationRef={deckNavigation} /></Suspense></div>}
         {openedTrade && <div hidden={page !== "trade"}><Suspense fallback={<p role="status">Opening trade value…</p>}><TradeValue session={session} active={page === "trade"} /></Suspense></div>}
         {page === "account" && <Suspense fallback={<p role="status">Opening your account…</p>}><MyAccount session={session} navigationRef={accountNavigation} onChange={(account) => setSession((current) => current ? { ...current, display_name: account.display_name, role: account.role, scan_cards_used: account.scan_cards_used, scan_card_limit: account.scan_card_limit, scan_cards_remaining: account.scan_cards_remaining, scans_paused: account.scans_paused, account_version: account.account_version } : current)} /></Suspense>}
+        {page === "queue" && <Suspense fallback={<p role="status">Opening queued actions…</p>}><QueuedActions session={session} active={page === "queue"} /></Suspense>}
         {page === "admin" && session.role === "admin" && <Suspense fallback={<p role="status">Opening account settings…</p>}><Admin session={session} navigationRef={accountNavigation} /></Suspense>}
         {page === "batches" && !selected && (route.batch ? <section className="panel"><button className="button secondary" onClick={closeBatch}>← Back to batches</button>{!error && <p role="status">Opening batch…</p>}</section> : <BatchList scans={scans} offset={offset} nextOffset={nextOffset} onPage={setOffset} onOpen={openBatch} onUpload={() => navigate("scan")} />)}
       </>}
@@ -676,4 +711,5 @@ function App() {
 addEventListener("pointerdown", () => { document.documentElement.dataset.pointer = ""; }, true);
 addEventListener("keydown", () => { delete document.documentElement.dataset.pointer; }, true);
 
+registerServiceWorker();
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
