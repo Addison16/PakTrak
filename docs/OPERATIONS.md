@@ -131,6 +131,17 @@ Open **Menu → Administration → Scan processing** to enable **Enhanced scanni
 
 This CPU option retries difficult text with a larger temporary crop and extra cleanup, preserving the ordinary recognition result as a fallback. It needs no GPU or additional models. Allow extra CPU, memory, private-storage reads and processing time when enabled; stored photo sizes do not increase. The phone can disconnect after upload as usual. The ordinary scan worker's concurrency, lease, retry and task limits still apply. Disable it to return upcoming steps to standard processing on a smaller server. Changing the switch does not rescan saved collections or add copies; **Check photo again** can retry pending batch cards. See [scan enhancement](SCANNING.md#optional-enhanced-scanning) for evidence, limits and timing details.
 
+## Store referral links
+
+Open **Menu → Administration → Store referral links** to add an affiliate or referral code for TCGplayer, Card Kingdom or ManaPool. Each field is optional and applies to every account on this server: the deck buy list buttons, the whole-deck store buttons and the **View listing** links in card details. Empty fields link to the store normally, and new installations start with every field empty.
+
+Enter either:
+
+- **A referral code** (letters, numbers, `.`, `_`, `-`). It is added to the store link as `partner=` for TCGplayer and Card Kingdom, or `ref=` for ManaPool.
+- **An `https://` tracking link** from an affiliate network. Put `{url}` where the store page belongs, or leave it out to have the store page added as `u=`, the deep-link format Impact uses.
+
+Store programs set their own link rules, so check your program's instructions and try a link before relying on it. When any field is set, store links show a short note that they include the owner's referral code. Everyone sees saved changes after reloading the page.
+
 ## Catalog maintenance
 
 The `data-worker` container now prepares the default card catalog and daily price feeds automatically. No separate initial catalog command is needed. Open **Card data & prices** in the app for progress and step estimates; accepted uploads continue independently. See [card data and pricing](CARD_DATA.md) for provider meanings, schedules and missing-price handling.

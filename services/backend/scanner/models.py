@@ -162,6 +162,9 @@ class AccountPolicy(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guest_signup_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     enhanced_scanning_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    tcgplayer_affiliate: Mapped[str | None] = mapped_column(String(500))
+    cardkingdom_affiliate: Mapped[str | None] = mapped_column(String(500))
+    manapool_affiliate: Mapped[str | None] = mapped_column(String(500))
     version: Mapped[int] = mapped_column(Integer, default=1)
 
 

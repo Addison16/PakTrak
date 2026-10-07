@@ -7,7 +7,9 @@ import { mutation, request, type Session } from "./api";
 import AccountManager from "./AccountManager";
 import type { Account, AccountNavigation } from "./accountTypes";
 import { useRoute } from "./navigation";
-type Settings = { guest_signup_enabled: boolean; enhanced_scanning_enabled: boolean; version: number };
+import { storeNames, type Store, type StoreLinks } from "./storeLinks";
+type Settings = { guest_signup_enabled: boolean; enhanced_scanning_enabled: boolean; store_links: StoreLinks; version: number };
+const stores: Store[] = ["tcgplayer", "cardkingdom", "manapool"];
 
 export default function Admin({ session, navigationRef }: { session: Session; navigationRef: AccountNavigation }) {
   const route = useRoute();
@@ -16,8 +18,11 @@ export default function Admin({ session, navigationRef }: { session: Session; na
   const [error, setError] = useState<Error | string>("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [referrals, setReferrals] = useState<Record<Store, string> | null>(null);
   async function refresh() {
-    setSettings(await request<Settings>("/api/auth/settings"));
+    const saved = await request<Settings>("/api/auth/settings");
+    setSettings(saved);
+    setReferrals((current) => current ?? Object.fromEntries(stores.map((store) => [store, saved.store_links?.[store] || ""])) as Record<Store, string>);
   }
   useEffect(() => { void refresh().catch((e: Error) => setError(e)); }, []);
   async function act(work: () => Promise<void>) {
@@ -49,6 +54,21 @@ export default function Admin({ session, navigationRef }: { session: Session; na
       <p className="fine">Read finer detail from your photos and retry difficult text with extra cleanup. Uses more server CPU and memory; scanning may take longer. No GPU is required.</p>
       <p className="fine">Off by default for smaller servers. Original photos are preserved, and the extra recognition pass falls back to the normal result if it fails. Changing this setting applies to upcoming processing steps; saved cards are not reimported.</p>
     </section>}
+    {settings && referrals && <form className="signup-setting" aria-label="Store referral links" onSubmit={(e) => {
+      e.preventDefault();
+      void act(async () => {
+        const saved = await request<Settings>("/api/auth/settings", mutation(session, { ...Object.fromEntries(stores.map((store) => [`${store}_affiliate`, referrals[store].trim() || null])), expected_version: settings.version }));
+        setSettings(saved);
+        setReferrals(Object.fromEntries(stores.map((store) => [store, saved.store_links?.[store] || ""])) as Record<Store, string>);
+        setNotice("Store referral links saved. Everyone on this PakTrak gets them after reloading the page.");
+      });
+    }}>
+      <h3>Store referral links</h3>
+      <p className="fine">Optional. When filled in, every store button and listing link on this PakTrak uses it, for every account. Leave a store empty to link to it normally.</p>
+      {stores.map((store) => <label key={store}>{storeNames[store]}<input value={referrals[store]} maxLength={500} disabled={busy} placeholder="Referral code or https:// tracking link" autoComplete="off" spellCheck={false} onChange={(e) => setReferrals({ ...referrals, [store]: e.target.value })} /></label>)}
+      <p className="fine">Enter a referral code, or an https:// tracking link from the store’s affiliate program. Codes are added as {"partner="} (TCGplayer, Card Kingdom) or {"ref="} (ManaPool). In a tracking link, {"{url}"} marks where the store page goes. People see a short note that store links include a referral.</p>
+      <div className="actions"><button className="button secondary" disabled={busy}>Save referral links</button></div>
+    </form>}
     <DataUpdates />
     <ErrorLogs />
     </>}

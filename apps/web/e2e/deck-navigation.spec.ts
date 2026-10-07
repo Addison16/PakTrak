@@ -338,6 +338,51 @@ test("TCGplayer buy lists include only missing copies and link to Mass Entry", a
   await page.screenshot({ path: `../../artifacts/adjacent-cards/tcgplayer-${test.info().project.name}.png`, fullPage: true });
 });
 
+test("store buttons open TCGplayer and ManaPool with the list filled in", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
+  await fixture(page); await openSaved(page);
+  await page.locator(".deck-shopping > summary").click();
+  const panel = page.getByRole("region", { name: "Missing cards buy list", exact: true });
+  await panel.getByRole("combobox", { name: "Buy list format", exact: true }).selectOption("tcgplayer");
+  const tcgplayer = new URL((await panel.getByRole("link", { name: "Open in TCGplayer ↗", exact: true }).getAttribute("href"))!);
+  expect(tcgplayer.origin + tcgplayer.pathname).toBe("https://www.tcgplayer.com/massentry");
+  expect(tcgplayer.searchParams.get("productline")).toBe("Magic");
+  expect(tcgplayer.searchParams.get("c")!.split("||")).toEqual(["2 Fixture Card 1 [TST] 1", "1 Fixture Card 2 [TST] 2", "1 Fixture Card 3 [TST] 3"]);
+  expect(tcgplayer.searchParams.has("partner")).toBe(false);
+  await panel.getByRole("combobox", { name: "Buy list format", exact: true }).selectOption("manapool");
+  const manapool = new URL((await panel.getByRole("link", { name: "Open in ManaPool ↗", exact: true }).getAttribute("href"))!);
+  expect(manapool.origin + manapool.pathname).toBe("https://manapool.com/add-deck");
+  expect(new TextDecoder().decode(Uint8Array.from(atob(manapool.searchParams.get("deck")!), (c) => c.charCodeAt(0)))).toBe("2 Fixture Card 1 (TST) 1\n1 Fixture Card 2 (TST) 2\n1 Fixture Card 3 (TST) 3");
+  await panel.getByRole("combobox", { name: "Buy list format", exact: true }).selectOption("cardkingdom");
+  await expect(panel.getByRole("link", { name: "Open in Card Kingdom ↗", exact: true })).toHaveAttribute("href", "https://www.cardkingdom.com/builder");
+  await expect(page.getByText(/referral code/)).toHaveCount(0);
+  // The whole deck can go to every store, including owned copies.
+  await page.locator(".deck-export > summary").click();
+  const whole = new URL((await page.locator(".deck-export").getByRole("link", { name: "TCGplayer ↗", exact: true }).getAttribute("href"))!);
+  expect(whole.searchParams.get("c")!.split("||")).toEqual(["4 Fixture Card 1 [TST] 1", "1 Fixture Card 2 [TST] 2", "1 Fixture Card 3 [TST] 3"]);
+  await expect(page.locator(".deck-export").getByRole("link", { name: /↗$/ })).toHaveCount(3);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("site-wide referral codes and tracking links are added to store buttons", async ({ page }) => {
+  await fixture(page, false, undefined, { tcgplayer: "https://tcgplayer.pxf.io/c/1/2/3", cardkingdom: "paktrak", manapool: "https://track.example.com/go?to={url}" });
+  await openSaved(page);
+  await page.locator(".deck-shopping > summary").click();
+  const panel = page.getByRole("region", { name: "Missing cards buy list", exact: true });
+  const select = panel.getByRole("combobox", { name: "Buy list format", exact: true });
+  await expect(panel.getByRole("link", { name: "Open in Card Kingdom ↗", exact: true })).toHaveAttribute("href", "https://www.cardkingdom.com/builder?partner=paktrak");
+  await expect(panel).toContainText("include its owner’s referral code");
+  await select.selectOption("tcgplayer");
+  const tracked = new URL((await panel.getByRole("link", { name: "Open in TCGplayer ↗", exact: true }).getAttribute("href"))!);
+  expect(tracked.origin + tracked.pathname).toBe("https://tcgplayer.pxf.io/c/1/2/3");
+  expect(new URL(tracked.searchParams.get("u")!).searchParams.get("c")).toContain("Fixture Card 1 [TST] 1");
+  await expect(panel.getByRole("link", { name: "TCGplayer’s Mass Entry", exact: true })).toHaveAttribute("href", "https://tcgplayer.pxf.io/c/1/2/3?u=https%3A%2F%2Fwww.tcgplayer.com%2Fmassentry");
+  await select.selectOption("manapool");
+  const wrapped = new URL((await panel.getByRole("link", { name: "Open in ManaPool ↗", exact: true }).getAttribute("href"))!);
+  expect(wrapped.origin + wrapped.pathname).toBe("https://track.example.com/go");
+  expect(new URL(wrapped.searchParams.get("to")!).pathname).toBe("/add-deck");
+});
+
 for (const mode of ["light", "dark"] as const) for (const width of [320, 390, 1280]) {
   test(`${mode} deck list, overview and editor at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 }); await page.emulateMedia({ colorScheme: mode });

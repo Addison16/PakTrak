@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from httpx import HTTPError
 from joserfc.errors import JoseError
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -29,6 +29,8 @@ from scanner.diagnostics import mark_problem
 from scanner.identity_origin import IdentityConfigurationError
 from scanner.models import AccountPolicy, IdentityBinding, LoginSession, User, now
 from scanner.settings import get_settings
+from scanner.store_links import FIELDS as AFFILIATE_FIELDS
+from scanner.store_links import clean_affiliate, store_links
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 COOKIE = "scanner_session"
@@ -309,6 +311,7 @@ def session_info(identity: Identity, db: DB):
         and user.approval_notice_pending
         and identity.approval_notice_eligible,
         "approved_at": user.approved_at,
+        "store_links": store_links(db.get(AccountPolicy, 1)),
         **account_details(user),
     }
 
@@ -366,12 +369,21 @@ class SignupSetting(BaseModel):
     model_config = ConfigDict(extra="forbid")
     guest_signup_enabled: bool | None = Field(default=None, strict=True)
     enhanced_scanning_enabled: bool | None = Field(default=None, strict=True)
+    tcgplayer_affiliate: str | None = Field(default=None, max_length=500)
+    cardkingdom_affiliate: str | None = Field(default=None, max_length=500)
+    manapool_affiliate: str | None = Field(default=None, max_length=500)
     expected_version: int = Field(ge=1)
+
+    @field_validator(*AFFILIATE_FIELDS)
+    @classmethod
+    def affiliate(cls, value):
+        return clean_affiliate(value)
 
     @model_validator(mode="after")
     def require_change(self):
         changes = self.model_dump(exclude={"expected_version"}, exclude_unset=True)
-        if not changes or any(value is None for value in changes.values()):
+        switches = {key: value for key, value in changes.items() if key not in AFFILIATE_FIELDS}
+        if not changes or any(value is None for value in switches.values()):
             raise ValueError("Choose at least one setting to update, using true or false.")
         return self
 
@@ -380,6 +392,7 @@ def settings_json(policy):
     return {
         "guest_signup_enabled": policy.guest_signup_enabled,
         "enhanced_scanning_enabled": policy.enhanced_scanning_enabled,
+        "store_links": store_links(policy),
         "version": policy.version,
     }
 
@@ -395,7 +408,7 @@ def update_settings(data: SignupSetting, admin: Admin, db: DB):
     policy = db.scalar(select(AccountPolicy).where(AccountPolicy.id == 1).with_for_update())
     if policy.version != data.expected_version:
         raise HTTPException(409, "Settings changed. Refresh before saving.")
-    for field in ("guest_signup_enabled", "enhanced_scanning_enabled"):
+    for field in ("guest_signup_enabled", "enhanced_scanning_enabled", *AFFILIATE_FIELDS):
         if field in data.model_fields_set:
             setattr(policy, field, getattr(data, field))
     policy.version += 1

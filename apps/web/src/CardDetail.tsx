@@ -3,6 +3,8 @@ import { money, request, type CollectionCard as Card, type DataFeed, type Locati
 import CollectionCard from "./CollectionCard";
 import CardArrival, { type CardFlightOrigin } from "./CardArrival";
 import { slideTo, useCardSwipe } from "./useCardSwipe";
+import { ReferralNote } from "./StoreButtons";
+import { withReferral, type Store } from "./storeLinks";
 
 type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text?: string; flavor_text?: string; artist?: string; power?: string; toughness?: string; loyalty?: string; defense?: string; image_url: string | null };
 type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
@@ -90,9 +92,10 @@ export default function CardDetail({ card, origin, binder, locations, session, o
         {!price && <span className="fine">No price for this finish</span>}
         {price?.available === false && <span className="fine">Near mint out of stock</span>}
         <span className={source.feed?.stale ? "fine stale-price" : "fine"}>{source.feed?.updated_at ? `${source.feed.stale ? "Older data · " : "Saved "}${new Date(source.feed.updated_at).toLocaleString()}` : "Awaiting first update"}</span>
-        {price?.url && <a className="text-button" href={price.url} target="_blank" rel="noopener noreferrer">View listing ↗</a>}
+        {price?.url && <a className="text-button" href={withReferral(source.provider as Store, price.url, session.store_links)} target="_blank" rel="noopener noreferrer">View listing ↗</a>}
       </div>; })}</div>
       <p className="fine">Daily reference prices, before shipping and tax. Condition can change a copy’s value. Your collection total uses recorded finishes; unknown finishes, altered cards and misprints are left unpriced.</p>
+      <ReferralNote links={session.store_links} />
     </section>}
     <section aria-label="Owned copies"><h3>Your copies & locations</h3><ul className="plain-list holdings"><CollectionCard card={card} binder={binder} locations={locations} session={session} onSaved={onSaved} onCorrected={onCorrected} /></ul></section>
     {detail && <details><summary>Format legality</summary><div className="legality-grid">{Object.entries(detail.legalities).filter(([name]) => ["standard", "pioneer", "modern", "legacy", "vintage", "commander", "pauper", "brawl"].includes(name)).map(([name, value]) => <div key={name}><span>{name}</span><span className={value === "legal" ? "legal" : ""}>{value.replaceAll("_", " ")}</span></div>)}</div><p className="fine">Card information and legality from Scryfall’s saved catalog.</p></details>}
