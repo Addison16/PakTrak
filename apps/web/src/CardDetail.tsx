@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { money, request, type CollectionCard as Card, type DataFeed, type Location, type Printing, type Session } from "./api";
 import CollectionCard from "./CollectionCard";
 import CardArrival, { type CardFlightOrigin } from "./CardArrival";
+import { slideTo, useCardSwipe } from "./useCardSwipe";
 
 type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text?: string; flavor_text?: string; artist?: string; power?: string; toughness?: string; loyalty?: string; defense?: string; image_url: string | null };
 type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
@@ -26,10 +27,10 @@ export function CardArt({ url, fallbackUrl, name, eager = false }: { url?: strin
 }
 
 export default function CardDetail({ card, origin, binder, locations, session, onSaved, onCorrected, onClose, onStep }: { card: Card; origin?: CardFlightOrigin | null; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected: () => Promise<void>; onClose: () => void; onStep?: (delta: number) => (() => void) | null }) {
-  const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
   const previous = onStep?.(-1), next = onStep?.(1);
   const dialog = useRef<HTMLDialogElement>(null);
   const art = useRef<HTMLDivElement>(null);
+  useCardSwipe(dialog, art, card.printing.id, previous, next);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [faceIndex, setFaceIndex] = useState(0);
   const [finish, setFinish] = useState(card.printing.finishes[0] || "nonfoil");
@@ -61,17 +62,9 @@ export default function CardDetail({ card, origin, binder, locations, session, o
     return () => { stopped = true; };
   }, [card.printing.id]);
   const face = detail?.faces[faceIndex];
-  return <dialog ref={dialog} className="card-dialog" aria-labelledby="card-detail-title" onClose={onClose} onClick={(event) => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close(); } }}>
-    <div className="dialog-heading"><span className="eyebrow">In your collection</span>{onStep && <span className="card-step"><button type="button" className="text-button" aria-label="Previous card" disabled={!previous} onClick={() => previous?.()}>←</button><button type="button" className="text-button" aria-label="Next card" disabled={!next} onClick={() => next?.()}>→</button></span>}<button autoFocus className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
-    <div className="card-detail-layout"><div ref={art} className="detail-art"
-      onPointerDown={(e) => { swipe.current = e.pointerType === "mouse" || !e.isPrimary ? null : { id: e.pointerId, x: e.clientX, y: e.clientY }; }}
-      onPointerCancel={() => { swipe.current = null; }}
-      onPointerUp={(e) => {
-        const start = swipe.current; swipe.current = null;
-        if (!start || start.id !== e.pointerId) return;
-        const dx = e.clientX - start.x, dy = e.clientY - start.y;
-        if (Math.abs(dx) >= 50 && Math.abs(dx) >= Math.abs(dy) * 1.5) (dx < 0 ? next : previous)?.();
-      }}><CardArt url={face ? face.image_url : card.printing.image_url} fallbackUrl={faceIndex === 0 ? card.printing.image_url : undefined} name={face?.name || card.printing.name} eager />
+  return <dialog ref={dialog} className={onStep ? "card-dialog card-swipe" : "card-dialog"} aria-labelledby="card-detail-title" onClose={onClose} onClick={(event) => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close(); } }}>
+    <div className="dialog-heading"><span className="eyebrow">In your collection</span>{onStep && <span className="card-step"><button type="button" className="text-button" aria-label="Previous card" disabled={!previous} onClick={() => slideTo("left", previous)}>←</button><button type="button" className="text-button" aria-label="Next card" disabled={!next} onClick={() => slideTo("right", next)}>→</button></span>}<button autoFocus className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
+    <div className="card-detail-layout"><div ref={art} className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} fallbackUrl={faceIndex === 0 ? card.printing.image_url : undefined} name={face?.name || card.printing.name} eager />
       {detail && detail.faces.length > 1 && <button className="button secondary" onClick={() => setFaceIndex((faceIndex + 1) % detail.faces.length)}>View {faceIndex === 0 ? "other" : "front"} face</button>}
       {face?.artist && <p className="fine artist-credit">Illustrated by {face.artist}</p>}
     </div><div className="detail-copy"><h2 id="card-detail-title">{face?.name || card.printing.name}</h2><p className="detail-type">{face?.type_line || card.printing.type_line}</p>

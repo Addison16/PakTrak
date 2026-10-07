@@ -777,3 +777,4 @@ details p { font-size: 14px; }
 
 .scan-deck-target { border-block: 1px solid var(--line); padding: 16px 0; margin-bottom: 20px; }
 .scan-deck-target h3 { overflow-wrap: anywhere; }
+.card-swipe { touch-action: pan-y pinch-zoom; }
