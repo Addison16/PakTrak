@@ -63,3 +63,6 @@
   .trade-card { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; }
   .trade-card > img, .trade-card > .printing-art-placeholder { width: 40px; height: 56px; }
 }
+.trade-accept { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.trade-accept .button { width: 100%; }
+.trade-accept .fine { margin: 8px 0 0; }

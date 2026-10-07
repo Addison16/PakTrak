@@ -15,10 +15,15 @@ const joinLots = (a: PickedLot[] = [], b: PickedLot[] = []) => [...a, ...b.filte
 type Trade = Record<Side, TradeCard[]>;
 type Quote = { unit_amount: string | null; finish: string | null; printing_id: string };
 type Valuation = { items: Quote[]; feed: DataFeed | null; price_kind: string };
+type ImportBatch = { id: string; state: string; revision: number; error?: string | null; summary: { ready_copies: number; committed_copies: number; unresolved_rows: number } | null };
+type Removal = { card: TradeCard; lot: Lot; take: number };
 
 const finishNames: Record<Finish, string> = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 const sideNames: Record<Side, string> = { give: "You give", get: "You get" };
 const MAX_ROWS = 100;
+const TRADE_BINDER = "Trades";
+const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
 const finishesOf = (printing: Printing) => (["nonfoil", "foil", "etched"] as Finish[]).filter((finish) => printing.finishes.includes(finish));
 const priceKey = (provider: string, printing: string, finish: Finish) => `${provider}:${printing}:${finish}`;
 
@@ -56,6 +61,8 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const [retry, setRetry] = useState(0);
   const pricedAt = useRef(0);
   const [error, setError] = useState<Error | string>("");
+  const [accepting, setAccepting] = useState("");
+  const [accepted, setAccepted] = useState("");
   const provider = preference.provider;
 
   useEffect(() => { try { sessionStorage.setItem(storageKey, JSON.stringify(trade)); } catch { /* The trade still works without tab storage. */ } }, [trade, storageKey]);
@@ -108,7 +115,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
   function add(side: Side, printing: Printing, finish: Finish, lot?: PickedLot) {
     const existing = trade[side].find((card) => card.printing.id === printing.id && card.finish === finish);
     if (!existing && trade[side].length >= MAX_ROWS) { setError(`A trade side can list up to ${MAX_ROWS} different cards.`); return; }
-    setError("");
+    setError(""); setAccepted("");
     update(side, (cards) => existing ? cards.map((card) => card === existing ? { ...card, quantity: Math.min(999, card.quantity + 1), lots: lot ? joinLots(card.lots, [lot]) : card.lots } : card) : [...cards, { key: crypto.randomUUID(), printing, finish, quantity: 1, lots: lot && [lot] }]);
   }
   function addLot(side: Side, lot: Lot) {
@@ -130,6 +137,81 @@ export default function TradeValue({ session, active }: { session: Session; acti
   }
   function clear() {
     if (!rows.length || window.confirm("Clear both sides of this trade?")) { setTrade({ give: [], get: [] }); setAdding(null); }
+  }
+
+  // Find collection copies for every give row, preferring the copies it was picked from.
+  async function plan(): Promise<Removal[]> {
+    const removals: Removal[] = [], used = new Map<string, number>();
+    for (const card of trade.give) {
+      const lots: Lot[] = [];
+      for (let offset: number | null = 0; offset !== null;) {
+        const page: { items: Lot[]; next_offset: number | null } = await request(`/api/v1/collection?printing_id=${card.printing.id}&offset=${offset}`);
+        lots.push(...page.items); offset = page.next_offset;
+      }
+      const picked = new Set(card.lots?.map((lot) => lot.id));
+      const matching = lots.filter((lot) => lot.finish === card.finish || lot.finish === "unknown")
+        .sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)) || Number(b.finish === card.finish) - Number(a.finish === card.finish));
+      let needed = card.quantity;
+      for (const lot of matching) {
+        const take = Math.min(needed, lot.quantity - (used.get(lot.id) || 0));
+        if (take < 1) continue;
+        used.set(lot.id, (used.get(lot.id) || 0) + take); removals.push({ card, lot, take }); needed -= take;
+        if (!needed) break;
+      }
+      if (needed) {
+        const have = card.quantity - needed;
+        throw new Error(`Your collection has ${have} ${finishNames[card.finish].toLowerCase()} ${have === 1 ? "copy" : "copies"} of ${card.printing.name}, but this trade gives ${card.quantity}. Change the copies or finish, then accept again.`);
+      }
+    }
+    return removals;
+  }
+  // Received cards enter the collection as an ordinary import, so they keep a source and can be undone.
+  async function addReceived() {
+    const lines = trade.get.map((card) => [card.printing.id, card.printing.name, card.printing.set_code, card.printing.collector_number, card.printing.language, card.quantity, card.finish, TRADE_BINDER, `Trade accepted ${new Date().toLocaleDateString()}`].map(csvCell).join(","));
+    const body = ["Scryfall ID,Name,Set Code,Collector Number,Language,Quantity,Finish,Binder Name,Notes", ...lines].join("\r\n") + "\r\n";
+    let batch = await request<ImportBatch>(`/api/v1/imports?filename=${encodeURIComponent(`trade-${new Date().toISOString().slice(0, 10)}.csv`)}&format=generic&repeat=true`, {
+      method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": crypto.randomUUID() }, action: "Add traded cards" });
+    // The server previews, then adds, imported copies in the background; follow it until both finish.
+    for (let attempt = 0; ; attempt++) {
+      if (batch.state === "REVIEW") {
+        if (batch.summary?.unresolved_rows) throw new Error("Some cards you get couldn’t be matched to this server’s catalog. Open Import / export to review that import.");
+        batch = await request<ImportBatch>(`/api/v1/imports/${batch.id}/confirm`, { ...mutation(session, { expected_revision: batch.revision, owned_cards: true }), action: "Add traded cards" });
+      }
+      if (batch.state === "COMPLETED") return batch.summary?.committed_copies ?? get.copies;
+      if (batch.state === "FAILED") throw new Error(batch.error || "Adding the cards you get failed. Open Import / export to retry that import.");
+      if (attempt > 240) throw new Error("Adding the cards you get is still running. Check Import / export in a moment.");
+      await pause(1000);
+      batch = await request<ImportBatch>(`/api/v1/imports/${batch.id}`, { action: "Add traded cards" });
+    }
+  }
+  async function accept() {
+    if (accepting || !rows.length) return;
+    setError(""); setAccepted("");
+    const plural = (n: number) => `${n} ${n === 1 ? "copy" : "copies"}`;
+    const summary = [give.copies && `remove ${plural(give.copies)} you give from your collection`, get.copies && `add ${plural(get.copies)} you get to a binder named “${TRADE_BINDER}”`].filter(Boolean).join(" and ");
+    if (!window.confirm(`Accept this trade?\n\nThis will ${summary}. Cards you get can be undone later from Import / export.`)) return;
+    let added = 0, removed = 0;
+    try {
+      setAccepting("Checking your collection…");
+      const removals = await plan();
+      if (trade.get.length) {
+        setAccepting("Adding the cards you get…");
+        added = await addReceived();
+        // The received side is done; retrying after a later failure must not add it twice.
+        setTrade((current) => ({ ...current, get: [] }));
+      }
+      setAccepting("Removing the cards you give…");
+      for (const { card, lot, take } of removals) {
+        await request(`/api/v1/collection/${lot.id}/quantity`, { ...mutation(session, { expected_version: lot.version, quantity: lot.quantity - take }), action: "Remove traded cards" });
+        removed += take;
+        update("give", (cards) => cards.flatMap((row) => row.key !== card.key ? [row] : row.quantity > take ? [{ ...row, quantity: row.quantity - take }] : []));
+      }
+      setAdding(null);
+      setAccepted(`Trade accepted. ${[added && `Added ${plural(added)} to “${TRADE_BINDER}”`, removed && `${added ? "removed" : "Removed"} ${plural(removed)} from your collection`].filter(Boolean).join(" and ")}.`);
+    } catch (reason) {
+      const done = [added && `added ${plural(added)} you get`, removed && `removed ${plural(removed)} you give`].filter(Boolean).join(" and ");
+      setError(done ? `The trade was only partly saved: PakTrak ${done}. What’s left is still listed below. ${(reason as Error).message}` : reason as Error);
+    } finally { setAccepting(""); }
   }
 
   const sideTotals = { give, get };
@@ -194,6 +276,12 @@ export default function TradeValue({ session, active }: { session: Session; acti
         onLot={(lot) => addLot(side, lot)} onPrinting={(printing) => addPrinting(side, printing)} onDone={() => setAdding(null)} />
         : <button type="button" className="button secondary trade-add" onClick={() => setAdding(side)}>Add a card you {side}</button>}
     </section>)}
+
+    <div className="trade-accept">
+      {accepted && <p className="message success" role="status">{accepted}</p>}
+      <button type="button" className="button primary" disabled={!rows.length || !!accepting} onClick={() => void accept()}>{accepting || "Accept trade"}</button>
+      <p className="fine">Accepting removes the cards you give from your collection and adds the cards you get to a “{TRADE_BINDER}” binder.</p>
+    </div>
 
     <div className="trade-footer">
       {feed && <p className="fine">{providers[feed.provider]} · {feed.kind}. {feed.feed?.updated_at ? `Prices updated ${new Date(feed.feed.updated_at).toLocaleString()}.` : "No dated price update available."}{(!feed.feed || feed.feed.stale) && " Cached prices may be out of date."} Reference prices don’t account for card condition, shipping or tax.</p>}
