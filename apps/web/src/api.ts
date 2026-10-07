@@ -1,5 +1,6 @@
+import type { StoreLinks } from "./storeLinks";
 export type PriceSource = "tcgplayer" | "cardkingdom" | "manapool";
-export type Session = { scans_paused?: boolean; suspended?: boolean; scan_card_limit_override?: number | null; account_version?: number; membership_welcome?: boolean; approved_at?: string | null; tour_dismissed: boolean; preferred_price_source: PriceSource | null; owner_id: string; display_name: string; csrf_token: string; role: "admin" | "member" | "guest"; scan_cards_used: number; scan_card_limit: number | null; scan_cards_remaining: number | null };
+export type Session = { store_links?: StoreLinks; scans_paused?: boolean; suspended?: boolean; scan_card_limit_override?: number | null; account_version?: number; membership_welcome?: boolean; approved_at?: string | null; tour_dismissed: boolean; preferred_price_source: PriceSource | null; owner_id: string; display_name: string; csrf_token: string; role: "admin" | "member" | "guest"; scan_cards_used: number; scan_card_limit: number | null; scan_cards_remaining: number | null };
 export type Location = { id: string; name: string; kind: "binder" | "box" | "other"; notes: string; version: number; copies: number };
 export type Lot = { id: string; printing: Printing; quantity: number; finish: string; condition: string; binder: string; binder_id: string; binder_kind: string; notes: string; version: number };
 export type PricingIssues = { unknown_finish: number; custom_value: number; missing_price: number };

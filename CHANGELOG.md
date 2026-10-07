@@ -1,5 +1,10 @@
 # Changelog
 
+## Store buttons and referral links — October 7, 2026
+
+- Add **Open in TCGplayer**, **Open in ManaPool** and **Open in Card Kingdom** buttons to a deck's buy list, and the same three for the whole deck under **Export deck list**. TCGplayer and ManaPool open with the list already filled in; Card Kingdom opens its deck builder with the list copied to paste. Very long lists fall back to copy and paste.
+- Add optional **Store referral links** to **Menu → Administration**. When an administrator fills one in, every store button and price listing link on that server uses it, and people see a short note that store links include a referral. They're empty by default, so nothing changes until an owner adds their own.
+
 ## Faster, more accurate card reading — October 6, 2026
 
 - Read light title text on dark strips (old black frames, showcase and borderless cards) by also reading a dark strip inverted, alongside the usual read. On synthetic light-text titles, correct reads rose from 6 of 10 to 10 of 10.

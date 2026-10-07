@@ -8,6 +8,7 @@ import { Icon } from "./Icon";
 import DeckList from "./DeckList";
 import DeckOpening, { type DeckOpeningOrigin } from "./DeckOpening";
 import DeckBuyList from "./DeckBuyList";
+import StoreButtons, { ReferralNote } from "./StoreButtons";
 import DeckCardPreview from "./DeckCardPreview";
 import { captureCardFlight, preloadCardBack, type CardFlightOrigin } from "./CardArrival";
 import DeckLegality from "./DeckLegality";
@@ -440,7 +441,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       {dirty && <p className="fine" role="status">Live collection comparison · save to update your downloadable buy list.</p>}
       </>}
       {!dirty && <>
-        <details className="deck-shopping"><summary>{deck.missing_copies ? `Buy list · ${deck.missing_copies} missing copies` : "Collection comparison"}</summary><DeckBuyList key={deck.id} deck={deck} busy={busy} onRefresh={() => void act(async () => fill(await request<Deck>("/api/v1/decks/" + deck.id)))} /></details>
+        <details className="deck-shopping"><summary>{deck.missing_copies ? `Buy list · ${deck.missing_copies} missing copies` : "Collection comparison"}</summary><DeckBuyList key={deck.id} deck={deck} busy={busy} links={session.store_links} onRefresh={() => void act(async () => fill(await request<Deck>("/api/v1/decks/" + deck.id)))} /></details>
       </>}
       {dirty && !comparison && <p className={comparisonError ? "message error" : "message"} role="status">{invalidQuantities ? "Finish entering quantities to compare this draft with your collection." : comparisonError ? <>Collection comparison unavailable. {comparisonError} <button className="text-button" onClick={() => { setCollectionAnswer(null); setCollectionRetry((value) => value + 1); }}>Retry collection comparison</button></> : "Checking your collection for this draft…"}</p>}
       {!invalidQuantities && <DeckLegality session={session} format={format} cards={cards.filter((card) => card.quantity > 0).map((card) => ({ printing_id: card.printing.id, quantity: card.quantity, section: card.section }))} saved={deck.legality} live={dirty} onCard={(id) => { const card = cards.find((item) => item.printing.id === id); if (card) { setOnlyMissing(false); setCardFilter(""); setPreviewCard(card); } }} />}
@@ -453,7 +454,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       </div></div>}
       {!dirty && <details className="deck-export"><summary>Export deck list</summary><div className="actions"><button className="button secondary" onClick={() => {
         void (async () => { try { if (!navigator.clipboard) throw new Error("Clipboard unavailable"); await navigator.clipboard.writeText(deckText(deck.cards)); setCopyMessage("Full deck list copied, including sections and editions."); setCopyFallback(false); } catch { setCopyMessage("Select the full list below and use Copy."); setCopyFallback(true); } })();
-      }}>Copy deck list</button><a className="text-button" href={"/api/v1/decks/" + deck.id + "/download?format=text"}>Export saved deck as text</a><a className="text-button" href={"/api/v1/decks/" + deck.id + "/download?format=csv"}>Export saved deck as CSV</a></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}{copyFallback && <label>Full deck list to copy<textarea readOnly rows={6} value={deckText(deck.cards)} onFocus={(e) => e.target.select()} /></label>}</details>}
+      }}>Copy deck list</button><a className="text-button" href={"/api/v1/decks/" + deck.id + "/download?format=text"}>Export saved deck as text</a><a className="text-button" href={"/api/v1/decks/" + deck.id + "/download?format=csv"}>Export saved deck as CSV</a></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}{copyFallback && <label>Full deck list to copy<textarea readOnly rows={6} value={deckText(deck.cards)} onFocus={(e) => e.target.select()} /></label>}
+        <h3>Buy the whole deck</h3><StoreButtons stores={["tcgplayer", "cardkingdom", "manapool"]} cards={deck.cards} exact={deck.match_mode === "exact"} links={session.store_links} short /><p className="fine">Opens the store with every card in this deck, including ones you own. TCGplayer and ManaPool fill the list in; for Card Kingdom it’s copied to paste.</p><ReferralNote links={session.store_links} /></details>}
       {!dirty && <div className="deck-duplicate"><button className="button secondary" disabled={busy} onClick={() => { setDuplicating(!duplicating); setDuplicateName(`${deck.name} (copy)`.slice(0, 255)); }}>Duplicate deck</button>
         {duplicating && <form onSubmit={(e) => { e.preventDefault(); void act(async () => {
           const body = { name: duplicateName.trim(), format: deck.format, notes: deck.notes, match_mode: deck.match_mode, cards: cardChoices(deck.cards) };
