@@ -4,6 +4,7 @@ import { accountRole, type Account, type AccountNavigation } from "./accountType
 import { AccountActivity, AccountUsage } from "./AccountSummary";
 import ErrorNotice from "./ErrorNotice";
 import Appearance from "./Appearance";
+import { PriceAlertSettingsForm } from "./PriceAlerts";
 
 export default function MyAccount({ session, onChange, navigationRef }: { session: Session; onChange: (account: Account) => void; navigationRef: AccountNavigation }) {
   const [account, setAccount] = useState<Account | null>(null);
@@ -46,6 +47,7 @@ export default function MyAccount({ session, onChange, navigationRef }: { sessio
         <p className="fine">The name shown in PakTrak. Continue using your existing username to sign in.</p>
         <button className="button primary" disabled={busy || !dirty || !name.trim()}>Save profile</button>
       </form>
+      <PriceAlertSettingsForm session={session} />
       <section className="account-section" aria-label="Account security"><h3>Sign-in & security</h3><p className="fine">{account.active_sessions} active sign-in {account.active_sessions === 1 ? "session" : "sessions"} · Joined {new Date(account.created_at).toLocaleDateString()}</p>
         <div className="actions"><a className="button secondary" href="/api/auth/password" onClick={(e) => { if (!canLeave()) e.preventDefault(); }}>Change password</a>
           <button className="button secondary" disabled={busy || (account.active_sessions ?? 0) <= 1} onClick={() => {

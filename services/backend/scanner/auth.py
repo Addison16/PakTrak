@@ -300,6 +300,8 @@ async def callback(request: Request, db: DB):
 
 @router.get("/session")
 def session_info(identity: Identity, db: DB):
+    from scanner.social import waiting_count  # social imports this module
+
     user = db.get(User, identity.owner_id)
     return {
         "owner_id": str(user.id),
@@ -312,6 +314,7 @@ def session_info(identity: Identity, db: DB):
         and identity.approval_notice_eligible,
         "approved_at": user.approved_at,
         "store_links": store_links(db.get(AccountPolicy, 1)),
+        "trade_offers_waiting": waiting_count(db, user.id),
         **account_details(user),
     }
 

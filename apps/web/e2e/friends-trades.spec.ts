@@ -23,7 +23,7 @@ async function fixture(page: Page) {
     const body = req.postData() && req.headers()["content-type"]?.includes("json") ? req.postDataJSON() : null;
     if (method !== "GET") state.calls.push(`${method} ${path}`);
     let json: any = {}, status = 200;
-    if (path === "/api/auth/session") json = { owner_id: "friend-fixture", display_name: "Alex", role: "member", csrf_token: "friend-csrf", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
+    if (path === "/api/auth/session") json = { owner_id: "friend-fixture", display_name: "Alex", role: "member", csrf_token: "friend-csrf", tour_dismissed: true, trade_offers_waiting: state.offer?.attention ? 1 : 0, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };
     else if (path === "/api/v1/capabilities") json = { max_upload_bytes: 104857600 };
     else if (path === "/api/v1/scans") json = { items: [], next_offset: null };

@@ -255,6 +255,10 @@ def test_friend_collection_hides_locations_and_respects_sharing(clients, cards):
     del bob_id
 
 
+def waiting(client):
+    return client.get("/api/auth/session").json()["trade_offers_waiting"]
+
+
 def test_trade_offers_follow_each_side(clients, cards):
     alice, alice_id = clients()
     bob, bob_id = clients()
@@ -286,6 +290,8 @@ def test_trade_offers_follow_each_side(clients, cards):
     inbox = bob.get("/api/v1/trade-offers").json()
     theirs = inbox["items"][0]
     assert inbox["attention"] == 1 and theirs["attention"] == "respond"
+    # The session carries the same count, for the menu and the Home notice.
+    assert waiting(bob) == 1 and waiting(alice) == 0
     assert theirs["friend"]["id"] == str(alice_id)
     assert [card["printing"]["name"] for card in theirs["give"]] == ["Lantern Owl"]
     assert [card["printing"]["name"] for card in theirs["get"]] == ["Copper Drake"]
@@ -296,6 +302,7 @@ def test_trade_offers_follow_each_side(clients, cards):
     assert (accepted["state"], accepted["attention"]) == ("accepted", "apply")
     assert bob.post(f"/api/v1/trade-offers/{theirs['id']}/decline").status_code == 409
     assert alice.get("/api/v1/trade-offers").json()["items"][0]["attention"] == "apply"
+    assert waiting(alice) == 1 and waiting(bob) == 1
     bob.post(f"/api/v1/trade-offers/{theirs['id']}/applied")
     alice.post(f"/api/v1/trade-offers/{theirs['id']}/applied")
     assert alice.get("/api/v1/trade-offers").json()["attention"] == 0
@@ -306,6 +313,7 @@ def test_trade_offers_follow_each_side(clients, cards):
     bob.post(f"/api/v1/trade-offers/{second['id']}/decline")
     notice = alice.get("/api/v1/trade-offers").json()["items"][0]
     assert notice["attention"] == "declined"
+    assert waiting(alice) == 1 and waiting(bob) == 0
     alice.post(f"/api/v1/trade-offers/{second['id']}/close")
     assert alice.get("/api/v1/trade-offers").json()["attention"] == 0
     third = alice.post("/api/v1/trade-offers", json=offer, headers=key()).json()
@@ -314,6 +322,7 @@ def test_trade_offers_follow_each_side(clients, cards):
     assert bob.get("/api/v1/trade-offers").json()["items"][0]["id"] == third["id"]
     assert bob.get("/api/v1/trade-offers").json()["items"][0]["state"] == "cancelled"
     assert bob.get("/api/v1/trade-offers").json()["attention"] == 0
+    assert waiting(alice) == 0 and waiting(bob) == 0
 
 
 def test_value_and_price_history_record_owned_cards(clients, cards):

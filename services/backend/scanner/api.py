@@ -45,6 +45,7 @@ from scanner.photo_formats import (
     photo_mime,
     sniff_type,
 )
+from scanner.price_alerts import router as price_alerts_router
 from scanner.recognition_policy import AUTO_IMPORT_THRESHOLD
 from scanner.scan_batches import batch_data
 from scanner.scan_batches import router as scan_batches_router
@@ -77,6 +78,7 @@ app.include_router(collection_bulk_router)
 app.include_router(decks_router)
 app.include_router(deck_scans_router)
 app.include_router(gallery_router)
+app.include_router(price_alerts_router)
 app.include_router(card_images_router)
 app.include_router(scan_batches_router)
 app.include_router(diagnostics_router)

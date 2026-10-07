@@ -13,7 +13,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 
 from scanner.account_access import account_name
 from scanner.auth import DB, Identity
@@ -241,7 +241,15 @@ def remove_friend(friendship_id: uuid.UUID, identity: Identity, db: DB):
                 (TradeOffer.sender_id == link.user_b) & (TradeOffer.recipient_id == link.user_a),
             ),
         )
-        .values(state="cancelled", responded_at=now())
+        .values(
+            state="cancelled",
+            responded_at=now(),
+            # The person removing the friend already knows; only the other sender is told.
+            sender_closed_at=case(
+                (TradeOffer.sender_id == identity.owner_id, now()),
+                else_=TradeOffer.sender_closed_at,
+            ),
+        )
     )
     db.delete(link)
     db.commit()
@@ -467,6 +475,30 @@ def offers_for(db, owner_id, ids=None):
     }
     provider = preferred_provider(db, owner_id)
     return [offer_json(db, offer, owner_id, provider, people) for offer in offers]
+
+
+def waiting_count(db, owner_id):
+    """Offers that need this person, counted the same way as offer_json's attention."""
+    incoming = TradeOffer.recipient_id == owner_id
+    outgoing = TradeOffer.sender_id == owner_id
+    return db.scalar(
+        select(func.count()).where(
+            or_(
+                incoming
+                & (TradeOffer.state == "pending")
+                & TradeOffer.recipient_closed_at.is_(None),
+                incoming
+                & (TradeOffer.state == "accepted")
+                & TradeOffer.recipient_applied_at.is_(None),
+                outgoing
+                & (TradeOffer.state == "accepted")
+                & TradeOffer.sender_applied_at.is_(None),
+                outgoing
+                & TradeOffer.state.in_(("declined", "cancelled"))
+                & TradeOffer.sender_closed_at.is_(None),
+            )
+        )
+    )
 
 
 @trades.get("")

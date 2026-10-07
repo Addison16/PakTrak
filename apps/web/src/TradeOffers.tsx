@@ -47,7 +47,7 @@ function CardLines({ cards, label }: { cards: OfferCard[]; label: string }) {
 
 const stateText: Record<TradeOffer["state"], string> = { pending: "Waiting", accepted: "Accepted", declined: "Declined", cancelled: "Cancelled" };
 
-export default function TradeOffers({ session, active }: { session: Session; active: boolean }) {
+export default function TradeOffers({ session, active, onCount }: { session: Session; active: boolean; onCount?: (count: number) => void }) {
   const [data, setData] = useState<Offers | null>(null);
   const [error, setError] = useState<Error | string>("");
   const [notice, setNotice] = useState("");
@@ -57,7 +57,7 @@ export default function TradeOffers({ session, active }: { session: Session; act
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    request<Offers>("/api/v1/trade-offers", { signal: controller.signal }).then(setData).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
+    request<Offers>("/api/v1/trade-offers", { signal: controller.signal }).then((value) => { setData(value); onCount?.(value.attention); }).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
     return () => controller.abort();
   }, [active, reload]);
 
@@ -118,24 +118,24 @@ export default function TradeOffers({ session, active }: { session: Session; act
   </section>;
 }
 
-/** The popup at the top of Home for offers that need this person. */
-export function OfferNotice({ session, show = true, onCount }: { session: Session; show?: boolean; onCount?: (count: number) => void }) {
+/** The popup at the top of Home for offers that need this person. The session carries the count, so offers load only when one is waiting. */
+export function OfferNotice({ session, show = true }: { session: Session; show?: boolean }) {
   const [offers, setOffers] = useState<TradeOffer[]>([]);
   const [hidden, setHidden] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("paktrak:hidden-offers") || "[]") as string[]; } catch { return []; } });
   const [reload, setReload] = useState(0);
+  const waiting = session.trade_offers_waiting || 0;
   useEffect(() => {
     const refresh = () => setReload((value) => value + 1);
     window.addEventListener(OFFERS_EVENT, refresh);
-    const timer = window.setInterval(refresh, 60_000);
-    return () => { window.removeEventListener(OFFERS_EVENT, refresh); clearInterval(timer); };
+    return () => window.removeEventListener(OFFERS_EVENT, refresh);
   }, []);
   useEffect(() => {
+    if (!show || !waiting) { if (!waiting) setOffers([]); return; }
     const controller = new AbortController();
-    request<Offers>("/api/v1/trade-offers", { signal: controller.signal, quiet: true }).then((data) => {
-      setOffers(data.items.filter((offer) => offer.attention)); onCount?.(data.attention);
-    }).catch(() => { /* The notice is a shortcut; Trade offers shows errors. */ });
+    request<Offers>("/api/v1/trade-offers", { signal: controller.signal, quiet: true }).then((data) => setOffers(data.items.filter((offer) => offer.attention)))
+      .catch(() => { /* The notice is a shortcut; Trade offers shows errors. */ });
     return () => controller.abort();
-  }, [reload, session.owner_id]);
+  }, [show, waiting, reload, session.owner_id]);
   const shown = offers.filter((offer) => !hidden.includes(offer.id + offer.attention));
   if (!show || !shown.length) return null;
   function hide(offer: TradeOffer) {

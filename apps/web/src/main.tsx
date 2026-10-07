@@ -5,6 +5,7 @@ import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
 import Onboarding from "./Onboarding";
 import MembershipWelcome from "./MembershipWelcome";
+import PriceAlerts from "./PriceAlerts";
 import { useOnboarding } from "./useOnboarding";
 import BatchList, { batchNeedsReview, batchStatus } from "./BatchList";
 import type { ReviewState, Scan } from "./scanTypes";
@@ -151,6 +152,7 @@ function App() {
   const [openedCollection, setOpenedCollection] = useState(page === "collection");
   const [openedTrade, setOpenedTrade] = useState(page === "trade");
   const [offerCount, setOfferCount] = useState(0);
+  useEffect(() => { setOfferCount(session?.trade_offers_waiting || 0); }, [session?.trade_offers_waiting]);
   const accountNavigation = useRef<(() => boolean) | null>(null);
   const deckNavigation = useRef<(() => boolean) | null>(null);
   const [offset, setOffset] = useState(0);
@@ -601,7 +603,8 @@ function App() {
       </section> : <>
         {(session.role === "guest" || session.scans_paused || session.scan_card_limit !== null) && <div className="message account-allowance"><strong>{session.role === "guest" ? "Guest account" : "Card scan allowance"} · {session.scan_cards_used.toLocaleString()}{session.scan_card_limit !== null ? ` / ${session.scan_card_limit.toLocaleString()}` : ""} card scans used</strong><p>{session.scans_paused ? "New scans are paused. Your collection and decks are still available. Contact your administrator to resume scanning." : session.scan_cards_remaining === null ? "Unlimited card scans." : session.scan_cards_remaining > 0 ? `${session.scan_cards_remaining.toLocaleString()} card scans left in your lifetime allowance.` : "Your lifetime scan allowance is used. An administrator can raise the limit or restore unlimited scanning."}</p><button className="text-button" onClick={() => navigate("account")}>View my account</button></div>}
         {notice && <div className="message success" role="status">{notice}</div>}
-        <Suspense fallback={null}><OfferNotice session={session} show={page === "scan" && !selected} onCount={setOfferCount} /></Suspense>
+        {offerCount > 0 && <Suspense fallback={null}><OfferNotice session={{ ...session, trade_offers_waiting: offerCount }} show={page === "scan" && !selected && !route.targetDeck} /></Suspense>}
+        {page === "scan" && !selected && !route.targetDeck && <PriceAlerts session={session} onSettings={() => navigate("account")} />}
         {page === "scan" && <section className="panel capture">
           {route.targetDeck && <div className="scan-deck-target" aria-label="Deck scan destination">
             <div className="eyebrow">SCANNING A DECK</div><h3>{scanDeck ? scanDeck.name : "Opening your deck…"}</h3>
@@ -667,7 +670,7 @@ function App() {
         {page === "wishlist" && <Suspense fallback={<p role="status">Opening your wishlist…</p>}><Wishlist session={session} active /></Suspense>}
         {page === "sets" && <Suspense fallback={<p role="status">Opening set completion…</p>}><Sets session={session} setCode={route.set} /></Suspense>}
         {page === "friends" && <Suspense fallback={<p role="status">Opening friends…</p>}><Friends session={session} active friendId={route.friend} /></Suspense>}
-        {page === "offers" && <Suspense fallback={<p role="status">Opening trade offers…</p>}><TradeOffers session={session} active /></Suspense>}
+        {page === "offers" && <Suspense fallback={<p role="status">Opening trade offers…</p>}><TradeOffers session={session} active onCount={setOfferCount} /></Suspense>}
         {page === "account" && <Suspense fallback={<p role="status">Opening your account…</p>}><MyAccount session={session} navigationRef={accountNavigation} onChange={(account) => setSession((current) => current ? { ...current, display_name: account.display_name, role: account.role, scan_cards_used: account.scan_cards_used, scan_card_limit: account.scan_card_limit, scan_cards_remaining: account.scan_cards_remaining, scans_paused: account.scans_paused, account_version: account.account_version } : current)} /></Suspense>}
         {page === "admin" && session.role === "admin" && <Suspense fallback={<p role="status">Opening account settings…</p>}><Admin session={session} navigationRef={accountNavigation} /></Suspense>}
         {page === "batches" && !selected && (route.batch ? <section className="panel"><button className="button secondary" onClick={closeBatch}>← Back to batches</button>{!error && <p role="status">Opening batch…</p>}</section> : <BatchList scans={scans} offset={offset} nextOffset={nextOffset} onPage={setOffset} onOpen={openBatch} onUpload={() => navigate("scan")} />)}

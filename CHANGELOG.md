@@ -11,6 +11,13 @@
 - Decks get a mana curve, sample opening hands with mulligans, and **Export for MTG Arena** / **Export for MTGO**.
 - Add **Menu → Set completion** with progress for each set you own cards from, the missing cards and the cost to finish.
 
+## Price alerts — October 7, 2026
+
+- A short banner on Home says when your cards went up or down in price since you last checked. Tapping it opens the full list with each card's old and new price, the change and the percent. "Got it" clears it, and nothing shows when nothing moved.
+- Choose the size of change that counts in My account: a percent, a dollar amount or both (both must be met). New accounts start at 20% and $1.00, so cheap cards don't alert over cents. Alerts can be turned off.
+- Each account keeps its own settings and the prices it last saw. A card only takes its new price as the starting point once you dismiss its alert, so slow changes still add up to an alert. Switching price source starts fresh, so prices from different stores are never compared.
+- Misprints, altered cards and cards with an unknown finish are left out, because their value isn't the market price.
+
 ## Store buttons and referral links — October 7, 2026
 
 - Add **Open in TCGplayer**, **Open in ManaPool** and **Open in Card Kingdom** buttons to a deck's buy list, and the same three for the whole deck under **Export deck list**. TCGplayer and ManaPool open with the list already filled in; Card Kingdom opens its deck builder with the list copied to paste. Very long lists fall back to copy and paste.
