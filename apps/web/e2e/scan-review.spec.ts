@@ -920,3 +920,17 @@ test("the phone tab bar shows batches waiting for review and hides inside a batc
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(tabs).toBeHidden();
 });
+
+test("the phone tab bar keeps its buttons clear of the bottom edge", async ({ page }) => {
+  await fixture(page, 3, 0, [], 0, 0);
+  await page.getByRole("button", { name: /Back to batches/ }).click();
+  const tabs = page.getByRole("navigation", { name: "Quick navigation", exact: true });
+  const upload = tabs.getByRole("button", { name: "Upload", exact: true });
+  await expect(upload).toBeVisible();
+  const box = await upload.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box!.height).toBeGreaterThanOrEqual(58);
+  // iPhones add their home indicator inset on top of this; other screens keep a small gap.
+  expect(viewport!.height - (box!.y + box!.height)).toBeGreaterThanOrEqual(10);
+  if (process.env.SCANNER_E2E_SHOTS) await page.screenshot({ path: process.env.SCANNER_E2E_SHOTS + "/tab-bar.png" });
+});
