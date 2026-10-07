@@ -2,23 +2,96 @@
 
 **Every card. In reach.**
 
-**Free and open source.** Original PakTrak code is licensed under the [GNU AGPL v3](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for separately licensed components.
+PakTrak is a self-hosted Magic: The Gathering collection app for your phone's browser. Lay out a page of cards and take one photo. PakTrak outlines the cards it finds, suggests a printing for each, and adds the strongest matches to your collection on its own; anything it isn't sure about waits for a quick check, and you can add a card it missed. It runs on your own server, keeps your data there, and is free and open source under the [GNU AGPL v3](LICENSE).
 
-A Magic: The Gathering collection app for phone browsers, built around Docker Compose. Upload a photo, wait for **server acceptance**, then put your phone away. Processing and collection transfers continue on the server. Explore your cards, track their binders and boxes, and save your next deck.
+<table>
+  <tr>
+    <td width="33%"><img src="docs/images/scan-photo.png" alt="A photo of fifteen cards with each card outlined and numbered"></td>
+    <td width="33%"><img src="docs/images/scan-review.png" alt="Scan results showing auto-imported cards and two matches to review"></td>
+    <td width="33%"><img src="docs/images/collection.png" alt="Collection gallery with copy counts, prices and binder locations"></td>
+  </tr>
+  <tr>
+    <td align="center">One photo, a whole page of cards</td>
+    <td align="center">Strong matches import themselves</td>
+    <td align="center">Every copy, price and binder</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/decks.png" alt="Saved decks shown as deck boxes with their artwork"></td>
+    <td><img src="docs/images/deck.png" alt="A Commander deck showing which cards you own and where to find them"></td>
+    <td><img src="docs/images/price-history.png" alt="Card details with prices from three stores and a 30-day price chart"></td>
+  </tr>
+  <tr>
+    <td align="center">Decks in their own boxes</td>
+    <td align="center">What you own and where it is</td>
+    <td align="center">Three price sources and history</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/price-alerts.png" alt="Price alerts listing cards that went up and down"></td>
+    <td><img src="docs/images/trade-offer.png" alt="A trade offer from a friend with the value of each side"></td>
+    <td><img src="docs/images/set-completion.png" alt="Set completion progress for three sets"></td>
+  </tr>
+  <tr>
+    <td align="center">Alerts when your cards move</td>
+    <td align="center">Trade offers between friends</td>
+    <td align="center">Set completion</td>
+  </tr>
+</table>
 
-The [PakTrak camera](docs/CAMERA.md) includes a selector for available cameras, framing guides, bottom capture controls and photo review/retake. It remembers your working camera choice on the device; light and zoom appear when supported. The phone's native camera remains available for additional lens controls, full-resolution images and HEIC/HEIF capture.
+<sub>Screenshots use sample cards and placeholder art. Real card images come from Scryfall once your server downloads the card catalog.</sub>
 
-Durable server-side photo identification, suggested-printing review, crop correction, reversible scan batches, collections, saved decks, and CSV/text import and export are implemented. Server-computed matches above 88% strength import automatically; the remaining suggestions have guided review. Enter a foil count before upload, then select foil cards in the batch to label finishes. See [scan batches](docs/SCANNING.md).
+## Why PakTrak
 
-The [quality of life guide](docs/QOL.md) covers draft recovery, scan precision, saved collection views, bulk organization, partial moves, import repair and deck editing. Verified backup and restore scripts are documented in [operations](docs/OPERATIONS.md#upgrades-and-backups).
+- **Scans a whole page at once.** Most card scanners read one card at a time. PakTrak takes a photo of a binder page or a table full of cards, outlines each card, reads the name, set and collector number, and compares the artwork to suggest the printing. You confirm anything it isn't sure about.
+- **Built for a phone, runs on your server.** Upload a photo and put your phone away. The server keeps working, and the results are waiting when you come back.
+- **Knows where your cards are.** Every copy belongs to a binder or box, so a deck list can tell you which cards you own and where to find them.
+- **Private by design.** Your collection stays on your server. Friends connect with private codes, and PakTrak never shows who else has an account.
 
-Decks have customizable cases, commander artwork banners and gallery layouts. Opening a case scatters cards with visible fronts, real Magic backs and thin edges before they settle into the deck. Selecting a card from a deck or collection spins it from its thumbnail into the detail viewer; reduced-motion preferences skip the transitions.
+## Features
 
-The [latest changes](CHANGELOG.md) include photo-to-deck scanning, deck values from three pricing sources, deck legality and token checklists, camera selection, account controls, and account-preserving hostname changes.
+### Scanning and adding cards
+- Photograph up to a page of cards with the in-app camera, the phone's own camera or a photo from your library (JPEG, HEIC, PNG, WebP and more). See [photo formats](docs/PHOTO_FORMATS.md).
+- Matches above 88% strength are added automatically; the rest get a quick guided review with suggested printings, crop correction and upside-down card handling. See [scanning](docs/SCANNING.md) and [the camera](docs/CAMERA.md).
+- Tap the foils in a batch to mark them. Scan review tells you when you already own a card.
+- Undo a whole batch later without touching cards from other scans.
+- Import from other apps with CSV or plain text lists like `4 Lightning Bolt (M11) 146`, wishlist rows included. See [import formats](docs/IMPORT_FORMATS.md).
 
-## Run with Docker
+### Collection
+- A searchable card gallery with copy counts, filters, saved views, shuffle and price sorting. Swipe through cards in the order you're viewing them.
+- Binders and boxes: see where every copy lives, and move or reorganize cards in bulk.
+- Collection value from TCGplayer, Card Kingdom or ManaPool, with a value-over-time chart and a price history for each card.
+- Price alerts on Home when your cards go up or down by an amount you choose.
+- Set completion with the cost to finish a set.
+- Export to CSV or text at any time.
 
-Install Git and Docker Engine/Desktop with Compose **2.18 or newer**. Published images support **Linux x86-64 / amd64**. No host Python, Node, or local application build is required.
+### Decks
+- Saved decks shown as customizable deck boxes with commander artwork.
+- Import a deck list or scan a physical deck across several photos.
+- See which cards you own, which binder they're in, and what's still missing, with a buy list and buttons for TCGplayer, Card Kingdom and ManaPool.
+- Deck value, format legality, token checklist, mana curve, sample opening hands, and export for MTG Arena or MTGO. See [decks](docs/DECKS.md).
+
+### Friends and trading
+- A wishlist with prices and store buttons.
+- Add friends with a private friend code, browse each other's collections and wishlists, and send trade offers. Accepting updates each person's own collection.
+- Trade value: add cards to both sides and see whether a trade is fair. See [wishlist, friends and trade offers](docs/FRIENDS.md).
+
+### Everyday use
+- Works offline: view your collection and decks without a connection and queue changes until the server is back. See [using PakTrak offline](docs/OFFLINE.md).
+- Accounts for everyone in the house, with an administrator who approves new members and can set scan limits. See [account controls](docs/ACCOUNTS.md).
+- Daily automatic backups on the single-container install, with download and restore from the app.
+- Light and dark mode and five color themes.
+- Card data and prices update daily on the server. See [card data and pricing](docs/CARD_DATA.md).
+
+## Install
+
+PakTrak runs in Docker on any Linux x86-64 (amd64) server. There is no default password; the first person to open it creates the administrator account.
+
+### Unraid or a single container
+
+The simplest setup is the all-in-one container `ghcr.io/addison16/paktrak`, which holds the database, sign-in service, photo storage and web app. On Unraid you add it from a template and update it from the **Docker** page like any other app. Follow the [Unraid guide](docs/UNRAID.md), which also covers HTTPS, backups and moving from a Docker Compose install.
+
+### Docker Compose
+
+Install Git and Docker with Compose 2.18 or newer, then run:
 
 ```sh
 git clone https://github.com/Addison16/PakTrak.git
@@ -27,92 +100,18 @@ sh scripts/setup.sh
 sh scripts/update.sh
 ```
 
-Open **http://localhost:8095** and choose **Create administrator account**. Choose your own username and a password with at least **8 characters**; there is no default app account. Keep `.env` private (installations created by older versions also have a private `infra/generated/`); setup never prints its passwords. Complete first-admin setup before opening an installation for general access.
+Open **http://localhost:8095** and choose **Create administrator account**. Run `sh scripts/update.sh` again whenever you want the latest release. You can also run PakTrak with only `compose.yaml` and `.env`, without Git; see [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
 
-Setup runs once and refuses to overwrite existing configuration. The update command selects the latest published stable GitHub release, checks out its matching source tag, pulls both app images from GHCR, and pins their version in `.env`. It preserves existing credentials and data volumes. Run it again to update:
+### Using it from your phone
 
-```sh
-sh scripts/update.sh
-```
+Put PakTrak behind HTTPS with a hostname so your phone can use the live camera and full offline mode, then add it to your Home Screen. The [Docker and HTTPS guide](docs/OPERATIONS.md#https-and-access-from-a-phone) covers reverse proxies, hostnames, updates and [backups](docs/OPERATIONS.md#upgrades-and-backups).
 
-To restart the installed version, run `sh scripts/start.sh`. To install a particular published version, use `sh scripts/update.sh --version v0.1.0`. Updates refuse tracked source edits; save those edits before updating. The [release guide](docs/RELEASING.md) covers publishing images and initial GHCR package visibility.
+## For developers
 
-On Unraid, or any host where one container is easier to manage, use the single PakTrak container (`ghcr.io/addison16/paktrak`); see the [Unraid guide](docs/UNRAID.md). You can also run PakTrak with only `compose.yaml` and `.env`, without a Git checkout. See [Docker Compose without Git](docs/OPERATIONS.md#docker-compose-without-git).
+Build from source with `sh scripts/start.sh --build`. Tests run with `sh scripts/test.sh` and `sh scripts/test-browser.sh`; [validation status](docs/STATUS.md) explains what is covered. See [architecture decisions](docs/ARCHITECTURE.md), the [release guide](docs/RELEASING.md), [quality of life notes](docs/QOL.md), [browser navigation](docs/NAVIGATION.md), [PakTrak's visual identity](docs/BRAND.md) and the [changelog](CHANGELOG.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
-For development or before the first images are published, build this checkout with `sh scripts/start.sh --build`. [compose.build.yaml](compose.build.yaml) adds local builds to the pull-based default Compose file. The build path also supports installations without the optional Buildx plugin.
+## License
 
-The default address is local to the server. For a phone, deploy behind HTTPS with a stable hostname; follow [the Docker and HTTPS guide](docs/OPERATIONS.md). Do not use the phone's `localhost` address to reach your server.
+PakTrak is free and open-source software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only), with the project [notice](NOTICE). You may use, modify and share it, including commercially. Modified versions must stay under the AGPL with their source available, and if you run a modified version as a network service, you must offer its users the source. Third-party software, fonts and card data keep their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies](docs/DEPENDENCIES.md).
 
-The data worker automatically prepares the default card catalog and daily price feeds. Open **Card data & prices** in the app for progress. `default_cards` includes English printings and cards available only in another printed language. For localized collections, follow the [all-language catalog instructions](docs/OPERATIONS.md#catalog-maintenance). The loader supports compressed JSON Lines exports and older JSON arrays, keeps previous printings when updating, and publishes changes in one database transaction. Provider artwork is cached on the server when viewed; it is not bundled with the application.
-
-## What you can do
-
-- Upload JPEG, PNG, WebP, HEIC/HEIF, AVIF, TIFF, BMP or still GIF photos, then close the browser after acceptance. The server verifies and stores the source, prepares a clean photo, and proposes separate card-shaped regions. Batches and results remain available after reconnecting. See [photo formats](docs/PHOTO_FORMATS.md) for file limits and multi-image behavior.
-- Review each proposed region, search the local printing catalog, and deliberately add one physical copy. Unknown finish and ungraded condition remain explicit. Repeated decisions and worker retries cannot add that region twice.
-- Create the first administrator through the setup screen. New signups are guests with **100 card scans total**, with no daily/monthly reset. Administrators approve guests as standard members with no total-card scan limit, and can turn new guest signup on or off. Approved members receive a congratulations message explaining unlimited scans at their next sign-in; dismissal is remembered. Existing accounts keep working when signup is closed.
-- Import CSV with a column mapper, full CSV with retained source fields, or text lists such as `4 Lightning Bolt (M11) 146`. A saved preview requires confirmation; ambiguous printings remain available for review.
-- See matching copies together as one card entry with a quantity such as **×4**, including copies added by different scans or imports. Each exact printing has its own count, with quantities by binder or box. Open **Manage copies** to inspect finish, condition and notes, move copies, or reduce their quantity.
-- Export a consistent snapshot and undo an import's remaining copies without subtracting matching cards from other scans or imports.
-- Create and rename storage locations for physical binders and boxes. Search a card to see where it is stored; move a whole inventory group to another location without losing its import history.
-- Browse saved decks as a three-column deck-box gallery, with deck colors and commander artwork. Open a deck to explore its card images, edit quantities, and add or replace its list with a CSV/text import.
-- Paste or import a deck list, including cards you still need. Matching prefers versions in your collection and compares by card name by default. See binder/box locations and export a missing-only buy list for TCGplayer, Card Kingdom or ManaPool. Mainboard, sideboard and commander sections are preserved; decks do not reserve or move cards. See [deck plans and buy lists](docs/DECKS.md).
-- Scan a physical deck across multiple photos, approve matches, assign commander/mainboard/sideboard sections, and save it in Decks. **Deck only** is the default; **Also add scanned copies to my collection** is optional. Accepted photos continue processing on the server after the phone disconnects.
-- View a deck's cached value using TCGplayer, Card Kingdom or ManaPool, including quantities, section subtotals, finish estimates and unpriced cards. Pricing follows the selected editions; missing quotes remain visible.
-- Check a deck against the selected format's cached legality and construction rules, and see its linked token/emblem checklist. Unsectioned Commander imports put the first copy in the commander section, the next 99 in the mainboard, and remaining cards in extras; explicit sections and supported commander pairs remain available.
-- See a deck's mana curve, draw sample opening hands with mulligans, and export a deck for MTG Arena or MTGO. Each deck card notes the other decks that use it, and card details show how many copies your decks leave free.
-- Keep a wishlist with prices and store buttons, check set completion and the cost to finish a set, and follow your collection's value and each card's price over time. See [wishlist, friends and trade offers](docs/FRIENDS.md).
-- Add friends with private codes (PakTrak never lists who has an account), browse each other's collections and wishlists, and send trade offers that each person accepts into their own collection. Scan review notes when you already own a card.
-- Keep using your collection and decks when the server can't be reached. Removals, copy edits, moves and deck saves made offline are queued and sent when you're back; the header shows when you're offline and **Menu → Queued actions** lists what's waiting. See [using PakTrak offline](docs/OFFLINE.md).
-- Download CSV with common columns, plain text lists, or full CSV with reversible spreadsheet-safe escaping. Every export retains card quantities, including cards with unknown finish or condition.
-
-Photo and CSV workers have separate queues. PostgreSQL stores authoritative jobs and replayable dispatch records, so a lost broker message does not strand accepted work. The phone performs no required recognition, CSV parsing, or collection commits.
-
-New accounts get a short, four-step welcome tour covering navigation, the collection, ways to add cards, and organizing decks and storage. No upload is needed. Finish or skip it once; your account remembers across devices. Established accounts can try it through **Menu → Quick tour**, which also replays it at any time without changing collection data.
-
-Use the header **Menu** button to open navigation from any signed-in screen. Collection is a searchable card-art gallery with duplicate counts, filters, shuffle, card details and storage locations. Your preferred pricing source is saved to your account, including when you sign in on another device. **Sort by** includes low-to-high and high-to-low prices across the full filtered collection, with unpriced cards last.
-
-Your browser's **Back/Forward** controls and supported phone swipe-back gesture follow the screens you visit, including decks, batches, card previews and user accounts. Back closes an open menu first; unfinished edits retain their discard warnings. See [browser navigation](docs/NAVIGATION.md).
-
-Choose **Menu → Appearance → Auto, Light or Dark**. Auto is the default and follows the device's current appearance, including changes while the app is open. Manual choices are remembered in this browser and shared with its other PakTrak tabs and sign-in/registration pages. The signed-out welcome screen also has the selector.
-
-Under **Color theme**, choose **Forest** (the original green and cream), **Ocean** (blue), **Amethyst** (violet), **Ember** (terracotta), or **Slate** (neutral). Each palette has light and dark versions, and its preview follows your appearance mode. Colors apply immediately throughout the app and sign-in pages, stay in sync across tabs, and are remembered independently of Auto/Light/Dark. The same controls are available in **My account → Appearance**. Card artwork keeps its original colors.
-
-**Menu → My account** shows your profile, scan usage, password-change link and other-device sign-out. **Administration → User management** lets admins reset user passwords, suspend/restore users, end sessions, pause scans and set lifetime card limits. A reset provides a temporary password to share privately, ends existing sign-ins and requires a new password at the next login. Members start unlimited on approval; admins can raise a cap or restore unlimited without resetting usage. See [account controls](docs/ACCOUNTS.md).
-
-Errors name the failed action and offer dismissible, copyable details. Administrators can match request references under **Menu → Administration → Error logs**. Logs persist for up to 14 days / 10,000 entries and exclude request contents and credentials. See [error logs and sign-in recovery](docs/OPERATIONS.md#error-logs-and-sign-in-recovery).
-
-Daily server updates supply Scryfall metadata/artwork, TCGplayer market estimates via Scryfall, Card Kingdom retail references and ManaPool near-mint listing prices. Missing prices and unknown finishes stay unpriced. Imports and data updates show measured progress estimates. See [card data and pricing](docs/CARD_DATA.md) for source meanings, caching and limits.
-
-Changing the public hostname keeps your existing accounts and saved data. Configure the new DNS/proxy/TLS address, update `APP_URL`, and run `sh scripts/start.sh`; bootstrap updates the login configuration and preserves account ownership. On an older installation, first upgrade at its existing address before changing it. See [hostname changes](docs/OPERATIONS.md#https-and-access-from-a-phone).
-
-```mermaid
-flowchart LR
-    P[Phone uploads] --> A[Server stores file and durable job]
-    A --> D[Phone can disconnect]
-    A --> W[Server workers]
-    W --> R[Saved regions or import preview]
-    R --> C[Collector reviews and confirms]
-    C --> I[(Collection and audit history)]
-```
-
-## Verify the build
-
-```sh
-sh scripts/test.sh
-sh scripts/test-browser.sh
-sh scripts/test-accounts-browser.sh
-```
-
-The integration suite uses a separate `scanner_test` database and `scanner-test` bucket. Browser tests use disposable identity accounts and synthetic holdings; load the real catalog first. The account browser test additionally uses a temporary database and OIDC client with a separate loopback callback, preserving the live first-admin setup. Browser tests currently use Linux host networking. [Validation status](docs/STATUS.md) distinguishes automated evidence from remaining physical-device and real-photo qualification.
-
-`sh scripts/test-recovery.sh` is an **interrupting development-instance test**: it closes the browser, deliberately clears this project's task broker, and recreates containers while preserving the database/photo volumes. Run it by itself on a development instance. It refuses to start with active non-test jobs. It is not a backup/restore test.
-
-## Remaining work and release direction
-
-Calibrated exact-printing recognition, targeted replacement close-ups, account deletion, backup/restore automation, and release hardening remain. A development photo now produces all 15 expected regions and card-name suggestions; a held-out real-photo benchmark, physical-phone testing and destination file interoperability checks are still needed. No universal 15-card accuracy or file compatibility claim is made.
-
-PakTrak is free and open-source software under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only), with the project [notice](NOTICE). You may use, modify and redistribute it, including commercially. Redistributed or modified versions must remain under the AGPL with their source available, and if you run a modified version as a network service, you must offer its users the corresponding source. Third-party software, fonts and card data keep their own rights and notices; see [third-party notices](THIRD_PARTY_NOTICES.md) and [dependencies and source rights](docs/DEPENDENCIES.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
-
-See [import formats](docs/IMPORT_FORMATS.md), [architecture decisions](docs/ARCHITECTURE.md), [PakTrak's visual identity](docs/BRAND.md), and the authoritative [product specification](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.md). The supplied [PDF](Instructions/MTG_SCANNER_BUILD_INSTRUCTIONS.pdf) remains the original version 1.0 snapshot. It does not describe this implementation.
-
-Card metadata comes from [Scryfall](https://scryfall.com/docs/api). Magic: The Gathering belongs to Wizards of the Coast. This project is unofficial and is not endorsed by Wizards of the Coast or Scryfall.
+Card data and images come from [Scryfall](https://scryfall.com/docs/api). Magic: The Gathering belongs to Wizards of the Coast. PakTrak is unofficial and is not endorsed by Wizards of the Coast or Scryfall.
