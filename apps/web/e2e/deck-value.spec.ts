@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const printings = ["Captain", "Island", "Shield", "No quote"].map((name, i) => ({ id: "value-card-" + i, name, set_code: "val", collector_number: String(i), language: "en", finishes: i === 2 ? ["nonfoil"] : ["nonfoil", "foil"], image_url: null }));
 async function fixture(page: Page) {
@@ -14,6 +15,7 @@ async function fixture(page: Page) {
   function detail() { const cards = deck.cards.map((c: any) => ({ ...c, printing: printings.find(p => p.id === c.printing_id), available: 0, owned: 0, missing: c.quantity, locations: [] })); return { ...deck, cards, copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), owned_copies: 0, missing_copies: cards.reduce((n: number, c: any) => n + c.quantity, 0), missing_cards: cards.map((c: any) => ({ printing: c.printing, quantity: c.quantity })), valuation: valuation(), tokens: { items: [], missing_details: 0 } }; }
   await page.route("**/api/**", async route => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method(), body = req.postData() ? req.postDataJSON() : null;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     state.calls.push({ path, method, body }); let json: any = {}, status = 200;
     if (path === "/api/auth/session") json = { owner_id: "value-fixture", display_name: "Deck collector", role: "member", csrf_token: "value-csrf", tour_dismissed: true, preferred_price_source: state.source, scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

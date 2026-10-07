@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate, openNavigation } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 type Account = { owner: string; dismissed: boolean; failures: number };
 type ApiCall = { path: string; method: string; csrf: string | undefined };
@@ -16,6 +17,7 @@ async function mockAccount(page: Page, account: Account = { owner: "new-collecto
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     calls.push({ path, method: request.method(), csrf: request.headers()["x-csrf-token"] });
     let status = 200;
     let json: unknown;

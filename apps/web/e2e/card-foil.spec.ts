@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 async function fixture(page: Page) {
   const items = [
@@ -10,6 +11,7 @@ async function fixture(page: Page) {
   ].map((card, index) => ({ ...card, printing: { id: "finish-" + index, name: card.name, set_code: "tst", collector_number: String(index + 1), rarity: "rare", language: "en", finishes: ["nonfoil", "foil", "etched"], image_url: "/brand/paktrak-mark.svg" }, location_count: 1, locations: [{ id: "red", name: "Red binder", kind: "binder", quantity: card.quantity }], value: "1.00", priced_copies: card.quantity, price_min: "1.00", price_max: "1.00" }));
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: unknown = {};
     if (path === "/api/auth/session") json = { owner_id: "foil-owner", display_name: "Collector", role: "member", csrf_token: "test", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

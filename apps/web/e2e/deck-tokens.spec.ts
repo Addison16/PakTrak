@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const printings = ["Grovekeeper", "Trail Captain", "Ember Sage"].map((name, index) => ({ id: `source-${index}`, name, set_code: "tst", collector_number: String(index), language: "en", finishes: ["nonfoil"], image_url: `/api/v1/card-images/source-${index}/0/grid` }));
 const tokens = [
@@ -29,6 +30,7 @@ async function fixture(page: Page) {
   page.on("pageerror", (error) => state.errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
     if (path.startsWith("/api/v1/card-images/")) return state.failImages ? route.fulfill({ status: 503, body: "Artwork unavailable" }) : route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="14" fill="#244d46"/><rect x="12" y="12" width="216" height="312" rx="8" fill="#f2e7d3"/><circle cx="120" cy="160" r="70" fill="#85a791"/><text x="30" y="45" font-size="22">Token fixture</text></svg>' });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });

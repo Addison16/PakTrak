@@ -133,6 +133,8 @@ class PriceAlertBaseline(Base):
     provider: Mapped[str] = mapped_column(String(32))
     amount: Mapped[object] = mapped_column(Numeric(16, 4))
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # When watching began; copies added later can't keep an older baseline alive.
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class IdentityBinding(Base):

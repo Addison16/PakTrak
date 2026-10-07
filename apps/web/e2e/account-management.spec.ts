@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { cancelBrowserBack, navigate, openNavigation } from "./navigation";
 import type { Account } from "../src/accountTypes";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 // All API traffic is intercepted; real users and their settings are untouched.
 function account(id: string, role: Account["role"], display_name: string): Account {
@@ -14,6 +15,7 @@ async function fixture(page: Page, role: Account["role"] = "admin") {
   page.on("pageerror", (error) => state.errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });
     if (path === "/api/auth/session") return reply({ ...self, owner_id: self.id, csrf_token: "account-csrf", tour_dismissed: true, preferred_price_source: "tcgplayer", membership_welcome: state.welcome });

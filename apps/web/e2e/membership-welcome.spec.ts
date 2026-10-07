@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 async function member(page: Page, state = { pending: true, failures: 0 }) {
   const writes: string[] = [];
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {}, status = 200;
     if (path === "/api/auth/session") json = { owner_id: "approved-member", display_name: "Fixture collector", csrf_token: "member-csrf", role: "member", membership_welcome: state.pending, approved_at: "2026-09-20T01:00:00Z", tour_dismissed: true, scan_cards_used: 100, scan_card_limit: null, scan_cards_remaining: null, preferred_price_source: "tcgplayer" };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

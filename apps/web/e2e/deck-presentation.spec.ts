@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const owner = "case-fixture";
 const storageKey = "paktrak:deck-presentation:v1:case-fixture:case-deck";
@@ -13,6 +14,7 @@ async function fixture(page: Page) {
   };
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     if (route.request().method() !== "GET") writes.push(path);
     if (path.startsWith("/api/v1/card-images/")) return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" fill="#183943"/><circle cx="120" cy="150" r="85" fill="#afbf9b"/></svg>' });
     let json: any = {};

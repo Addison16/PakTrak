@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const reference = "812af440-4e2b-43ef-90aa-c7c5b336a7f1";
 const photo = { name: "diagnostic-test.jpg", mimeType: "image/jpeg", buffer: Buffer.from([255, 216, 255, 217]) };
@@ -11,6 +12,7 @@ async function fixture(page: Page, role = "member") {
   await page.addInitScript(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { (window as any).copiedError = text; } } }));
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const reply = (json: unknown, status = 200) => route.fulfill({ status, json, headers: { "X-Request-ID": reference } });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });
     if (path === "/api/auth/session") {

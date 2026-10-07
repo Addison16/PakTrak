@@ -12,11 +12,13 @@ export default function MyAccount({ session, onChange, navigationRef }: { sessio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | string>("");
   const [notice, setNotice] = useState("");
-  const dirty = !!account && name !== account.display_name;
+  const [alertsDirty, setAlertsDirty] = useState(false);
+  const profileDirty = !!account && name !== account.display_name;
+  const dirty = profileDirty || alertsDirty;
   function fill(value: Account) { setAccount(value); setName(value.display_name); onChange(value); }
   function canLeave() {
     if (busy) { setNotice("Please wait for the account update to finish."); return false; }
-    return !dirty || window.confirm("Discard your unsaved display name?");
+    return !dirty || window.confirm(profileDirty && alertsDirty ? "Discard your unsaved display name and price alert changes?" : profileDirty ? "Discard your unsaved display name?" : "Discard your unsaved price alert changes?");
   }
   useEffect(() => { navigationRef.current = canLeave; return () => { navigationRef.current = null; }; }, [dirty, busy]);
   useEffect(() => {
@@ -45,9 +47,9 @@ export default function MyAccount({ session, onChange, navigationRef }: { sessio
       <form className="account-section" onSubmit={(e) => { e.preventDefault(); void act(async () => { fill(await request<Account>("/api/auth/me", { ...mutation(session, { display_name: name.trim(), expected_version: account.account_version }), method: "PATCH" })); setNotice("Your display name is saved."); }); }}>
         <h3>Profile</h3><label>Display name<input autoComplete="nickname" maxLength={80} required disabled={busy} value={name} onChange={(e) => setName(e.target.value)} /></label>
         <p className="fine">The name shown in PakTrak. Continue using your existing username to sign in.</p>
-        <button className="button primary" disabled={busy || !dirty || !name.trim()}>Save profile</button>
+        <button className="button primary" disabled={busy || !profileDirty || !name.trim()}>Save profile</button>
       </form>
-      <PriceAlertSettingsForm session={session} />
+      <PriceAlertSettingsForm session={session} onDirtyChange={setAlertsDirty} />
       <section className="account-section" aria-label="Account security"><h3>Sign-in & security</h3><p className="fine">{account.active_sessions} active sign-in {account.active_sessions === 1 ? "session" : "sessions"} · Joined {new Date(account.created_at).toLocaleDateString()}</p>
         <div className="actions"><a className="button secondary" href="/api/auth/password" onClick={(e) => { if (!canLeave()) e.preventDefault(); }}>Change password</a>
           <button className="button secondary" disabled={busy || (account.active_sessions ?? 0) <= 1} onClick={() => {

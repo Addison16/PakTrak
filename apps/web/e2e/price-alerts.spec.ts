@@ -105,3 +105,16 @@ test("Change alert amounts opens the settings in My account", async ({ page }) =
   const form = page.getByRole("form", { name: "Price alerts", exact: true });
   await expect(form).toBeInViewport();
 });
+
+test("leaving My account asks before discarding unsaved price alert changes", async ({ page }) => {
+  await collector(page, { rises: [], drops: [] });
+  await page.goto("/#account");
+  const form = page.getByRole("form", { name: "Price alerts", exact: true });
+  await form.getByLabel("Percent change").fill("35");
+  let asked = "";
+  page.once("dialog", (dialog) => { asked = dialog.message(); void dialog.dismiss(); });
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("dialog", { name: "Menu", exact: true }).getByRole("button", { name: "Upload photo", exact: true }).click();
+  await expect.poll(() => asked).toBe("Discard your unsaved price alert changes?");
+  await expect(form.getByLabel("Percent change")).toHaveValue("35");
+});

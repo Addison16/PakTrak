@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const printing = (id: string, name: string, finishes: string[]) => ({ id, name, set_code: "trd", set_name: "Trade Fixtures", collector_number: id.slice(-1), language: "en", rarity: "rare", finishes, image_url: null });
 const dragon = printing("trade-card-1", "Shivan Dragon", ["nonfoil", "foil"]);
@@ -17,6 +18,7 @@ async function fixture(page: Page) {
       { id: "lot-2", printing: dragon, quantity: 1, finish: "unknown", condition: "NM", binder: "Box", binder_id: "b2", binder_kind: "box", notes: "", version: 4 }] };
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, body = req.postData() && req.headers()["content-type"]?.includes("json") ? req.postDataJSON() : null;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {}, status = 200;
     if (path === "/api/auth/session") json = { owner_id: "trade-fixture", display_name: "Trader", role: "member", csrf_token: "trade-csrf", tour_dismissed: true, preferred_price_source: state.source, scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

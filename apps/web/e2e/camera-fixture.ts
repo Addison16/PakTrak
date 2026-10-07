@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 type FixtureCamera = { id: string; label: string; controls?: boolean; width?: number; height?: number };
 export async function installCamera(page: Page, options: { denied?: string; missing?: boolean; delayed?: boolean; controls?: boolean; still?: "works" | "fails" | "delayed"; stillPhoto?: { base64: string; type: string; width: number; height: number }; cameras?: FixtureCamera[]; savedCamera?: string; enumeration?: "fails" | "missing"; failCamera?: string; delayedCamera?: string; storageBlocked?: boolean } = {}) {
@@ -124,6 +125,7 @@ export async function cameraPage(page: Page, options: Parameters<typeof installC
   let release = () => {};
   await page.route("**/api/**", async (route) => {
     const request = route.request(), path = new URL(request.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {};
     if (path === "/api/auth/session") json = { owner_id: "camera-fixture", display_name: "Camera collector", csrf_token: "camera-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

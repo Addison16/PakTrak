@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 // Fully intercepted: these checks never change a running server's scan policy.
 async function fixture(page: Page) {
@@ -13,6 +14,7 @@ async function fixture(page: Page) {
   page.on("pageerror", (error) => state.errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const reply = (json: unknown, status = 200) => route.fulfill({ status, json });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });
     if (path === "/api/auth/session") return reply({ owner_id: "admin-fixture", display_name: "Test administrator", csrf_token: "scan-policy-token", role: "admin", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null });
