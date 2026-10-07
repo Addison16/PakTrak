@@ -103,14 +103,9 @@ def price_alerts(identity: Identity, db: DB):
     if not user.price_alerts_enabled:
         db.commit()
         return result
-    quotes = owned_quotes(db, user.id, provider)
-    baselines = {
-        (row.printing_id, row.finish): row
-        for row in db.scalars(
-            select(PriceAlertBaseline).where(PriceAlertBaseline.owner_id == user.id)
-        )
-    }
-    # Copies that left the collection stop being watched, so a later re-add starts fresh.
+    # A baseline lives only while a normally priced copy that was owned when watching
+    # began is still owned. Otherwise a card removed and later re-added would be compared
+    # with its old price instead of starting fresh.
     db.execute(
         delete(PriceAlertBaseline).where(
             PriceAlertBaseline.owner_id == user.id,
@@ -119,9 +114,19 @@ def price_alerts(identity: Identity, db: DB):
                 InventoryLot.printing_id == PriceAlertBaseline.printing_id,
                 InventoryLot.finish == PriceAlertBaseline.finish,
                 InventoryLot.quantity_remaining > 0,
+                InventoryLot.misprint.is_not(True),
+                InventoryLot.altered.is_not(True),
+                InventoryLot.created_at <= PriceAlertBaseline.started_at,
             ),
         )
     )
+    quotes = owned_quotes(db, user.id, provider)
+    baselines = {
+        (row.printing_id, row.finish): row
+        for row in db.scalars(
+            select(PriceAlertBaseline).where(PriceAlertBaseline.owner_id == user.id)
+        )
+    }
     fresh, rises, drops = [], [], []
     for printing_id, finish, quantity, amount, printing in quotes:
         amount = Decimal(amount)
@@ -159,6 +164,7 @@ def price_alerts(identity: Identity, db: DB):
                     "provider": provider,
                     "amount": amount,
                     "seen_at": now(),
+                    "started_at": now(),
                 }
                 for printing_id, finish, amount in fresh
             ]
@@ -170,6 +176,7 @@ def price_alerts(identity: Identity, db: DB):
                     "provider": statement.excluded.provider,
                     "amount": statement.excluded.amount,
                     "seen_at": statement.excluded.seen_at,
+                    "started_at": statement.excluded.started_at,
                 },
             )
         )

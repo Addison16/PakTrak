@@ -88,7 +88,7 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
   </>;
 }
 
-export function PriceAlertSettingsForm({ session }: { session: Session }) {
+export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Session; onDirtyChange: (dirty: boolean) => void }) {
   const form = useRef<HTMLFormElement>(null);
   const [saved, setSaved] = useState<PriceAlertSettings | null>(null);
   const [enabled, setEnabled] = useState(true);
@@ -109,6 +109,8 @@ export function PriceAlertSettingsForm({ session }: { session: Session }) {
     form.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [saved]);
   const dirty = !!saved && (enabled !== saved.enabled || percent !== (saved.percent == null ? "" : String(saved.percent)) || amount !== (saved.amount ?? ""));
+  useEffect(() => { onDirtyChange(dirty); }, [dirty]);
+  useEffect(() => () => onDirtyChange(false), []);
   const missing = enabled && !percent.trim() && !amount.trim();
   async function save() {
     setBusy(true); setError(""); setNotice("");

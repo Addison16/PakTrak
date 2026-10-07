@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { fixture as deckFixture } from "./deck-fixture";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const image = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" rx="20" fill="#183b38"/><rect x="20" y="20" width="448" height="640" rx="12" fill="#dfd0b2"/><rect x="42" y="100" width="404" height="330" fill="#486e74"/><text x="42" y="70" font-size="28" fill="#183b38">Arrival fixture</text></svg>';
 const collectionPrinting = { id: "arrival-card", name: "Island", set_code: "tst", collector_number: "1", set_name: "Arrival fixtures", language: "en", rarity: "common", type_line: "Basic Land — Island", finishes: ["nonfoil"], image_url: "/api/v1/card-images/arrival-card/0/grid" };
@@ -9,6 +10,7 @@ async function collectionFixture(page: Page, direct = false, artwork?: string) {
   const writes: string[] = [];
   await page.route("**/api/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     if (request.method() !== "GET") writes.push(path);
     if (path.startsWith("/api/v1/card-images/")) return route.fulfill({ contentType: "image/svg+xml", body: artwork || image });
     let json: unknown;

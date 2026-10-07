@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { cancelBrowserBack, navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const batchId = "scan-review-fixture";
 const base = "/api/v1/scans/" + batchId;
@@ -36,6 +37,7 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
       error_message: null, progress: { phase: "Identifying cards", done: summary().checked, total: rows.length, unit: "cards", eta_seconds: 12 } } }; }
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname, method = req.method();
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const body = req.postData() ? JSON.parse(req.postData()!) : null;
     calls.push({ path, method, body });
     if (path.endsWith("/image") || path.startsWith("/api/v1/card-images/")) {

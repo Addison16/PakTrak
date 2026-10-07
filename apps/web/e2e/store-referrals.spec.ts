@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 // Fully intercepted: these checks never change a running server's settings.
 async function fixture(page: Page) {
@@ -7,6 +8,7 @@ async function fixture(page: Page) {
   page.on("pageerror", (error) => state.errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const reply = (json: unknown, status = 200) => route.fulfill({ status, json });
     const settings = () => ({ guest_signup_enabled: true, enhanced_scanning_enabled: false, store_links: state.links, version: state.version });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });

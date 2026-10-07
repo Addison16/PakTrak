@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const bytes = (name: string) => readFileSync("../../tests/fixtures/" + name);
 
@@ -30,6 +31,7 @@ async function fixture(page: Page, holdAcceptance = false) {
   let failUpload = false;
   await page.route("**/api/**", async (route) => {
     const req = route.request(), path = new URL(req.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {};
     if (path === "/api/auth/session") json = { owner_id: "photo-fixture", display_name: "Photo collector", csrf_token: "photo-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0 };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

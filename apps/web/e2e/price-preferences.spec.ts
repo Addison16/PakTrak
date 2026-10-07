@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { PriceSource } from "../src/api";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 type Source = PriceSource | null;
 function deferred() {
@@ -26,6 +27,7 @@ async function accountApi(context: BrowserContext, preference: Source) {
   await context.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const json = (value: unknown, status = 200) => route.fulfill({ status, json: value });
     if (path === "/api/auth/session") {
       const account = { owner_id: state.owner, display_name: "Pricing tester", csrf_token: "test-csrf-" + state.owner, role: "member", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null, preferred_price_source: state.sources.get(state.owner) ?? null };

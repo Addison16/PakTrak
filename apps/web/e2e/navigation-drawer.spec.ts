@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate, openNavigation } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 async function mockAccount(page: Page, role: "admin" | "member" | "guest" | null = "admin", setup = false) {
   const requests: { path: string; method: string; csrf: string | undefined }[] = [];
@@ -8,6 +9,7 @@ async function mockAccount(page: Page, role: "admin" | "member" | "guest" | null
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     requests.push({ path, method: request.method(), csrf: request.headers()["x-csrf-token"] });
     let json: unknown;
     let status = 200;

@@ -257,3 +257,28 @@ def test_removed_cards_stop_being_watched_and_others_cannot_dismiss(clients, mar
         assert not db.scalars(
             select(PriceAlertBaseline).where(PriceAlertBaseline.owner_id == owner_id)
         ).all()
+
+
+def test_a_re_added_card_starts_fresh_even_before_the_next_visit(clients, market):
+    ids, own, price = market
+    client, owner_id = clients()
+    own(owner_id, "Riser")
+    own(owner_id, "Faller", misprint=True)
+    own(owner_id, "Faller")
+    alerts(client)
+    with session_factory()() as db, db.begin():
+        db.execute(
+            update(InventoryLot)
+            .where(InventoryLot.owner_id == owner_id, InventoryLot.misprint.is_not(True))
+            .values(quantity_remaining=0)
+        )
+    # Both come back as new copies, and prices move, before Home is opened again.
+    own(owner_id, "Riser")
+    own(owner_id, "Faller")
+    price("Riser", "30")
+    price("Faller", "5")
+    # The leftover misprint can't keep the old Faller price alive either.
+    result = alerts(client)
+    assert result["rises"] == result["drops"] == []
+    price("Riser", "40")
+    assert alerts(client)["rises"][0]["old_amount"] == "30.00"
