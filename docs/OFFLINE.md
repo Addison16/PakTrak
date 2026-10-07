@@ -20,8 +20,8 @@ PakTrak checks the server itself rather than only the phone's internet connectio
 | | |
 | --- | --- |
 | **View** | Collection (gallery, list, card details, storage locations), decks and the batch list, once they've been opened or saved while connected |
-| **Queued** | Removing copies, editing a copy's finish, condition or notes, moving copies to another location, creating or editing a storage location, saving deck changes |
-| **Needs a connection** | Uploading photos, reviewing scans, card search, imports and exports, trade value, deck value and legality, price updates, account and administration settings |
+| **Queued** | Removing copies, editing a copy's finish, condition or notes, moving copies to another location, creating a storage location, saving deck changes |
+| **Needs a connection** | Uploading photos, reviewing scans, card search, renaming or editing a storage location, imports and exports, trade value, deck value and legality, price updates, account and administration settings |
 
 A photo you take or choose while offline is kept on the device, and **Upload photo** offers to resume it once you're back.
 

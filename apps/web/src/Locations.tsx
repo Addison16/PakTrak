@@ -1,6 +1,6 @@
 import ErrorNotice from "./ErrorNotice";
 import { useRef, useState } from "react";
-import { isQueued, mutation, queuedNotice, send, type Location, type Lot, type Session } from "./api";
+import { isQueued, mutation, queuedNotice, request, send, type Location, type Lot, type Session } from "./api";
 
 function LocationForm({ location, session, onSaved }: { location?: Location; session: Session; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(location?.name || "");
@@ -12,8 +12,11 @@ function LocationForm({ location, session, onSaved }: { location?: Location; ses
   async function save() {
     setBusy(true); setError(""); setNotice("");
     try {
-      const result = await send(session, "/api/v1/binders" + (location ? "/" + location.id : ""), mutation(session, { name: name.trim(), kind, notes, ...(location ? { expected_version: location.version } : {}) }),
-        location ? { label: `Edit storage location ${location.name}`, detail: name.trim() !== location.name ? `New name: ${name.trim()}` : undefined, resource: "binder:" + location.id } : { label: `Create storage location ${name.trim()}` });
+      const body = { name: name.trim(), kind, notes, ...(location ? { expected_version: location.version } : {}) };
+      // Creating by name is safe to send again, so it can wait offline. The server
+      // doesn't recognize a repeated edit, so edits need a connection.
+      const result = location ? await request("/api/v1/binders/" + location.id, mutation(session, body))
+        : await send(session, "/api/v1/binders", mutation(session, body), { label: `Create storage location ${name.trim()}` });
       if (isQueued(result)) setNotice(queuedNotice); else await onSaved();
       if (!location) { setName(""); setNotes(""); }
     } catch (e) { setError(e as Error); }

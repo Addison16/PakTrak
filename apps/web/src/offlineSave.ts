@@ -7,7 +7,6 @@ import { imageLimit, offlineImagesReady } from "./serviceWorker";
 // match what the Collection and Decks screens ask for, so their saved copies
 // are found later. Runs on its own about once a day; the Queued actions page
 // can also run it with card pictures.
-const pageLimit = 250;
 const dailyKey = (owner: string) => "paktrak:offline-saved:" + owner;
 
 export async function saveForOffline(session: Session, options: { images: boolean; progress?: (message: string) => void }) {
@@ -15,7 +14,7 @@ export async function saveForOffline(session: Session, options: { images: boolea
   const provider = session.preferred_price_source || "tcgplayer";
   const images = new Set<string>();
   let offset: number | null = 0, cards = 0;
-  for (let page = 0; offset !== null && page < pageLimit; page++) {
+  while (offset !== null) {
     const result: { items: CollectionCard[]; next_offset: number | null } = await request("/api/v1/collection/cards?" + new URLSearchParams({ offset: String(offset), provider, sort: "name" }), { quiet: true });
     cards += result.items.length;
     for (const item of result.items) if (item.printing.image_url) images.add(item.printing.image_url);
@@ -23,7 +22,7 @@ export async function saveForOffline(session: Session, options: { images: boolea
     progress(`Saving your collection… ${cards.toLocaleString()} cards so far`);
   }
   // Every copy, so Manage copies opens for any card (see the fallback below).
-  for (let lotOffset: number | null = 0, page = 0; lotOffset !== null && page < pageLimit; page++) {
+  for (let lotOffset: number | null = 0; lotOffset !== null;) {
     const result: { next_offset: number | null } = await request("/api/v1/collection?offset=" + lotOffset, { quiet: true });
     lotOffset = result.next_offset;
   }

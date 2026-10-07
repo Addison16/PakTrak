@@ -1,7 +1,7 @@
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ApiError, isQueued, mutation, queuedNotice, request, send, type Lot, type Printing, type Queued, type Session } from "./api";
-import { pendingPreviews } from "./offline";
+import { pendingPreviews, saveResponse } from "./offline";
 
 import DeckImport from "./DeckImport";
 import DeckScan from "./DeckScan";
@@ -293,6 +293,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     catch (e) { if (e instanceof ApiError && e.status === 409) { setSaveConflict(true); setConflictSaved(null); } throw e; }
     // Offline: keep the edits on screen as the deck; the queue sends them later.
     if (isQueued(result)) { fill(offlineDeck, true); setNotice(queuedNotice); return; }
+    // Keep the offline copy of this deck in step with what was just saved.
+    void saveResponse("/api/v1/decks/" + result.id, result);
     fill(result, true); await list(); setNotice("Deck saved.");
   }
   function add(lot: Lot) {

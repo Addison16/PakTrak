@@ -80,8 +80,8 @@ export default function QueuedActions({ session, active }: { session: Session; a
 
     <details className="queue-help"><summary>What works offline</summary>
       <p><strong>View:</strong> your collection, card details, storage locations, decks and the batch list, once opened or saved while connected.</p>
-      <p><strong>Queued until you’re back:</strong> removing copies, editing a copy’s finish, condition or notes, moving copies to another location, renaming or editing a storage location, and saving deck changes.</p>
-      <p><strong>Needs a connection:</strong> uploading photos (a photo you take is kept on this device so you can resume the upload), reviewing scans, card search, imports and exports, trade value, price updates and account settings.</p>
+      <p><strong>Queued until you’re back:</strong> removing copies, editing a copy’s finish, condition or notes, moving copies to another location, creating a storage location, and saving deck changes.</p>
+      <p><strong>Needs a connection:</strong> uploading photos (a photo you take is kept on this device so you can resume the upload), reviewing scans, card search, renaming or editing a storage location, imports and exports, trade value, price updates and account settings.</p>
       <p>Signing out removes the saved copies and any queued changes from this device. Safari may clear saved data after about a week without opening PakTrak, unless it’s added to the Home Screen.</p>
     </details>
   </section>;
