@@ -667,4 +667,8 @@ function App() {
   </div>;
 }
 
+// Lets CSS hide the keyboard focus ring after taps and clicks (see style.css).
+addEventListener("pointerdown", () => { document.documentElement.dataset.pointer = ""; }, true);
+addEventListener("keydown", () => { delete document.documentElement.dataset.pointer; }, true);
+
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

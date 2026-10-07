@@ -30,6 +30,7 @@ export default function CardDetail({ card, origin, binder, locations, session, o
   const previous = onStep?.(-1), next = onStep?.(1);
   const dialog = useRef<HTMLDialogElement>(null);
   const art = useRef<HTMLDivElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   useCardSwipe(dialog, art, card.printing.id, previous, next);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [faceIndex, setFaceIndex] = useState(0);
@@ -39,6 +40,9 @@ export default function CardDetail({ card, origin, binder, locations, session, o
     const modal = dialog.current;
     const launcher = origin?.source.closest<HTMLElement>("button") || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     modal?.showModal();
+    // React keeps autoFocus off the DOM, so showModal would pick the first
+    // button (Previous card). Start on Close like the other card viewers.
+    closeButton.current?.focus({ preventScroll: true });
     const old = document.body.style.overflow; document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = old;
@@ -63,7 +67,7 @@ export default function CardDetail({ card, origin, binder, locations, session, o
   }, [card.printing.id]);
   const face = detail?.faces[faceIndex];
   return <dialog ref={dialog} className={onStep ? "card-dialog card-swipe" : "card-dialog"} aria-labelledby="card-detail-title" onClose={onClose} onClick={(event) => { if (event.target === dialog.current) { const box = dialog.current.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.current.close(); } }}>
-    <div className="dialog-heading"><span className="eyebrow">In your collection</span>{onStep && <span className="card-step"><button type="button" className="text-button" aria-label="Previous card" disabled={!previous} onClick={() => slideTo("left", previous)}>←</button><button type="button" className="text-button" aria-label="Next card" disabled={!next} onClick={() => slideTo("right", next)}>→</button></span>}<button autoFocus className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
+    <div className="dialog-heading"><span className="eyebrow">In your collection</span>{onStep && <span className="card-step"><button type="button" className="text-button" aria-label="Previous card" disabled={!previous} onClick={() => slideTo("left", previous)}>←</button><button type="button" className="text-button" aria-label="Next card" disabled={!next} onClick={() => slideTo("right", next)}>→</button></span>}<button ref={closeButton} className="text-button" aria-label="Close card details" onClick={() => dialog.current?.close()}>Close <span aria-hidden="true">×</span></button></div>
     <div className="card-detail-layout"><div ref={art} className="detail-art"><CardArt url={face ? face.image_url : card.printing.image_url} fallbackUrl={faceIndex === 0 ? card.printing.image_url : undefined} name={face?.name || card.printing.name} eager />
       {detail && detail.faces.length > 1 && <button className="button secondary" onClick={() => setFaceIndex((faceIndex + 1) % detail.faces.length)}>View {faceIndex === 0 ? "other" : "front"} face</button>}
       {face?.artist && <p className="fine artist-credit">Illustrated by {face.artist}</p>}

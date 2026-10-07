@@ -18,6 +18,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline: 2px solid var(--copper);
   outline-offset: 3px;
 }
+/* Safari draws the keyboard ring when a dialog or a step moves focus after a
+   tap. Hide it until the keyboard is used again; text fields keep their border. */
+:root[data-pointer] :focus-visible:not(input, select, textarea) { outline: none !important; }
 ::selection { color: var(--on-forest); background: var(--forest); }
 [hidden] { display: none !important; }
 .icon { width: 21px; height: 21px; flex-shrink: 0; }

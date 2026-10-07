@@ -93,3 +93,19 @@ test("swiping the deck card preview steps through the deck and stops at the ends
   await expect(page.locator(".deck-preview-art .card-art")).toHaveCSS("transform", "none");
   await expect(dialog).toBeVisible();
 });
+
+test("tapping into the card viewer starts on Close and shows no keyboard focus ring", async ({ page }) => {
+  await collectionFixture(page);
+  await page.goto("/#/collection");
+  await page.locator(".gallery-card").nth(1).tap();
+  await expect(page.locator("#card-detail-title")).toHaveText("Forest");
+  await expect(page.getByRole("button", { name: "Close card details" })).toBeFocused();
+  const previous = page.getByRole("button", { name: "Previous card" });
+  // Safari treats focus moved by a dialog as keyboard focus even after a tap.
+  await previous.evaluate((button) => button.focus({ focusVisible: true } as FocusOptions));
+  await expect(previous).toHaveCSS("outline-style", "none");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(previous).toBeFocused();
+  await expect(previous).toHaveCSS("outline-style", "solid");
+});
