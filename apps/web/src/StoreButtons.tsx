@@ -9,7 +9,7 @@ export default function StoreButtons({ stores, cards, exact, links, primary, sho
   const [message, setMessage] = useState("");
   if (!cards.length) return null;
   return <>
-    <div className="actions">{stores.map((store) => {
+    <div className="actions store-buttons">{stores.map((store) => {
       const list = storeList(store, cards, exact);
       const link = storeEntryLink(store, list, links);
       return <a key={store} className={primary ? "button primary" : "button secondary"} href={link.url} target="_blank" rel="noopener noreferrer" onClick={() => {

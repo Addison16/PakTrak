@@ -572,6 +572,7 @@ details p { font-size: 14px; }
 .deck-availability span { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .deck-availability strong { color: var(--forest); font-size: 26px; font-variant-numeric: tabular-nums; }
 .deck-buy-list { margin: 20px 0; padding: 16px 0; border-block: 1px solid var(--line); }
+.store-buttons { margin-top: 12px; }
 .deck-buy-list .section-heading { align-items: flex-start; flex-wrap: wrap; }
 .deck-buy-list h3 { margin: 0; }
 .deck-buy-list textarea, .deck-import textarea { font-size: 16px; line-height: 1.6; }
