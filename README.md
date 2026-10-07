@@ -2,7 +2,7 @@
 
 **Every card. In reach.**
 
-PakTrak is a self-hosted Magic: The Gathering collection app for your phone's browser. Lay out a page of cards, take one photo, and PakTrak finds every card in it, matches the printing and adds the strong matches to your collection on its own. It runs on your own server, keeps your data there, and is free and open source under the [GNU AGPL v3](LICENSE).
+PakTrak is a self-hosted Magic: The Gathering collection app for your phone's browser. Lay out a page of cards and take one photo. PakTrak outlines the cards it finds, suggests a printing for each, and adds the strongest matches to your collection on its own; anything it isn't sure about waits for a quick check, and you can add a card it missed. It runs on your own server, keeps your data there, and is free and open source under the [GNU AGPL v3](LICENSE).
 
 <table>
   <tr>
@@ -41,7 +41,7 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 
 ## Why PakTrak
 
-- **Scans a whole page at once.** Most card scanners read one card at a time. PakTrak takes a photo of a binder page or a table full of cards, outlines each one, reads the name, set and collector number, and compares the artwork to pick the right printing.
+- **Scans a whole page at once.** Most card scanners read one card at a time. PakTrak takes a photo of a binder page or a table full of cards, outlines each card, reads the name, set and collector number, and compares the artwork to suggest the printing. You confirm anything it isn't sure about.
 - **Built for a phone, runs on your server.** Upload a photo and put your phone away. The server keeps working, and the results are waiting when you come back.
 - **Knows where your cards are.** Every copy belongs to a binder or box, so a deck list can tell you which cards you own and where to find them.
 - **Private by design.** Your collection stays on your server. Friends connect with private codes, and PakTrak never shows who else has an account.
