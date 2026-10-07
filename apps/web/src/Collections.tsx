@@ -12,7 +12,7 @@ type Counts = { rows: number; copies: number };
 type Import = {
   id: string; filename: string; format: string; state: string; revision: number; headers: string[];
   mapping: Record<string, string>; options: Record<string, unknown>; error: string | null;
-  summary: { rows: number; ready_copies: number; committed_copies: number; unresolved_rows: number; states: Record<string, Counts>; undone_copies?: number; previously_removed_copies?: number };
+  summary: { rows: number; ready_copies: number; committed_copies: number; unresolved_rows: number; states: Record<string, Counts>; undone_copies?: number; previously_removed_copies?: number; wishlist_rows?: number };
   jobs: { id: string; kind: string; state: string; stage: string; error: string | null; progress: WorkProgress | null }[];
 };
 type Row = { id: string; row_number: number; state: string; error: string | null; raw_fields: Record<string, string>; normalized: { name?: string; quantity?: number; finish?: string; binder?: string; set_code?: string; collector_number?: string; language?: string } };
@@ -203,6 +203,10 @@ function CollectionTransfers({ session }: { session: Session }) {
           {row.error && <p className="row-error">{row.error}</p>}
           {selected.state === "REVIEW" && <RepairRow key={row.id + selected.revision} row={row} batch={selected} session={session} onChange={setSelected} onError={setError} />}
         </li>)}</ul><div className="pagination">{rowOffset > 0 && <button className="text-button" onClick={() => setRowOffset(Math.max(0, rowOffset - 40))}>Previous rows</button>}{rowNext !== null && <button className="text-button" onClick={() => setRowOffset(rowNext)}>More rows</button>}</div></details>}
+        {!!selected.summary.wishlist_rows && !["PREVIEWING", "UNDOING"].includes(selected.state) && <p className="fine">{selected.summary.wishlist_rows} {selected.summary.wishlist_rows === 1 ? "row is" : "rows are"} from a wishlist or list, so {selected.summary.wishlist_rows === 1 ? "it isn’t" : "they aren’t"} added to your collection. <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => {
+          const result = await request<{ added: number }>(`/api/v1/wishlist/from-import/${selected.id}`, { ...mutation(session), action: "Add to wishlist" });
+          setNotice(`Added ${result.added} ${result.added === 1 ? "card" : "cards"} to your wishlist.`);
+        })}>Add them to my wishlist</button></p>}
         {selected.summary.unresolved_rows > 0 && <p className="message">{selected.summary.unresolved_rows} rows need attention. <a href={"/api/v1/imports/" + selected.id + "/unresolved.csv"}>Download unresolved and excluded rows</a></p>}
         {selected.state === "REVIEW" && <div className="confirmation">
           <label className="checkbox"><input type="checkbox" checked={owned} onChange={(e) => setOwned(e.target.checked)} />These are cards I own. Add the reviewed quantities to my collection.</label>

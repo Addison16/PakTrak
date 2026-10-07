@@ -2,7 +2,7 @@ import type { DataFeed, PriceSource, Printing } from "./api";
 
 export type Section = "main" | "sideboard" | "commander";
 export type MatchMode = "any" | "exact";
-export type DeckCard = { printing: Printing; section: Section; quantity: number; owned: number; needed_in_deck: number; available: number; missing: number; locations: { id: string; name: string; quantity: number }[] };
+export type DeckCard = { printing: Printing; section: Section; quantity: number; owned: number; needed_in_deck: number; available: number; missing: number; locations: { id: string; name: string; quantity: number }[]; other_decks?: { id: string; name: string; quantity: number }[] };
 export type DeckCover = { id: string; name: string; image_url: string | null; art_url?: string | null; section?: Section };
 export type DeckSummary = { id: string; name: string; format: string; match_mode: MatchMode; notes: string; version: number; updated_at?: string; copies: number; unique_printings?: number; preview_cards?: DeckCover[]; cover_cards?: DeckCover[]; colors?: string[]; colors_known?: boolean };
 export type DeckLegality = { format: string; status: "legal" | "issues" | "incomplete" | "not_checked"; issues: { code: string; severity: "error" | "warning" | "info"; message: string; printing_ids: string[] }[]; counts: Record<Section, number>; catalog_updated_at: string | null; checked_at: string; rules_version: string; checks: string[]; limitations: string[] };

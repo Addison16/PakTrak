@@ -3,7 +3,9 @@ import usePriceSource from "./usePriceSource";
 import useBackgroundError from "./useBackgroundError";
 import { useEffect, useRef, useState } from "react";
 import { navigation, restoreScroll, useRoute } from "./navigation";
-import { ApiError, isPriceSource, money, providers, request, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
+import ValueChart, { changeText } from "./ValueChart";
+import "./social.css";
+import { ApiError, isPriceSource, money, providers, request, type HistoryChange, type HistoryPoint, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
 import CardDetail, { CardArt } from "./CardDetail";
 import { captureCardFlight, preloadCardBack, type CardFlightOrigin } from "./CardArrival";
 import DataUpdates from "./DataUpdates";
@@ -202,6 +204,7 @@ function AccountGallery({ session }: { session: Session }) {
     <p id="price-source-status" className={sourceSaving || !sourceReady || preferenceError ? "fine" : "sr-only"} role="status">{sourceSaving ? "Saving your price source…" : !sourceReady ? preferenceError ? "Retry to load your saved price source." : "Loading your saved price source…" : preferenceError ? "Your choice is not saved to your account yet." : "Price source is remembered for your account."}</p>
     {preferenceError && <p className="message error" role="alert">{preferenceError} <button className="text-button" disabled={sourceSaving} onClick={() => void retrySave()}>{retry ? "Retry saving price source" : "Retry loading price source"}</button></p>}
     <p className="fine value-note">{value ? `${value.priced_copies.toLocaleString()} priced · ${value.unpriced_copies.toLocaleString()} unpriced copies` : "Loading your library…"}{value?.feed?.updated_at ? ` · ${value.feed.stale ? "Older prices · " : "Updated "}${new Date(value.feed.updated_at).toLocaleDateString()}` : " · Prices update daily"}. {filterCount || search ? "Totals match your filters." : ""}</p>
+    {active && sourceReady && <ValueOverTime provider={provider} />}
     {value?.pricing_issues && value.unpriced_copies > 0 && <details className="pricing-help"><summary>Why are some copies unpriced?</summary>
       {value.pricing_issues.unknown_finish > 0 && <p className="fine">{value.pricing_issues.unknown_finish.toLocaleString()} copies have no recorded finish. Normal, foil and etched copies have different prices. <button className="text-button" onClick={() => { filter("finish", "unknown"); setFiltersOpen(true); }}>Show copies needing a finish</button></p>}
       {value.pricing_issues.missing_price > 0 && <p className="fine">{value.pricing_issues.missing_price.toLocaleString()} copies have no {providers[shownProvider]} quote for their printing and finish. Another price source may have one.</p>}
@@ -240,4 +243,27 @@ function AccountGallery({ session }: { session: Session }) {
     {organizing && <BulkCollection ids={selection} binder={filters.binder} locations={locations} session={session} onClose={() => setOrganizing(false)} onSaved={async (copies) => { setNotice(`${copies} copies updated. Import history and notes are preserved.`); setSelection([]); try { await refreshAll(); } catch (error) { backgroundError.failed(error as Error); } }} />}
     {card && <CardDetail key={card.printing.id} card={card} origin={cardFlight?.cardKey === card.printing.id ? cardFlight.origin : null} binder={filters.binder} locations={locations} session={session} onSaved={refreshAll} onCorrected={async () => { await refreshAll(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} onStep={stepCard} />}
   </section>;
+}
+
+/** The collection's value on each day PakTrak saved prices, plus today's live value. */
+function ValueOverTime({ provider }: { provider: string }) {
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState(90);
+  const [history, setHistory] = useState<{ points: HistoryPoint[]; change: HistoryChange } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setFailed(false);
+    request<{ points: HistoryPoint[]; change: HistoryChange }>(`/api/v1/collection/value-history?provider=${provider}&days=${days}`, { signal: controller.signal, quiet: true })
+      .then(setHistory).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    return () => controller.abort();
+  }, [open, provider, days]);
+  const change = history && changeText(history.change);
+  return <details className="value-history" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary>Value over time{change ? ` · ${change}` : ""}</summary>
+    <label className="value-history-range">Show<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option><option value={365}>Last year</option></select></label>
+    {failed ? <p className="fine">The value history couldn’t load. Try again later.</p> : !history ? <p role="status" className="fine">Loading value history…</p>
+      : <ValueChart points={history.points} label={`Collection value, ${providers[provider]}`} empty="PakTrak saves your collection’s value once a day when prices update. The chart appears after the second day." />}
+  </details>;
 }

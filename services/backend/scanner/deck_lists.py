@@ -9,7 +9,7 @@ from sqlalchemy import func, or_, select
 from scanner.card_search import card_names, card_names_in
 from scanner.catalog import printing_json
 from scanner.csv_formats import infer_mapping, read_csv, read_text, resolve
-from scanner.models import Binder, InventoryLot, Printing
+from scanner.models import Binder, Deck, DeckCard, InventoryLot, Printing
 
 MAX_DECK_BYTES = 256 * 1024
 MAX_DECK_ROWS = 300
@@ -114,6 +114,34 @@ def collection_versions(db, owner_id, printings):
             else printing
         )
     return selected, owned
+
+
+def deck_usage(db, owner_id, names, exclude_deck=None):
+    """Saved, unarchived decks that list each card name, with copies across sections.
+
+    Decks never reserve cards, so this is only a guide to where copies are in use.
+    """
+    names = {name.lower() for name in names}
+    if not names:
+        return defaultdict(list)
+    query = (
+        select(func.lower(Printing.name), Deck.id, Deck.name, func.sum(DeckCard.quantity))
+        .join(DeckCard, DeckCard.printing_id == Printing.id)
+        .join(Deck, Deck.id == DeckCard.deck_id)
+        .where(
+            Deck.owner_id == owner_id,
+            Deck.archived.is_(False),
+            func.lower(Printing.name).in_(names),
+        )
+        .group_by(func.lower(Printing.name), Deck.id, Deck.name)
+        .order_by(Deck.name, Deck.id)
+    )
+    if exclude_deck is not None:
+        query = query.where(Deck.id != exclude_deck)
+    usage = defaultdict(list)
+    for name, deck_id, deck_name, quantity in db.execute(query):
+        usage[name].append({"id": str(deck_id), "name": deck_name, "quantity": int(quantity)})
+    return usage
 
 
 def compare_cards(db, owner_id, rows, mode):

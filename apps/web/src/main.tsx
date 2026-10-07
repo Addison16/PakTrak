@@ -21,12 +21,17 @@ const Decks = lazy(() => import("./Decks"));
 const MyAccount = lazy(() => import("./MyAccount"));
 const Admin = lazy(() => import("./Admin"));
 const TradeValue = lazy(() => import("./TradeValue"));
+const Wishlist = lazy(() => import("./Wishlist"));
+const Friends = lazy(() => import("./Friends"));
+const TradeOffers = lazy(() => import("./TradeOffers"));
+const OfferNotice = lazy(() => import("./TradeOffers").then((module) => ({ default: module.OfferNotice })));
+const Sets = lazy(() => import("./Sets"));
 const CameraCapture = lazy(() => import("./CameraCapture"));
 type AccountStatus = { setup_required: boolean; guest_signup_enabled: boolean };
 type Draft = { id?: string; key: string; filename: string; size: number; content_type: string; foil_count?: number; target_deck_id?: string; add_to_collection?: boolean; photo_saved_at?: number };
 
-function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
-  session: Session; page: Page; onNavigate: (page: Page) => void; onLogout: () => void; onReplayTour: () => void;
+function Navigation({ session, page, offerCount, onNavigate, onLogout, onReplayTour }: {
+  session: Session; page: Page; offerCount: number; onNavigate: (page: Page) => void; onLogout: () => void; onReplayTour: () => void;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDialogElement>(null);
@@ -97,7 +102,11 @@ function Navigation({ session, page, onNavigate, onLogout, onReplayTour }: {
         <button type="button" aria-current={page === "batches" ? "page" : undefined} onClick={() => navigate("batches")}><Icon name="batches" />Batches</button>
         <button type="button" aria-current={page === "collection" ? "page" : undefined} onClick={() => navigate("collection")}><Icon name="collection" />Collection</button>
         <button type="button" aria-current={page === "decks" ? "page" : undefined} onClick={() => navigate("decks")}><Icon name="decks" />Decks</button>
+        <button type="button" aria-current={page === "wishlist" ? "page" : undefined} onClick={() => navigate("wishlist")}><Icon name="wishlist" />Wishlist</button>
+        <button type="button" aria-current={page === "sets" ? "page" : undefined} onClick={() => navigate("sets")}><Icon name="sets" />Set completion</button>
         <button type="button" aria-current={page === "trade" ? "page" : undefined} onClick={() => navigate("trade")}><Icon name="trade" />Trade value</button>
+        <button type="button" aria-current={page === "offers" ? "page" : undefined} onClick={() => navigate("offers")}><Icon name="offers" />Trade offers{offerCount > 0 && <span className="menu-count" aria-label={`${offerCount} waiting for you`}>{offerCount}</span>}</button>
+        <button type="button" aria-current={page === "friends" ? "page" : undefined} onClick={() => navigate("friends")}><Icon name="friends" />Friends</button>
         <button type="button" aria-current={page === "transfers" ? "page" : undefined} onClick={() => navigate("transfers")}><Icon name="transfer" />Import / export</button>
         <button type="button" aria-current={page === "account" ? "page" : undefined} onClick={() => navigate("account")}><Icon name="user" />My account</button>
         {session.role === "admin" && <button type="button" aria-current={page === "admin" ? "page" : undefined} onClick={() => navigate("admin")}><Icon name="settings" />Administration</button>}
@@ -141,6 +150,7 @@ function App() {
   const [openedDecks, setOpenedDecks] = useState(page === "decks");
   const [openedCollection, setOpenedCollection] = useState(page === "collection");
   const [openedTrade, setOpenedTrade] = useState(page === "trade");
+  const [offerCount, setOfferCount] = useState(0);
   const accountNavigation = useRef<(() => boolean) | null>(null);
   const deckNavigation = useRef<(() => boolean) | null>(null);
   const [offset, setOffset] = useState(0);
@@ -285,7 +295,7 @@ function App() {
     if (session && session.role !== "admin" && page === "admin") navigation.go({ page: "account" }, { replace: true, force: true });
   }, [session?.role, page]);
   useEffect(() => {
-    const titles: Record<Page, string> = { scan: "Upload photo", batches: "Batches", collection: "Collection", transfers: "Import / export", decks: "Decks", trade: "Trade value", admin: "Administration", account: "My account" };
+    const titles: Record<Page, string> = { scan: "Upload photo", batches: "Batches", collection: "Collection", transfers: "Import / export", decks: "Decks", trade: "Trade value", wishlist: "Wishlist", sets: "Set completion", friends: "Friends", offers: "Trade offers", admin: "Administration", account: "My account" };
     document.title = titles[page] + " · PakTrak";
   }, [page]);
   function leaveReview(next: () => void) {
@@ -557,9 +567,9 @@ function App() {
   return <div className="app">
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
-      {session && <Navigation session={session} page={page} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} />}
+      {session && <Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} />}
     </header>
-    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : page === "account" || page === "admin" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
+    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : ["wishlist", "friends", "offers", "sets"].includes(page) ? " social-view" : page === "account" || page === "admin" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
           <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
@@ -591,6 +601,7 @@ function App() {
       </section> : <>
         {(session.role === "guest" || session.scans_paused || session.scan_card_limit !== null) && <div className="message account-allowance"><strong>{session.role === "guest" ? "Guest account" : "Card scan allowance"} · {session.scan_cards_used.toLocaleString()}{session.scan_card_limit !== null ? ` / ${session.scan_card_limit.toLocaleString()}` : ""} card scans used</strong><p>{session.scans_paused ? "New scans are paused. Your collection and decks are still available. Contact your administrator to resume scanning." : session.scan_cards_remaining === null ? "Unlimited card scans." : session.scan_cards_remaining > 0 ? `${session.scan_cards_remaining.toLocaleString()} card scans left in your lifetime allowance.` : "Your lifetime scan allowance is used. An administrator can raise the limit or restore unlimited scanning."}</p><button className="text-button" onClick={() => navigate("account")}>View my account</button></div>}
         {notice && <div className="message success" role="status">{notice}</div>}
+        <Suspense fallback={null}><OfferNotice session={session} show={page === "scan" && !selected} onCount={setOfferCount} /></Suspense>
         {page === "scan" && <section className="panel capture">
           {route.targetDeck && <div className="scan-deck-target" aria-label="Deck scan destination">
             <div className="eyebrow">SCANNING A DECK</div><h3>{scanDeck ? scanDeck.name : "Opening your deck…"}</h3>
@@ -653,6 +664,10 @@ function App() {
         {page === "transfers" && <Suspense fallback={<p role="status">Opening your transfers…</p>}><Collections session={session} mode="transfers" /></Suspense>}
         {openedDecks && <div hidden={page !== "decks"}><Suspense fallback={<p role="status">Opening your decks…</p>}><Decks session={session} active={page === "decks"} navigationRef={deckNavigation} /></Suspense></div>}
         {openedTrade && <div hidden={page !== "trade"}><Suspense fallback={<p role="status">Opening trade value…</p>}><TradeValue session={session} active={page === "trade"} /></Suspense></div>}
+        {page === "wishlist" && <Suspense fallback={<p role="status">Opening your wishlist…</p>}><Wishlist session={session} active /></Suspense>}
+        {page === "sets" && <Suspense fallback={<p role="status">Opening set completion…</p>}><Sets session={session} setCode={route.set} /></Suspense>}
+        {page === "friends" && <Suspense fallback={<p role="status">Opening friends…</p>}><Friends session={session} active friendId={route.friend} /></Suspense>}
+        {page === "offers" && <Suspense fallback={<p role="status">Opening trade offers…</p>}><TradeOffers session={session} active /></Suspense>}
         {page === "account" && <Suspense fallback={<p role="status">Opening your account…</p>}><MyAccount session={session} navigationRef={accountNavigation} onChange={(account) => setSession((current) => current ? { ...current, display_name: account.display_name, role: account.role, scan_cards_used: account.scan_cards_used, scan_card_limit: account.scan_card_limit, scan_cards_remaining: account.scan_cards_remaining, scans_paused: account.scans_paused, account_version: account.account_version } : current)} /></Suspense>}
         {page === "admin" && session.role === "admin" && <Suspense fallback={<p role="status">Opening account settings…</p>}><Admin session={session} navigationRef={accountNavigation} /></Suspense>}
         {page === "batches" && !selected && (route.batch ? <section className="panel"><button className="button secondary" onClick={closeBatch}>← Back to batches</button>{!error && <p role="status">Opening batch…</p>}</section> : <BatchList scans={scans} offset={offset} nextOffset={nextOffset} onPage={setOffset} onOpen={openBatch} onUpload={() => navigate("scan")} />)}

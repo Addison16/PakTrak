@@ -1,5 +1,16 @@
 # Changelog
 
+## Wishlist, friends, trade offers and price history — October 7, 2026
+
+- Add **Menu → Wishlist** with finishes, quantities, prices and store buttons. Add cards by search, a pasted list, a deck's missing cards, a set's missing cards, or the wishlist rows of an imported file.
+- Add **Menu → Friends**. People connect only with a private friend code and an accepted request; PakTrak never lists accounts, a wrong code gets the same answer whether or not the account exists, and repeated wrong codes are slowed. Friends can browse each other's collections and wishlists (each can be turned off) and see which of their cards are on the other's wishlist. Storage locations and notes stay private.
+- Add **Menu → Trade offers** and a notice at the top of Home when an offer needs you. Send offers from Trade value or a friend's page. Accepting adds the cards you get to a **Trades** binder and removes the cards you give; each person's app updates only their own collection.
+- Save daily price history for owned and wanted cards and each collection's daily value. **Collection → Value over time** and card details chart them.
+- Card details list the decks using a card and how many copies are free; deck cards note the other decks that use them.
+- Scan review notes when you already own a card, and where.
+- Decks get a mana curve, sample opening hands with mulligans, and **Export for MTG Arena** / **Export for MTGO**.
+- Add **Menu → Set completion** with progress for each set you own cards from, the missing cards and the cost to finish.
+
 ## Store buttons and referral links — October 7, 2026
 
 - Add **Open in TCGplayer**, **Open in ManaPool** and **Open in Card Kingdom** buttons to a deck's buy list, and the same three for the whole deck under **Export deck list**. TCGplayer and ManaPool open with the list already filled in; Card Kingdom opens its deck builder with the list copied to paste. Very long lists fall back to copy and paste.

@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
-export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "trade" | "admin" | "account";
-export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean; collectionQuery?: string };
+export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "trade" | "admin" | "account" | "wishlist" | "sets" | "friends" | "offers";
+export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean; collectionQuery?: string; friend?: string; set?: string };
 type Entry = { paktrak: 1; chain: string; index: number; route: Route; y: number };
 type Guard = (from: Route, to: Route) => boolean;
-const pages: Page[] = ["scan", "batches", "collection", "transfers", "decks", "trade", "admin", "account"];
+const pages: Page[] = ["scan", "batches", "collection", "transfers", "decks", "trade", "admin", "account", "wishlist", "sets", "friends", "offers"];
 const identifier = (value: string | null | undefined) => value && /^[a-zA-Z0-9_-]{1,80}$/.test(value) ? value : undefined;
 
 function parse(): Route {
@@ -18,6 +18,8 @@ function parse(): Route {
     else if (identifier(id)) { route.deck = id; if (view === "edit" || view === "import" || view === "scan") route.view = view; }
   }
   if (route.page === "admin" && identifier(id)) route.account = id;
+  if (route.page === "friends" && identifier(id)) route.friend = id;
+  if (route.page === "sets" && identifier(id)) route.set = id;
   const params = new URLSearchParams(query);
   if (route.page === "scan") { route.targetDeck = identifier(params.get("deck")); if (route.targetDeck && params.get("collection") === "1") route.collect = true; }
   if (route.page === "decks" && route.view === "scan") route.fromBatch = identifier(params.get("batch"));
@@ -30,7 +32,8 @@ function parse(): Route {
 
 function hash(route: Route) {
   let path = route.page as string;
-  if (route.batch || route.deck || route.account) path += "/" + (route.batch || route.deck || route.account);
+  const id = route.batch || route.deck || route.account || route.friend || route.set;
+  if (id) path += "/" + id;
   if (route.view) path += "/" + route.view;
   const params = new URLSearchParams();
   if (route.targetDeck) params.set("deck", route.targetDeck);
