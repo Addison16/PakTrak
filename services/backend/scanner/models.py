@@ -81,6 +81,10 @@ class User(Base):
             "preferred_price_source IN ('tcgplayer','cardkingdom','manapool')",
             name="user_valid_price_source",
         ),
+        CheckConstraint(
+            "price_alert_percent BETWEEN 1 AND 1000", name="user_price_alert_percent_range"
+        ),
+        CheckConstraint("price_alert_amount > 0", name="user_price_alert_amount_positive"),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     issuer: Mapped[str] = mapped_column(String(512))
@@ -103,7 +107,32 @@ class User(Base):
     )
     preferred_price_source: Mapped[str | None] = mapped_column(String(32))
     tour_dismissed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # A change must meet every threshold that is set, so cheap cards don't alert on cents.
+    price_alerts_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    price_alert_percent: Mapped[int | None] = mapped_column(
+        Integer, default=20, server_default="20"
+    )
+    price_alert_amount: Mapped[object | None] = mapped_column(
+        Numeric(10, 2), default=1, server_default="1.00"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PriceAlertBaseline(Base):
+    """The price each owner last saw for an owned finish; alerts compare against it."""
+
+    __tablename__ = "price_alert_baselines"
+    __table_args__ = (CheckConstraint("amount > 0", name="price_alert_baseline_positive"),)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    printing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("card_printings.id", ondelete="CASCADE"), primary_key=True
+    )
+    finish: Mapped[str] = mapped_column(String(16), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    amount: Mapped[object] = mapped_column(Numeric(16, 4))
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class IdentityBinding(Base):

@@ -1,0 +1,57 @@
+/* Home banner: a single tinted line with a left border that opens the full list. */
+.price-alert-banner { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin: 14px 0; padding: 10px 14px; border: 0; border-left: 3px solid var(--copper); border-radius: 0 8px 8px 0; background: var(--surface-muted); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.price-alert-banner:hover { background: var(--line); }
+.price-alert-banner-icon { display: grid; place-items: center; flex-shrink: 0; color: var(--copper); }
+.price-alert-banner.up .price-alert-banner-icon { color: var(--gold, var(--copper)); }
+.price-alert-banner-copy { flex: 1 1 0; min-width: 0; }
+.price-alert-banner-copy strong { display: block; font-size: 14px; font-weight: 600; }
+.price-alert-banner-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.price-alert-banner > .icon:last-child { flex-shrink: 0; color: var(--forest); }
+
+/* The full list opens as a sheet from the bottom on phones and a dialog on wider screens. */
+.price-alert-sheet { width: min(520px, 100%); max-width: 100%; max-height: min(86dvh, 760px); margin: auto auto 0; padding: 20px 20px max(16px, env(safe-area-inset-bottom)); border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--paper); color: var(--ink); overflow: auto; overscroll-behavior: contain; }
+.price-alert-sheet::backdrop { background: var(--backdrop); }
+.price-alert-sheet-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.price-alert-sheet .eyebrow { margin-bottom: 6px; }
+.price-alert-sheet h2 { margin: 0; font-size: 20px; }
+.price-alert-sheet-heading + .fine { margin: 4px 0 6px; }
+.price-alert-close { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; margin: -8px -10px 0 0; border: 0; background: none; color: var(--forest); }
+.price-alert-group h3 { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 2px; font-size: 13px; font-weight: 600; }
+.price-alert-group h3 span { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.price-alert-group ul { list-style: none; margin: 0; padding: 0; }
+.price-alert-group li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.price-alert-group li:last-child { border-bottom: 0; }
+.price-alert-group img, .price-alert-thumb { flex-shrink: 0; width: 40px; height: 56px; border-radius: 3px; object-fit: cover; background: var(--line); }
+.price-alert-card { flex: 1 1 0; min-width: 0; }
+.price-alert-card strong, .price-alert-change strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.price-alert-card small, .price-alert-change small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.price-alert-change { flex-shrink: 0; max-width: 46%; text-align: right; font-variant-numeric: tabular-nums; }
+.price-alert-group.up .price-alert-change strong { color: var(--success-text); }
+.price-alert-group.down .price-alert-change strong { color: var(--error-text); }
+.price-alert-group > .text-button { padding-left: 0; }
+.price-alert-group > .fine { margin: 0 0 6px; }
+.price-alert-sheet .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 12px; }
+@media (min-width: 640px) { .price-alert-sheet { margin: auto; border-bottom: 1px solid var(--line); border-radius: 10px; padding-bottom: 20px; } }
+
+.price-alert-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.price-alert-fields label { margin: 12px 0 6px; }
+.price-alert-input { display: flex; align-items: center; gap: 8px; }
+.price-alert-input span { margin-top: 7px; color: var(--muted); font-weight: 500; }
+@media (max-width: 480px) { .price-alert-fields { grid-template-columns: minmax(0, 1fr); } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .price-alert-banner { animation: price-alert-banner-in .32s ease-out both; }
+  .price-alert-banner .price-alert-banner-icon .icon { animation: price-alert-glint 1.6s ease-in-out .4s 2 both; }
+  .price-alert-banner.leaving { animation: price-alert-banner-out .24s ease-in both; }
+  .price-alert-sheet[open] { animation: price-alert-sheet-up .28s cubic-bezier(.2, .8, .2, 1); }
+  .price-alert-sheet[open]::backdrop { animation: price-alert-fade .28s ease-out; }
+  .price-alert-group li { animation: price-alert-row .3s ease-out both; }
+  .price-alert-group li:nth-child(2) { animation-delay: .05s; }
+  .price-alert-group li:nth-child(3) { animation-delay: .1s; }
+  @keyframes price-alert-banner-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  @keyframes price-alert-banner-out { to { opacity: 0; transform: translateY(-6px) scale(.98); } }
+  @keyframes price-alert-glint { 0%, 100% { transform: none; } 50% { transform: scale(1.25) rotate(18deg); } }
+  @keyframes price-alert-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes price-alert-fade { from { opacity: 0; } }
+  @keyframes price-alert-row { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+}
