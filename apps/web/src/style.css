@@ -536,7 +536,7 @@ details p { font-size: 14px; }
 .scan-review-nav-center > .button + span { font-size: 11px; }
 .scan-review-heading, .scan-finishes-heading { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
 .scan-review-heading h3, .scan-finishes h3 { margin: 4px 0; }
-.scan-finishes, .capture-finishes { margin: 20px 0; padding: 16px 0; border-block: 1px solid var(--line); }
+.scan-finishes { margin: 20px 0; padding: 16px 0; border-block: 1px solid var(--line); }
 .scan-finishes[data-attention] { padding: 20px; border: 0; border-left: 3px solid var(--copper); background: var(--warning-bg); }
 .scan-finishes-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .scan-finishes-title > div { min-width: 0; }
@@ -549,9 +549,6 @@ details p { font-size: 14px; }
 .foil-confirmation { position: sticky; bottom: max(8px, env(safe-area-inset-bottom)); z-index: 4; margin-top: 16px; padding: 12px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--paper); box-shadow: 0 2px 8px #102a2518; }
 .foil-confirmation .actions { margin: 8px 0 0; gap: 8px; }
 .foil-confirmation .button { flex: 1; min-height: 46px; font-size: 13px; padding: 10px 12px; }
-.foil-selection-progress p { margin: 0; }
-.foil-selection-progress progress { display: block; margin: 8px 0; height: 6px; }
-.foil-selection-progress p.fine { font-size: 11px; }
 .foil-tile-check { position: absolute; display: grid; place-items: center; top: 10px; right: 10px; width: 25px; height: 25px; border: 1px solid var(--control-border); border-radius: 50%; background: var(--paper); color: var(--forest); font-size: 18px; font-weight: 600; }
 .foil-tile-check.checked { background: var(--forest); color: var(--on-forest); border-color: var(--forest); }
 .foil-gallery .scan-tile > button { background: var(--paper); padding: 6px; }
@@ -564,8 +561,6 @@ details p { font-size: 14px; }
   .scan-finishes-heading > .button { width: 100%; margin-top: 8px; }
   .foil-confirmation { margin-right: -6px; margin-left: -6px; padding: 10px; }
 }
-.foil-count { max-width: 260px; }
-.foil-count input { max-width: 110px; }
 .foil-selection-count { font-weight: 600; color: var(--forest); }
 .scan-tile.foil-selected { border-color: var(--copper); box-shadow: 0 0 0 2px var(--copper); }
 .scan-finish { display: inline-block; padding: 3px 6px; margin: 4px 0 1px; border-radius: 5px; font-size: 10px; color: var(--muted); background: var(--surface-muted); }

@@ -143,13 +143,11 @@ function App() {
   const [offset, setOffset] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [maxBytes, setMaxBytes] = useState(100 * 1024 * 1024);
-  const [foilCountDraft, setFoilCountDraft] = useState<number | "">(0);
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const pendingPhotoRef = useRef<PendingPhoto | null>(null);
   const [photoRecoveryError, setPhotoRecoveryError] = useState("");
   const [pendingPreview, setPendingPreview] = useState("");
   const [queue, setQueue] = useState<{ index: number; total: number } | null>(null);
-  const foilCount = foilCountDraft === "" ? 0 : foilCountDraft;
   const cameraOpen = route.overlay === "camera";
   const setCameraOpen = (open: boolean) => open ? navigation.go({ ...route, overlay: "camera" }) : navigation.route.overlay === "camera" && navigation.close({ ...navigation.route, overlay: undefined }, true);
   const camera = useRef<HTMLInputElement>(null);
@@ -175,7 +173,7 @@ function App() {
 
   async function keepPhoto(file: File) {
     if (!session) return;
-    const value: PendingPhoto = { owner: session.owner_id, file, filename: file.name, savedAt: Date.now(), foilCount, targetDeck: route.targetDeck, collect: route.collect };
+    const value: PendingPhoto = { owner: session.owner_id, file, filename: file.name, savedAt: Date.now(), targetDeck: route.targetDeck, collect: route.collect };
     const saved = await savePendingPhoto(value);
     pendingPhotoRef.current = value; setPendingPhoto(value);
     setPhotoRecoveryError(saved ? "" : "This browser couldn’t save a recovery copy. Keep the photo or upload page open until server acceptance.");
@@ -191,7 +189,6 @@ function App() {
     if (!pendingPhoto || busyRef.current) return;
     const photo = pendingPhoto;
     if (!navigation.go({ page: "scan", targetDeck: photo.targetDeck, collect: photo.collect })) return;
-    setFoilCountDraft(photo.foilCount);
     await chooseFile(new File([photo.file], photo.filename, { type: photo.file.type }), photo);
   }
 
@@ -451,7 +448,6 @@ function App() {
     setNotice("Upload complete. You can close this page or disconnect your phone. Results will be saved in Batches.");
     clearDraft();
     if (photoSavedAt !== undefined) await discardPhoto(photoSavedAt);
-    setFoilCountDraft(0);
     // Taking several photos in a row keeps the camera or queue going; each photo is still its own batch.
     if (stay) { selectedId.current = null; setSelected(null); setNotice("Photo saved as a new batch. Results will appear in Batches."); return; }
     openBatch(await request<Scan>("/api/v1/scans/" + id), true);
@@ -462,13 +458,13 @@ function App() {
     if (list.length < 2) { await chooseFile(list[0]); return; }
     for (const [index, file] of list.entries()) {
       setQueue({ index: index + 1, total: list.length });
-      const ok = await chooseFile(file, undefined, { stay: index < list.length - 1, foils: index ? 0 : undefined });
+      const ok = await chooseFile(file, undefined, { stay: index < list.length - 1 });
       if (!ok) break;
     }
     setQueue(null);
   }
 
-  async function chooseFile(file: File | undefined, recovered?: PendingPhoto, options: { stay?: boolean; foils?: number } = {}): Promise<boolean> {
+  async function chooseFile(file: File | undefined, recovered?: PendingPhoto, options: { stay?: boolean } = {}): Promise<boolean> {
     if (!file || !session || busyRef.current) return false;
     setError(""); setNotice(""); setProgress(null);
     if (session.scans_paused || session.scan_cards_remaining === 0) { setError(session.scans_paused ? "New scans are paused. Contact your administrator to resume scanning." : "Your lifetime scan allowance is used. Contact your administrator to raise the limit."); return false; }
@@ -481,13 +477,12 @@ function App() {
     try {
       const targetDeck = recovered ? recovered.targetDeck : route.targetDeck;
       const collect = recovered ? recovered.collect : route.collect;
-      const plannedFoils = recovered ? recovered.foilCount : options.foils ?? foilCount;
       const photo = recovered || await keepPhoto(file);
       const same = draft && !selected?.accepted_at && draft.filename === file.name &&
         draft.size === file.size && draft.content_type === contentType && draft.target_deck_id === targetDeck
         && (!targetDeck || draft.add_to_collection === !!collect);
       const pending: Draft = same ? { ...draft } : {
-        key: crypto.randomUUID(), filename: file.name, size: file.size, content_type: contentType, foil_count: plannedFoils,
+        key: crypto.randomUUID(), filename: file.name, size: file.size, content_type: contentType, foil_count: 0,
         ...(targetDeck ? { target_deck_id: targetDeck, add_to_collection: !!collect } : {}),
       };
       pending.photo_saved_at = photo?.savedAt;
@@ -603,10 +598,6 @@ function App() {
           <div className="section-heading"><span className="step">01</span><h2>Start with a clear photo.</h2></div>
           <p>Lay cards face-up with space between them. Keep every edge in the picture and avoid reflections.</p>
           <div className="capture-guide" aria-hidden="true"><div className="layout-guide">{Array.from({ length: 6 }, (_, i) => <i key={i}><Icon name="spark" /></i>)}</div></div>
-          <div className="capture-finishes"><label className="foil-count">How many cards are foil?<input type="number" inputMode="numeric" min={0} max={32} value={String(foilCountDraft)} disabled={busy}
-            onFocus={(e) => e.currentTarget.select()} onBlur={() => setFoilCountDraft(foilCount)}
-            onChange={(e) => setFoilCountDraft(e.target.value === "" ? "" : Math.max(0, Math.min(32, Math.trunc(Number(e.target.value) || 0))))} /></label>
-            <p className="fine">{foilCount === 0 ? "Optional. Leave this at 0 and tap any foil cards in the batch after scanning." : `After scanning, tap the ${foilCount} foil ${foilCount === 1 ? "card" : "cards"}. The rest will be nonfoil.`} Include etched foils.</p></div>
           <input ref={camera} data-testid="native-camera-input" hidden type="file" accept={photoAccept} capture="environment" onChange={(e) => void chooseFile(e.target.files?.[0])} />
           <input ref={picker} data-testid="photo-input" hidden type="file" multiple accept={photoAccept} onChange={(e) => void chooseFiles(e.target.files)} />
           <div className="actions">
@@ -621,7 +612,7 @@ function App() {
           </div>}
           {pendingPhoto && !busy && !cameraOpen && <aside className="photo-recovery" aria-label="Unfinished photo">
             <div className="photo-recovery-art">{pendingPreview && <img src={pendingPreview} alt="Your unfinished photo" />}</div>
-            <div className="photo-recovery-copy"><span className="eyebrow">PICK UP WHERE YOU LEFT OFF</span><h3>Your photo is still here.</h3><p>{pendingPhoto.filename} · {pendingPhoto.foilCount} foils{pendingPhoto.targetDeck ? " · Deck scan" : " · Collection scan"}</p><p className="fine">A recovery copy stays on this device until the server accepts it. Photos expire after 7 days.</p>
+            <div className="photo-recovery-copy"><span className="eyebrow">PICK UP WHERE YOU LEFT OFF</span><h3>Your photo is still here.</h3><p>{pendingPhoto.filename}{pendingPhoto.targetDeck ? " · Deck scan" : " · Collection scan"}</p><p className="fine">A recovery copy stays on this device until the server accepts it. Photos expire after 7 days.</p>
               <div className="actions"><button className="button primary" disabled={!!session.scans_paused || session.scan_cards_remaining === 0} onClick={() => void resumePhoto()}>Resume upload <Icon name="arrow" /></button><button className="text-button" onClick={() => { if (window.confirm("Discard this unfinished photo from this device? Saved batches will be kept.")) { clearDraft(); void discardPhoto(); } }}>Discard photo</button></div>
             </div>
           </aside>}
@@ -663,7 +654,7 @@ function App() {
       </>}
       <footer><img src="/brand/paktrak-mark.svg" alt="" width="24" height="24" /><span><strong>PakTrak</strong> · Every card. In reach.</span></footer>
     </main>
-    {session && cameraOpen && <Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture foilCount={foilCount} progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
+    {session && cameraOpen && <Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
       onClose={() => setCameraOpen(false)} onUpload={(file, next) => chooseFile(file, undefined, { stay: next })} onCapture={async (file) => { await keepPhoto(file); }} onDiscard={discardPhoto}
       onNativeCamera={() => { setCameraOpen(false); camera.current?.click(); }}
       onChoosePhoto={() => { setCameraOpen(false); picker.current?.click(); }} /></Suspense>}

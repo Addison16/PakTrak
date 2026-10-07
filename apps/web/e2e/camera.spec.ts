@@ -27,12 +27,7 @@ test.afterEach(async ({ page }, info) => {
 
 test("captures the whole source frame without guides and uploads only on confirmation", async ({ page }) => {
   const mock = await cameraPage(page);
-  const foils = page.getByLabel("How many cards are foil?");
-  await foils.click(); await foils.press("Backspace");
-  await expect(foils).toHaveValue("");
-  await foils.press("Tab"); await expect(foils).toHaveValue("0");
-  await foils.click(); await foils.pressSequentially("3");
-  await expect(foils).toHaveValue("3");
+  await expect(page.getByLabel("How many cards are foil?")).toHaveCount(0);
   await openCamera(page);
   await expect(page.getByRole("button", { name: "Light off", exact: true })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Camera zoom" })).toHaveCount(0);
@@ -41,7 +36,7 @@ test("captures the whole source frame without guides and uploads only on confirm
   await takePhoto(page);
   expect(mock.creates).toHaveLength(0);
   expect((await cameraStats(page)).active).toBe(0);
-  await expect(page.locator(".camera-copy")).toContainText("960 × 1280 · 3 foils");
+  await expect(page.locator(".camera-copy")).toContainText("960 × 1280 · Awaiting upload");
   await expect(page.locator(".camera-native")).toContainText("live-view photo");
   const pixels = await page.locator(".camera-photo-scroll img").evaluate((element: HTMLImageElement) => {
     const canvas = document.createElement("canvas"); canvas.width = element.naturalWidth; canvas.height = element.naturalHeight;
@@ -57,11 +52,10 @@ test("captures the whole source frame without guides and uploads only on confirm
   await expect(page.getByText(/Upload complete\. You can close this page/)).toBeVisible();
   await expect(page.locator(".camera-dialog")).toHaveCount(0);
   expect(mock.creates).toHaveLength(1);
-  expect(mock.creates[0].body).toMatchObject({ content_type: "image/jpeg", foil_count: 3 });
+  expect(mock.creates[0].body).toMatchObject({ content_type: "image/jpeg", foil_count: 0 });
   expect((await cameraStats(page)).revoked).toBeGreaterThan(0);
   await navigate(page, "Upload photo");
-  await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveValue("0");
-  await expect(page.getByText(/Leave this at 0 and tap any foil cards/)).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveCount(0);
 });
 
 test("uses the still-photo API when available and displays actual photo dimensions", async ({ page }) => {
@@ -241,9 +235,8 @@ test("browser history closes the camera and protects an unuploaded photo", async
   await expect(page.getByLabel("Unfinished photo", { exact: true })).toHaveCount(0);
 });
 
-test("qol recovery resumes a captured photo after reload with its original foil count", async ({ page }) => {
+test("qol recovery resumes a captured photo after reload", async ({ page }) => {
   const mock = await cameraPage(page);
-  await page.getByLabel("How many cards are foil?", { exact: true }).fill("4");
   await openCamera(page); await takePhoto(page);
   const original = await page.locator(".camera-photo-scroll img").evaluate(async (image: HTMLImageElement) => {
     const photo = await fetch(image.src).then(response => response.blob());
@@ -255,12 +248,12 @@ test("qol recovery resumes a captured photo after reload with its original foil 
   await page.reload();
   await page.getByRole("button", { name: "Close camera", exact: true }).click();
   const recovery = page.getByLabel("Unfinished photo", { exact: true });
-  await expect(recovery).toContainText("4 foils");
+  await expect(recovery).toContainText("Collection scan");
   expect(mock.creates).toHaveLength(0);
   await recovery.getByRole("button", { name: "Resume upload", exact: true }).click();
   await expect(page.getByText(/Upload complete\. You can close this page/)).toBeVisible();
   expect(mock.creates).toHaveLength(1);
-  expect(mock.creates[0].body.foil_count).toBe(4);
+  expect(mock.creates[0].body.foil_count).toBe(0);
   await expect.poll(async () => (await cameraStats(page)).sent[0]).toEqual(original);
   await expect.poll(() => hasRecoveryPhoto(page)).toBe(false);
 });

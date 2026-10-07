@@ -15,7 +15,6 @@ test("real sign-in renewal, invalid fields and failed callbacks produce safe req
     await page.locator("#username").fill(account.username); await page.locator("#password").fill(account.password); await page.locator("#kc-login").click();
     await skipWelcomeTour(page); await navigate(page, "Upload photo");
     const original = await (await context.request.get("/api/auth/session")).json(); owner = original.owner_id;
-    await page.getByLabel("How many cards are foil?").fill("3");
     const other = await context.newPage();
     await other.goto("/api/auth/login");
     await expect(other.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
@@ -42,7 +41,6 @@ test("real sign-in renewal, invalid fields and failed callbacks produce safe req
     await expect(alert.locator("pre")).toContainText(references[0].id);
     await alert.screenshot({ path: `../../artifacts/request-errors/live-validation-${info.project.name}.png` });
     await alert.getByRole("button", { name: "Dismiss error" }).click(); await expect(alert).toHaveCount(0);
-    await expect(page.getByLabel("How many cards are foil?")).toHaveValue("3");
 
     const rejected = await context.request.patch("/api/auth/preferences", {
       headers: { Origin: account.baseURL, "X-CSRF-Token": original.csrf_token }, data: { price_source: "manapool" },

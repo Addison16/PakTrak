@@ -42,7 +42,6 @@ test("mobile upload survives a closed browser and is available in a new session"
     await skipWelcomeTour(page);
     await navigate(page, "Upload photo");
     await expect(page.getByRole("button", { name: "Choose photo", exact: true })).toBeVisible();
-    await page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true }).fill("1");
     const acceptedResponse = page.waitForResponse((response) =>
       response.url().endsWith("/finalize") && response.status() === 202,
     );
@@ -81,12 +80,12 @@ test("mobile upload survives a closed browser and is available in a new session"
     await expect.poll(async () => (await (await context.request.get("/api/v1/scans/" + accepted.scan_id)).json()).state, { timeout: 60000 }).toBe("PHOTO_READY");
     const scan = await (await context.request.get("/api/v1/scans/" + accepted.scan_id)).json();
     expect(scan.job.result).toMatchObject({ recognition_available: true, cards_added: 0 });
-    expect(scan.foil_count).toBe(1);
+    expect(scan.foil_count).toBe(0);
     expect(scan.thumbnail_url).toBeTruthy();
     expect((await context.request.get(scan.thumbnail_url)).status()).toBe(200);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(scriptErrors).toEqual([]);
-    await page.getByRole("button", { name: "Select foil cards", exact: true }).click();
+    await page.getByRole("button", { name: "Change foil cards", exact: true }).click();
     const foils = page.getByRole("region", { name: "Foil cards", exact: true });
     await foils.getByRole("button", { name: /^Foil card 1:/ }).click();
     await foils.getByRole("button", { name: "Confirm card finishes", exact: true }).click();

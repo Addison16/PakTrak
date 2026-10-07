@@ -11,7 +11,7 @@ test("nonfoil defaults and selected foils survive adding a missed card with the 
     await page.waitForURL(/\/identity\/realms\/scanner\//); await page.waitForLoadState("load");
     await page.locator("#username").fill(account.username); await page.locator("#password").fill(account.password); await page.locator("#kc-login").click();
     await skipWelcomeTour(page); await navigate(page, "Upload photo");
-    await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveValue("0");
+    await expect(page.getByRole("spinbutton", { name: "How many cards are foil?", exact: true })).toHaveCount(0);
     const photo = await page.evaluate(() => {
       const canvas = document.createElement("canvas"); canvas.width = 1000; canvas.height = 700;
       const ctx = canvas.getContext("2d")!;
@@ -39,7 +39,6 @@ test("nonfoil defaults and selected foils survive adding a missed card with the 
     const panel = page.getByRole("region", { name: "Foil cards", exact: true });
     await expect(panel.getByRole("button", { name: "Select foil cards", exact: true })).toHaveCount(0);
     await panel.getByRole("button", { name: "Change foil cards", exact: true }).click();
-    await panel.getByRole("spinbutton", { name: "How many cards are foil?", exact: true }).fill("1");
     await panel.getByRole("button", { name: /^Foil card 1:/ }).click();
     await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
     await expect(panel.getByRole("heading", { name: "1 foil · 1 nonfoil", exact: true })).toBeVisible();
