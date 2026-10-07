@@ -64,7 +64,9 @@ function fieldMessage(details: { loc?: (string | number)[]; msg?: string }[]) {
   }).join(" ") || "Some request fields were invalid. Review your entries and try again.";
 }
 
-const unavailable = (status: number) => status === 502 || status === 503 || status === 504;
+// The web server answering for an API that isn't running (502) or not answering (504).
+// A 503 is the API's own answer and shows as an error rather than a saved copy.
+const unavailable = (status: number) => status === 502 || status === 504;
 const savedCopyWait = 8000;
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -159,7 +161,7 @@ export async function send<T>(session: Session, path: string, init: RequestInit 
     return { queued: true, id: action.id } as Queued;
   };
   // Later edits wait behind earlier queued ones so they reach the server in order.
-  if (!connection().reachable || (await queuedActions(session.owner_id)).some((item) => item.state !== "failed")) return queue();
+  if (!connection().reachable || connection().waiting > 0 && (await queuedActions(session.owner_id)).some((item) => item.state !== "failed")) return queue();
   // A server that stopped answering can take a minute to fail. Queue instead; the
   // Idempotency-Key keeps a copy that did arrive from being applied twice.
   const controller = new AbortController();

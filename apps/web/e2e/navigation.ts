@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-type Destination = "Upload photo" | "Batches" | "Collection" | "Decks" | "Trade value" | "Import / export" | "My account" | "Administration";
+type Destination = "Upload photo" | "Batches" | "Collection" | "Decks" | "Trade value" | "Import / export" | "Queued actions" | "My account" | "Administration";
 
 // Call only after a newly created account's first successful sign-in. Waiting
 // for the tour explicitly avoids racing its asynchronous session hydration.

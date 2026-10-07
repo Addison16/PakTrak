@@ -29,11 +29,13 @@ Queued changes are sent in the order you made them. Each keeps the same request 
 
 ## What's saved on the device
 
-- **Collection and deck data.** Everything you open while connected is saved. About once a day PakTrak also saves the whole collection and every deck in the background. **Menu → Queued actions → Save collection for offline** does it right away and also saves card pictures. Up to 600 saved pages are kept per device; the oldest go first.
+- **Collection and deck data.** Everything you open while connected is saved. About once a day, when you open the collection or decks, PakTrak also saves the whole collection and every deck in the background. **Menu → Queued actions → Save collection for offline** does it right away and also saves card pictures. Up to 600 saved pages are kept per device; the oldest go first.
 - **Card pictures.** Pictures you look at are kept, up to 1,000 of them (roughly 60 to 100 MB); the oldest go first. Pictures that aren't saved show as blank card frames offline.
 - **The app itself**, so PakTrak opens with no connection at all.
 
 Card pictures and opening the app with no connection need PakTrak on an **HTTPS** address (or `localhost`), because browsers only run the offline helper (a service worker) there. On a plain `http://` home-network address, saved lists and queued changes still work while PakTrak stays open, but reopening it offline or seeing pictures you haven't loaded recently won't. See [Using HTTPS](UNRAID.md#using-https) to set one up.
+
+When PakTrak's **App address** is an `https://` one (for example behind Cloudflare or another reverse proxy), opening it at a plain `http://` address such as `http://192.168.1.50:8095` moves straight to the HTTPS address, so the camera and full offline use always work. Bookmark and add the HTTPS address to the Home Screen.
 
 Signing out removes the saved copies, saved pictures and any queued changes from that device; PakTrak asks first if changes are still waiting. Sign-out itself needs a connection.
 

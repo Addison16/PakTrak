@@ -196,6 +196,8 @@ def capabilities():
         "max_csv_bytes": 5 * 1024 * 1024,
         "max_csv_rows": 10_000,
         "max_upload_bytes": settings.max_upload_bytes,
+        # The address PakTrak is set up at; the web app moves plain http visits there when it is HTTPS.
+        "app_url": settings.app_url,
         "formats": list(PHOTO_MIME_TYPES),
         "max_decoded_pixels": settings.max_decoded_pixels,
         "retention_days": settings.image_retention_days,

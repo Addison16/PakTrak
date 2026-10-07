@@ -20,7 +20,7 @@ import { useConnection } from "./offline";
 import { clearOfflineData, connection, forgetResponse, onReconnect, queuedActions, setOfflineOwner } from "./offline";
 import { flushQueue } from "./offlineSync";
 import { saveDaily } from "./offlineSave";
-import { registerServiceWorker } from "./serviceWorker";
+import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
 
 const Collections = lazy(() => import("./Collections"));
 const Review = lazy(() => import("./Review"));
@@ -253,8 +253,8 @@ function App() {
       else void forgetResponse("/api/auth/session");
       setSession(null);
     });
-    request<{ max_upload_bytes: number }>("/api/v1/capabilities")
-      .then((data) => setMaxBytes(data.max_upload_bytes)).catch(() => {});
+    request<{ max_upload_bytes: number; app_url?: string }>("/api/v1/capabilities")
+      .then((data) => { if (!moveToSecureAddress(data.app_url)) setMaxBytes(data.max_upload_bytes); }).catch(() => {});
   }, []);
 
   function select(scan: Scan) {
@@ -445,11 +445,15 @@ function App() {
     if (!session) return;
     setOfflineOwner(session.owner_id);
     void flushQueue(); void offlineScreens();
-    const daily = window.setTimeout(() => saveDaily(session), 20000);
     // Lists open from saved copies while offline; load fresh ones once the server is back.
-    const stop = onReconnect(() => void refreshNow.current?.(true));
-    return () => { window.clearTimeout(daily); stop(); };
+    return onReconnect(() => void refreshNow.current?.(true));
   }, [session?.owner_id]);
+  // Refresh the offline copy of everything about once a day, once the collection or decks are opened.
+  useEffect(() => {
+    if (!session || !["collection", "decks", "queue"].includes(page)) return;
+    const daily = window.setTimeout(() => saveDaily(session), 10000);
+    return () => window.clearTimeout(daily);
+  }, [session?.owner_id, page]);
 
   function refreshFingerprint(problem: Error) {
     return problem instanceof ApiError ? `${problem.action}:${problem.status}:${problem.code}` : problem.message;
@@ -576,7 +580,6 @@ function App() {
   async function logout() {
     const unsent = (await queuedActions()).length;
     if (unsent && !window.confirm(`${unsent} queued ${unsent === 1 ? "change hasn’t" : "changes haven’t"} reached PakTrak yet.\n\nSigning out removes ${unsent === 1 ? "it" : "them"} from this device.`)) return;
-    if (!connection().reachable) { setError("You’re offline. Connect to PakTrak to sign out."); return; }
     try {
       const result = await request<{ logout_url: string }>("/api/auth/logout", { method: "POST", headers: headers() });
       clearDraft();

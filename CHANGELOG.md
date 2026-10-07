@@ -5,7 +5,7 @@
 - View your collection, card details, storage locations and decks when the server can't be reached. Everything opened while connected is saved on the device, the whole collection and every deck are saved in the background about once a day, and **Menu → Queued actions → Save collection for offline** saves them now along with card pictures.
 - Removing copies, editing a copy's finish, condition or notes, moving copies, storage location edits and deck saves made offline wait in a queue and are sent in order when PakTrak is reachable again. Changes the server turns down stay in the list with the reason.
 - The header shows **Offline** and how many changes are waiting. **Menu → Queued actions** lists every waiting change so it can be tracked, retried or removed.
-- On an HTTPS address PakTrak also opens with no connection and keeps up to 1,000 card pictures. See [using PakTrak offline](docs/OFFLINE.md).
+- On an HTTPS address PakTrak also opens with no connection and keeps up to 1,000 card pictures. When the server's address is HTTPS, a plain http:// visit moves to it automatically. See [using PakTrak offline](docs/OFFLINE.md).
 
 ## Store buttons and referral links — October 7, 2026
 

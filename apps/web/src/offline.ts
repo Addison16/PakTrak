@@ -223,7 +223,7 @@ export async function checkConnection(force = true) {
   return ok;
 }
 if (typeof window !== "undefined") {
-  window.addEventListener("online", () => void checkConnection());
+  window.addEventListener("online", () => { if (!state.reachable) void checkConnection(); });
   window.addEventListener("offline", () => markReachable(false));
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !state.reachable) void checkConnection(); });
 }

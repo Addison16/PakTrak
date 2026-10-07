@@ -20,7 +20,7 @@ The first start takes a few minutes while the database and sign-in service are p
 
 Over plain HTTP, browsers turn off the live in-app camera. **Phone camera** and **Library** uploads still work. For the in-app camera, use HTTPS as described below.
 
-Viewing your collection offline and queueing changes work over plain HTTP while PakTrak stays open. Opening PakTrak with no connection and keeping card pictures need HTTPS. See [using PakTrak offline](OFFLINE.md).
+Viewing your collection offline and queueing changes work over plain HTTP while PakTrak stays open. Once **App address** is HTTPS, opening PakTrak at the server's plain HTTP address moves to the HTTPS one. Opening PakTrak with no connection and keeping card pictures need HTTPS. See [using PakTrak offline](OFFLINE.md).
 
 ## Updating
 
