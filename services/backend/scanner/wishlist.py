@@ -15,6 +15,7 @@ from scanner.collection_api import StrictModel, owned
 from scanner.deck_lists import MAX_DECK_BYTES, preview_list
 from scanner.gallery import Provider
 from scanner.models import ImportBatch, ImportRow, Printing, User, WishlistItem, now
+from scanner.transfers import summary
 
 router = APIRouter(prefix="/api/v1/wishlist", tags=["wishlist"])
 MAX_ITEMS = 2000
@@ -167,14 +168,19 @@ def add_list(data: WantedList, identity: Identity, db: DB):
 @router.post("/from-import/{import_id}")
 def add_import_wishlist(import_id: uuid.UUID, identity: Identity, db: DB):
     """Wishlist rows are skipped by collection imports; this adds them here instead."""
-    batch = owned(db, ImportBatch, import_id, identity.owner_id)
+    batch = owned(db, ImportBatch, import_id, identity.owner_id, True)
     rows = db.scalars(
         select(ImportRow).where(
             ImportRow.import_id == batch.id,
             ImportRow.state == "SKIPPED",
             ImportRow.printing_id.is_not(None),
+            # Rows already added are marked, so a second tap or a retry adds nothing twice.
+            ~ImportRow.normalized.has_key("wishlisted"),
         )
     ).all()
+    rows = [
+        row for row in rows if str(row.normalized.get("binder_type", "")).lower() in WISHLIST_TYPES
+    ]
     cards = [
         WantedCard(
             printing_id=row.printing_id,
@@ -184,11 +190,17 @@ def add_import_wishlist(import_id: uuid.UUID, identity: Identity, db: DB):
             else "any",
         )
         for row in rows
-        if str(row.normalized.get("binder_type", "")).lower() in WISHLIST_TYPES
     ]
     if not cards:
-        raise HTTPException(409, "This import has no wishlist cards that match the catalog.")
+        raise HTTPException(
+            409, "This import has no wishlist cards left to add. Any it had are on your wishlist."
+        )
     added = add_items(db, identity.owner_id, cards)
+    for row in rows:
+        row.normalized = {**row.normalized, "wishlisted": True}
+    db.flush()
+    if batch.summary is not None:
+        batch.summary = summary(db, batch)
     db.commit()
     return {"added": added}
 

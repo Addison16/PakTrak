@@ -91,7 +91,8 @@ def value_history(
         for row in rows
     ]
     amount, priced, copies = live_value(db, identity.owner_id, provider)
-    if copies:
+    # An emptied collection still gets today's zero once it has history to compare with.
+    if copies or points:
         points.append(
             {
                 "day": today.isoformat(),

@@ -580,17 +580,19 @@ def respond(db, offer, state):
 def accept_offer(offer_id: uuid.UUID, identity: Identity, db: DB):
     offer = offer_for(db, offer_id, identity.owner_id, "recipient")
     friend(db, offer.recipient_id, offer.sender_id)
-    cards = db.scalars(
-        select(TradeOfferCard).where(
-            TradeOfferCard.offer_id == offer.id, TradeOfferCard.side == "recipient"
-        )
-    ).all()
-    check_side(
-        db,
-        identity.owner_id,
-        [OfferCard(printing_id=c.printing_id, finish=c.finish, quantity=c.quantity) for c in cards],
-        "You have",
-    )
+    cards = db.scalars(select(TradeOfferCard).where(TradeOfferCard.offer_id == offer.id)).all()
+    sender = db.get(User, offer.sender_id)
+
+    def side(name):
+        return [
+            OfferCard(printing_id=c.printing_id, finish=c.finish, quantity=c.quantity)
+            for c in cards
+            if c.side == name
+        ]
+
+    # Both people must still have what they give, or only one collection could be updated.
+    check_side(db, identity.owner_id, side("recipient"), "You have")
+    check_side(db, offer.sender_id, side("sender"), f"{account_name(sender)} now has")
     respond(db, offer, "accepted")
     db.commit()
     return offers_for(db, identity.owner_id, [offer.id])[0]

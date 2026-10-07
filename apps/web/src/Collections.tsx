@@ -206,6 +206,7 @@ function CollectionTransfers({ session }: { session: Session }) {
         {!!selected.summary.wishlist_rows && !["PREVIEWING", "UNDOING"].includes(selected.state) && <p className="fine">{selected.summary.wishlist_rows} {selected.summary.wishlist_rows === 1 ? "row is" : "rows are"} from a wishlist or list, so {selected.summary.wishlist_rows === 1 ? "it isn’t" : "they aren’t"} added to your collection. <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => {
           const result = await request<{ added: number }>(`/api/v1/wishlist/from-import/${selected.id}`, { ...mutation(session), action: "Add to wishlist" });
           setNotice(`Added ${result.added} ${result.added === 1 ? "card" : "cards"} to your wishlist.`);
+          setSelected(await request<Import>("/api/v1/imports/" + selected.id));
         })}>Add them to my wishlist</button></p>}
         {selected.summary.unresolved_rows > 0 && <p className="message">{selected.summary.unresolved_rows} rows need attention. <a href={"/api/v1/imports/" + selected.id + "/unresolved.csv"}>Download unresolved and excluded rows</a></p>}
         {selected.state === "REVIEW" && <div className="confirmation">

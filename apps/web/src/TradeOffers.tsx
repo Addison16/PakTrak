@@ -27,7 +27,9 @@ async function applyOffer(session: Session, offer: TradeOffer, onStep: (label: s
   const lineKey = (card: OfferCard) => `${card.printing.id}:${card.finish}`;
   const give = offer.give.map((card) => ({ ...card, quantity: card.quantity - (progress.removed?.[lineKey(card)] || 0) })).filter((card) => card.quantity > 0);
   const result = await applyTrade(session, give, progress.received ? [] : offer.get, {
-    note: `Trade with ${offer.friend.name}, ${new Date().toLocaleDateString()}`, onStep,
+    // The note, file and key come from the offer, so another tab or device resumes the same import.
+    note: `Trade with ${offer.friend.name}, ${new Date(offer.created_at).toLocaleDateString()}`, onStep,
+    receipt: { key: `trade-offer-${offer.id}`, day: offer.created_at.slice(0, 10) },
     onReceived: () => { progress.received = true; saveProgress(offer.id, progress); },
     onRemoved: (card, take) => { progress.removed = { ...progress.removed, [lineKey(card)]: (progress.removed?.[lineKey(card)] || 0) + take }; saveProgress(offer.id, progress); },
   });

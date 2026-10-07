@@ -64,6 +64,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const [priceError, setPriceError] = useState("");
   const [retry, setRetry] = useState(0);
   const pricedAt = useRef(0);
+  const offerReceipt = useRef<{ body: string; key: string } | null>(null);
   const [error, setError] = useState<Error | string>("");
   const [accepting, setAccepting] = useState("");
   const [accepted, setAccepted] = useState("");
@@ -187,7 +188,12 @@ export default function TradeValue({ session, active }: { session: Session; acti
     setError(""); setAccepted(""); setSending(true);
     const lines = (cards: TradeCard[]) => cards.map((card) => ({ printing_id: card.printing.id, finish: card.finish, quantity: card.quantity }));
     try {
-      await request("/api/v1/trade-offers", { ...mutation(session, { friend_id: partner.id, give: lines(trade.give), get: lines(trade.get), message: message.trim() }), action: "Send trade offer" });
+      // A retry of the same offer reuses its key, so a lost reply can't send it twice.
+      const body = { friend_id: partner.id, give: lines(trade.give), get: lines(trade.get), message: message.trim() };
+      const encoded = JSON.stringify(body);
+      if (offerReceipt.current?.body !== encoded) offerReceipt.current = { body: encoded, key: crypto.randomUUID() };
+      await request("/api/v1/trade-offers", { ...mutation(session, body, offerReceipt.current.key), action: "Send trade offer" });
+      offerReceipt.current = null;
       setTrade({ give: [], get: [], friend: partner }); setMessage(""); setAdding(null);
       setAccepted(`Offer sent to ${partner.name}. Their answer shows on Home and in Trade offers.`);
     } catch (reason) { setError(reason as Error); }

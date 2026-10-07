@@ -184,6 +184,9 @@ def test_wishlist_merges_prices_paste_and_import_rows(clients, cards):
     )
     assert batch["summary"]["wishlist_rows"] == 1
     assert client.post(f"/api/v1/wishlist/from-import/{batch['id']}").json() == {"added": 4}
+    # A second tap adds nothing, and the import stops offering it.
+    assert client.post(f"/api/v1/wishlist/from-import/{batch['id']}").status_code == 409
+    assert client.get(f"/api/v1/imports/{batch['id']}").json()["summary"]["wishlist_rows"] == 0
     other, _ = clients()
     assert other.post(f"/api/v1/wishlist/from-import/{batch['id']}").status_code == 404
     assert other.get("/api/v1/wishlist").json()["items"] == []
@@ -452,3 +455,42 @@ def test_scan_review_shows_copies_owned_elsewhere(clients, cards):
         found = owned_elsewhere(db, owner_id, {"Lantern Owl", "Glass Tutor"}, set())
         assert found == {"lantern owl": {"copies": 3, "locations": ["Blue box", "Red binder"]}}
         assert db.get(User, owner_id) is not None
+
+
+def test_offers_recheck_the_sender_and_emptied_collections_chart_zero(clients, cards):
+    alice, alice_id = clients()
+    bob, bob_id = clients()
+    own(alice, cards[1], 1)
+    befriend(alice, bob)
+    offer = {
+        "friend_id": str(bob_id),
+        "give": [{"printing_id": cards[1], "finish": "nonfoil", "quantity": 1}],
+        "get": [],
+        "message": "",
+    }
+    sent = alice.post("/api/v1/trade-offers", json=offer, headers=key()).json()
+
+    # Alice gives the card away elsewhere before Bob answers.
+    lot = alice.get(f"/api/v1/collection?printing_id={cards[1]}").json()["items"][0]
+    alice.post(
+        f"/api/v1/collection/{lot['id']}/quantity",
+        json={"expected_version": lot["version"], "quantity": 0},
+        headers=key(),
+    )
+    refused = bob.post(f"/api/v1/trade-offers/{sent['id']}/accept")
+    assert refused.status_code == 409 and "now has 0 nonfoil copies" in refused.json()["detail"]
+    assert bob.get("/api/v1/trade-offers").json()["items"][0]["state"] == "pending"
+
+    with session_factory()() as db, db.begin():
+        db.add(
+            CollectionValueHistory(
+                owner_id=alice_id,
+                provider="tcgplayer",
+                day=date.today() - timedelta(days=2),
+                amount=Decimal("10.00"),
+                priced_copies=1,
+                copies=1,
+            )
+        )
+    points = alice.get("/api/v1/collection/value-history").json()["points"]
+    assert [point["amount"] for point in points] == ["10.00", "0.00"]

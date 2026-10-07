@@ -40,11 +40,12 @@ export async function planRemovals<T extends TradeLine>(give: T[]): Promise<Remo
 }
 
 /** Received cards enter the collection as an ordinary import, so they keep a source and can be undone. */
-export async function addReceived(session: Session, get: TradeLine[], note: string) {
+export async function addReceived(session: Session, get: TradeLine[], note: string, receipt?: { key: string; day: string }) {
   const lines = get.map((card) => [card.printing.id, card.printing.name, card.printing.set_code, card.printing.collector_number, card.printing.language, card.quantity, card.finish, TRADE_BINDER, note].map(csvCell).join(","));
   const body = ["Scryfall ID,Name,Set Code,Collector Number,Language,Quantity,Finish,Binder Name,Notes", ...lines].join("\r\n") + "\r\n";
-  let batch = await request<ImportBatch>(`/api/v1/imports?filename=${encodeURIComponent(`trade-${new Date().toISOString().slice(0, 10)}.csv`)}&format=generic&repeat=true`, {
-    method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": crypto.randomUUID() }, action: "Add traded cards" });
+  // With a receipt, a retry sends the same file and key, so the server returns the first import instead of adding the cards again.
+  let batch = await request<ImportBatch>(`/api/v1/imports?filename=${encodeURIComponent(`trade-${receipt?.day || new Date().toISOString().slice(0, 10)}.csv`)}&format=generic&repeat=true`, {
+    method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": receipt?.key || crypto.randomUUID() }, action: "Add traded cards" });
   // The server previews, then adds, imported copies in the background; follow it until both finish.
   for (let attempt = 0; ; attempt++) {
     if (batch.state === "REVIEW") {
@@ -64,7 +65,7 @@ export async function addReceived(session: Session, get: TradeLine[], note: stri
  * The callbacks let the caller drop finished parts so a retry never repeats them.
  */
 export async function applyTrade<T extends TradeLine>(session: Session, give: T[], get: T[], options: {
-  note: string; onStep?: (label: string) => void; onReceived?: () => void; onRemoved?: (card: T, take: number) => void;
+  note: string; receipt?: { key: string; day: string }; onStep?: (label: string) => void; onReceived?: () => void; onRemoved?: (card: T, take: number) => void;
 }) {
   let added = 0, removed = 0;
   try {
@@ -72,7 +73,7 @@ export async function applyTrade<T extends TradeLine>(session: Session, give: T[
     const removals = await planRemovals(give);
     if (get.length) {
       options.onStep?.("Adding the cards you get…");
-      added = await addReceived(session, get, options.note);
+      added = await addReceived(session, get, options.note, options.receipt);
       options.onReceived?.();
     }
     options.onStep?.("Removing the cards you give…");

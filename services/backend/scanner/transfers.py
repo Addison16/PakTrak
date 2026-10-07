@@ -140,6 +140,7 @@ def summary(db, batch):
                 ImportRow.import_id == batch.id,
                 ImportRow.state == "SKIPPED",
                 ImportRow.printing_id.is_not(None),
+                ~ImportRow.normalized.has_key("wishlisted"),
             )
         ),
     }
