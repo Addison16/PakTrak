@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 export const printings = Array.from({ length: 7 }, (_, index) => ({ id: `deck-card-${index}`, name: `Fixture Card ${index + 1}`, set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil", "foil"], image_url: `/api/v1/card-images/deck-card-${index}/0/grid` }));
 
@@ -33,6 +34,7 @@ export async function fixture(page: Page, boxes = false, artwork?: string, store
   }
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const body = req.postData() ? JSON.parse(req.postData()!) : null;
     const key = req.headers()["idempotency-key"];
     calls.push({ method, path, body, key });

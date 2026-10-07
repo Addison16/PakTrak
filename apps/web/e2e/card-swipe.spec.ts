@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { fixture as deckFixture } from "./deck-fixture";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 test.use({ hasTouch: true });
 
@@ -9,6 +10,7 @@ const cards = printings.map((printing) => ({ printing, quantity: 1, location_cou
 async function collectionFixture(page: Page) {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const index = printings.findIndex((printing) => path.endsWith("/" + printing.id));
     let json: any = {};
     if (path === "/api/auth/session") json = { owner_id: "swipe-owner", display_name: "Collector", role: "member", csrf_token: "test", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };

@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const printing = { id: "theme-card", name: "Appearance fixture", set_code: "tst", collector_number: "1", set_name: "Theme fixtures", language: "en", finishes: ["nonfoil", "foil"], rarity: "rare", type_line: "Creature", image_url: "/brand/paktrak-mark.svg" };
 const card = { printing, quantity: 2, location_count: 1, locations: [{ id: "red", name: "Red binder", kind: "binder", quantity: 2 }], value: "4.00", price_min: "2.00", price_max: "2.00", priced_copies: 2 };
@@ -10,6 +11,7 @@ async function fixture(context: BrowserContext, signedIn = true) {
   const unexpected: string[] = [];
   await context.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {}, status = 200;
     if (route.request().method() !== "GET") { unexpected.push(path); status = 500; }
     else if (path === "/api/auth/session") { status = signedIn ? 200 : 401; json = signedIn ? { owner_id: "theme-fixture", display_name: "Theme collector", role: "admin", csrf_token: "fixture", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null } : { detail: "Signed out" }; }

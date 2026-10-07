@@ -135,6 +135,14 @@ def summary(db, batch):
         "unresolved_rows": sum(
             states.get(state, {}).get("rows", 0) for state in ("UNRESOLVED", "INVALID")
         ),
+        "wishlist_rows": db.scalar(
+            select(func.count()).where(
+                ImportRow.import_id == batch.id,
+                ImportRow.state == "SKIPPED",
+                ImportRow.printing_id.is_not(None),
+                ~ImportRow.normalized.has_key("wishlisted"),
+            )
+        ),
     }
 
 
@@ -211,6 +219,12 @@ def preview(claimed):
                             "SKIPPED",
                             "Non-owned list excluded. No copies will be added.",
                         )
+                        if normalized["binder_type"] != "deck":
+                            # Matched so the wanted cards can go to the wishlist instead.
+                            try:
+                                printing, _ = formats.resolve(db, normalized)
+                            except ValueError:
+                                printing = None
                     elif normalized["binder_type"] not in {"", "binder", "collection"}:
                         state, error = (
                             "UNRESOLVED",

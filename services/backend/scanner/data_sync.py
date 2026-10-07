@@ -17,6 +17,7 @@ from sqlalchemy import delete, insert, select, text
 from scanner.catalog import import_file
 from scanner.db import session_factory
 from scanner.models import CardPrice, CatalogSnapshot, DataFeed, Printing, now
+from scanner.price_history import record_history
 from scanner.progress import Progress
 
 log = logging.getLogger(__name__)
@@ -177,6 +178,7 @@ def replace_prices(provider, values):
         db.execute(delete(CardPrice).where(CardPrice.provider == provider))
         for start in range(0, len(values), 1000):
             db.execute(insert(CardPrice), values[start : start + 1000])
+        record_history(db, provider)
 
 
 def save_progress(name, value):

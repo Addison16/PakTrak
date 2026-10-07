@@ -17,7 +17,13 @@ from scanner.catalog import printing_json
 from scanner.collection_api import Key, StrictModel, fingerprint, owned
 from scanner.csv_formats import safe_cell, text_line
 from scanner.deck_legality import DeckFormat, legality_report
-from scanner.deck_lists import MAX_DECK_BYTES, collection_versions, compare_cards, preview_list
+from scanner.deck_lists import (
+    MAX_DECK_BYTES,
+    collection_versions,
+    compare_cards,
+    deck_usage,
+    preview_list,
+)
 from scanner.deck_tokens import token_report
 from scanner.deck_values import FinishPreference, value_report
 from scanner.gallery import Provider
@@ -159,6 +165,11 @@ def import_preview(data: DeckPreview, identity: Identity, db: DB):
         raise HTTPException(422, str(exc)) from exc
 
 
+def safe_name(name):
+    """Card names stay on one line in plain-text deck files."""
+    return " ".join(name.split())
+
+
 def deck_json(deck):
     return {
         "id": str(deck.id),
@@ -179,9 +190,15 @@ def deck_detail(db, deck):
         .where(DeckCard.deck_id == deck.id)
         .order_by(DeckCard.section, Printing.name, Printing.id)
     ).all()
+    comparison = compare_cards(db, deck.owner_id, rows, deck.match_mode)
+    usage = deck_usage(
+        db, deck.owner_id, {printing.name for _, printing in rows}, exclude_deck=deck.id
+    )
+    for card in comparison["cards"]:
+        card["other_decks"] = usage[card["printing"]["name"].lower()]
     return {
         **deck_json(deck),
-        **compare_cards(db, deck.owner_id, rows, deck.match_mode),
+        **comparison,
         "legality": legality_report(db, rows, deck.format),
         "tokens": token_report(db, rows),
         "valuation": value_report(
@@ -440,7 +457,10 @@ def archive_deck(deck_id: uuid.UUID, data: ArchiveDeck, key: Key, identity: Iden
 
 @router.get("/{deck_id}/download")
 def download_deck(
-    deck_id: uuid.UUID, identity: Identity, db: DB, format: Literal["csv", "text"] = "text"
+    deck_id: uuid.UUID,
+    identity: Identity,
+    db: DB,
+    format: Literal["csv", "text", "arena", "mtgo"] = "text",
 ):
     deck = owned(db, Deck, deck_id, identity.owner_id, True)
     rows = db.execute(
@@ -478,6 +498,37 @@ def download_deck(
                     ]
                 ]
             )
+    elif format == "arena":
+        # MTG Arena import: headed sections, each line "4 Name (SET) 123".
+        for section, label in [
+            ("commander", "Commander"),
+            ("main", "Deck"),
+            ("sideboard", "Sideboard"),
+        ]:
+            cards = [(card, printing) for card, printing in rows if card.section == section]
+            if cards:
+                output.write(label + "\n")
+                for card, printing in cards:
+                    # Arena names split cards in full and other two-faced cards by the front.
+                    name = printing.name
+                    if printing.source_json.get("layout") != "split":
+                        name = name.split(" // ")[0]
+                    output.write(
+                        f"{card.quantity} {safe_name(name)} ({printing.set_code.upper()}) "
+                        f"{printing.collector_number}\n"
+                    )
+                output.write("\n")
+    elif format == "mtgo":
+        # MTGO .txt: mainboard, a blank line, then sideboard. Commanders go last in the sideboard.
+        main = [(card, printing) for card, printing in rows if card.section == "main"]
+        side = [(card, printing) for card, printing in rows if card.section == "sideboard"]
+        side += [(card, printing) for card, printing in rows if card.section == "commander"]
+        for card, printing in main:
+            output.write(f"{card.quantity} {safe_name(printing.name)}\n")
+        if side:
+            output.write("\n")
+            for card, printing in side:
+                output.write(f"{card.quantity} {safe_name(printing.name)}\n")
     else:
         for section, label in [
             ("commander", "Commander"),
@@ -500,12 +551,11 @@ def download_deck(
                         + "\n"
                     )
                 output.write("\n")
+    suffix = {"csv": ".csv", "arena": "-arena.txt", "mtgo": "-mtgo.txt"}.get(format, ".txt")
     return Response(
         output.getvalue().encode("utf-8-sig" if format == "csv" else "utf-8"),
         media_type="text/csv" if format == "csv" else "text/plain",
-        headers={
-            "Content-Disposition": f'attachment; filename="deck-{deck.id}.{"csv" if format == "csv" else "txt"}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="deck-{deck.id}{suffix}"'},
     )
 
 

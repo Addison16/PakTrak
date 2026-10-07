@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { installCamera, openCamera, takePhoto } from "./camera-fixture";
 import { cancelBrowserBack, navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 const art = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="12" fill="#244d46"/><rect x="10" y="10" width="220" height="316" rx="8" fill="#f2e7d3"/><rect x="20" y="60" width="200" height="170" fill="#7a9b93"/><text x="20" y="42" font-size="18">Sample card</text></svg>';
 const printing = (i: number) => ({ id: "printing-" + i, name: ["Sample Captain", "Sample Island", "Sample Shield"][i], set_code: "tst", collector_number: String(i + 1), language: "en", finishes: ["nonfoil", "foil"], image_url: `/api/v1/card-images/printing-${i}/0/grid` });
@@ -19,6 +20,7 @@ async function fixture(page: Page) {
   }
   await page.route("**/api/**", async route => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     if (path.includes("/card-images/") || path.endsWith("/image")) return route.fulfill({ contentType: "image/svg+xml", body: art });
     const body = req.postData() && !path.endsWith("/upload") ? req.postDataJSON() : null;
     const key = req.headers()["idempotency-key"]; calls.push({ path, method, body, key });

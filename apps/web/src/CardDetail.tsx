@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { money, request, type CollectionCard as Card, type DataFeed, type Location, type Printing, type Session } from "./api";
+import { money, providers, request, type CollectionCard as Card, type DataFeed, type HistoryChange, type HistoryPoint, type Location, type Printing, type Session } from "./api";
 import CollectionCard from "./CollectionCard";
 import CardArrival, { type CardFlightOrigin } from "./CardArrival";
 import { slideTo, useCardSwipe } from "./useCardSwipe";
 import { ReferralNote } from "./StoreButtons";
 import { withReferral, type Store } from "./storeLinks";
+import ValueChart, { changeText } from "./ValueChart";
+import { navigation } from "./navigation";
+import "./social.css";
 
 type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text?: string; flavor_text?: string; artist?: string; power?: string; toughness?: string; loyalty?: string; defense?: string; image_url: string | null };
 type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
@@ -26,6 +29,47 @@ export function CardArt({ url, fallbackUrl, name, eager = false }: { url?: strin
   }, [url, fallbackUrl]);
   useEffect(() => setFailed(false), [source]);
   return <div className="card-art">{source && !failed ? <img src={source} alt={name} loading={eager ? "eager" : "lazy"} decoding="async" width={488} height={680} onError={() => setFailed(true)} /> : <div className="art-placeholder"><span aria-hidden="true">✧</span><strong>{name}</strong><small>Artwork unavailable</small></div>}</div>;
+}
+
+type PriceHistory = { provider: string; finishes: Record<string, { points: HistoryPoint[]; change: HistoryChange }> };
+type DeckUse = { name: string; owned: number; used: number; free: number; decks: { id: string; name: string; quantity: number }[] };
+
+/** Price over time for one finish, from the daily price updates PakTrak has saved. */
+function PriceHistoryChart({ printingId, finish }: { printingId: string; finish: string }) {
+  const [history, setHistory] = useState<PriceHistory | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    request<PriceHistory>(`/api/v1/collection/printings/${printingId}/price-history`, { signal: controller.signal, quiet: true }).then(setHistory).catch(() => { /* The chart is optional. */ });
+    return () => controller.abort();
+  }, [printingId]);
+  if (!history?.finishes) return null;
+  const series = history.finishes[finish];
+  const change = series && changeText(series.change);
+  return <div className="card-history">
+    <h3>Price history</h3>
+    {change && <p className="value-change">{change} · {providers[history.provider] || history.provider}</p>}
+    <ValueChart points={series?.points || []} label={`${finishes[finish] || finish} price, ${providers[history.provider] || history.provider}`} empty="PakTrak saves prices once a day for cards in your collection or wishlist. A chart appears after the second day." />
+  </div>;
+}
+
+/** How many copies decks already use, so the rest can be traded or reused. */
+function DeckUsage({ printingId }: { printingId: string }) {
+  const [usage, setUsage] = useState<DeckUse | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    request<DeckUse>(`/api/v1/collection/printings/${printingId}/decks`, { signal: controller.signal, quiet: true }).then(setUsage).catch(() => { /* Optional. */ });
+    return () => controller.abort();
+  }, [printingId]);
+  if (!Array.isArray(usage?.decks)) return null;
+  return <section className="card-decks" aria-label="In your decks">
+    <h3>In your decks</h3>
+    {usage.decks.length === 0 ? <p className="fine">No saved deck uses {usage.name}. You own {usage.owned} {usage.owned === 1 ? "copy" : "copies"} of this card in any printing.</p> : <>
+      <p className="fine">You own {usage.owned} {usage.owned === 1 ? "copy" : "copies"} of {usage.name} in any printing. Decks use {usage.used}, so {usage.free} {usage.free === 1 ? "is" : "are"} free.</p>
+      <ul className="plain-list social-rows">{usage.decks.map((deck) => <li key={deck.id}>
+        <button type="button" className="social-open" onClick={() => navigation.go({ page: "decks", deck: deck.id })}><strong>{deck.name}</strong></button><span>{deck.quantity}</span>
+      </li>)}</ul>
+    </>}
+  </section>;
 }
 
 export default function CardDetail({ card, origin, binder, locations, session, onSaved, onCorrected, onClose, onStep }: { card: Card; origin?: CardFlightOrigin | null; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected: () => Promise<void>; onClose: () => void; onStep?: (delta: number) => (() => void) | null }) {
@@ -96,8 +140,10 @@ export default function CardDetail({ card, origin, binder, locations, session, o
       </div>; })}</div>
       <p className="fine">Daily reference prices, before shipping and tax. Condition can change a copy’s value. Your collection total uses recorded finishes; unknown finishes, altered cards and misprints are left unpriced.</p>
       <ReferralNote links={session.store_links} />
+      <PriceHistoryChart printingId={card.printing.id} finish={finish} />
     </section>}
     <section aria-label="Owned copies"><h3>Your copies & locations</h3><ul className="plain-list holdings"><CollectionCard card={card} binder={binder} locations={locations} session={session} onSaved={onSaved} onCorrected={onCorrected} /></ul></section>
+    <DeckUsage printingId={card.printing.id} />
     {detail && <details><summary>Format legality</summary><div className="legality-grid">{Object.entries(detail.legalities).filter(([name]) => ["standard", "pioneer", "modern", "legacy", "vintage", "commander", "pauper", "brawl"].includes(name)).map(([name, value]) => <div key={name}><span>{name}</span><span className={value === "legal" ? "legal" : ""}>{value.replaceAll("_", " ")}</span></div>)}</div><p className="fine">Card information and legality from Scryfall’s saved catalog.</p></details>}
     <CardArrival origin={origin} cardKey={faceIndex === 0 ? card.printing.id : `${card.printing.id}:face:${faceIndex}`} targetRef={art} dialogRef={dialog} />
   </dialog>;

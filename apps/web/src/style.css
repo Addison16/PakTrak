@@ -54,6 +54,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .menu-links { display: grid; flex-shrink: 0; gap: 6px; padding: 22px 0; }
 .menu-links button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 49px; padding: 12px 14px; border: 1px solid transparent; border-radius: 8px; background: var(--paper); color: var(--forest); font-size: 14px; font-weight: 500; line-height: 1.4; text-align: left; }
 .menu-links .icon { width: 20px; height: 20px; }
+.menu-links .menu-count { margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 6px; background: var(--copper); color: var(--paper); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 .menu-links [aria-current=page] { background: var(--forest); border-color: var(--forest); color: var(--on-forest); font-weight: 600; }
 .menu-account { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
 .menu-tour { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 0; margin: 0 0 12px; border: 0; background: transparent; color: var(--copper); font-size: 13px; font-weight: 600; }
@@ -697,6 +698,7 @@ details p { font-size: 14px; }
 .scan-photo-flip { display: block; min-height: 44px; margin: 6px auto 0; padding: 6px 8px; }
 .scan-suggested h3 { margin-bottom: 5px; }
 .scan-suggested p { margin: 5px 0; font-size: 14px; }
+.scan-suggested .scan-owned { color: var(--forest); font-weight: 600; }
 .scan-confidence { margin: 18px 0; padding: 4px 16px; border-left: 3px solid var(--forest); }
 .scan-confidence p { font-size: 12px; margin: 7px 0 0; }
 .scan-card-detail > .actions { margin: 16px 0; }
@@ -726,6 +728,7 @@ details p { font-size: 14px; }
 
 /* Account settings share the collection's paper, ink and brass palette. */
 .account-view .hero, .account-view .account-allowance { display: none; }
+.social-view .hero, .social-view .account-allowance { display: none; }
 .account-view > .panel { max-width: 860px; margin-inline: auto; }
 .account-manager { margin: 24px 0; padding-block: 24px; border-block: 1px solid var(--line); }
 .account-manager h3, .my-account h3 { margin: 0 0 14px; }

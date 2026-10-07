@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 const printing = { id: "qol-card", name: "Island", set_code: "tst", collector_number: "2", set_name: "Test expansion", language: "en", rarity: "common", type_line: "Basic Land — Island", finishes: ["nonfoil", "foil"], image_url: "/brand/paktrak-mark.svg" };
 const card = { printing, quantity: 4, location_count: 1, locations: [{ id: "red", name: "Red binder", quantity: 4 }], value: "4.00", price_min: "1.00", price_max: "1.00", priced_copies: 4 };
 const locations = [{ id: "red", name: "Red binder", kind: "binder", copies: 4, version: 1, notes: "" }, { id: "box", name: "Box 4", kind: "box", copies: 0, version: 1, notes: "" }];
@@ -8,6 +9,7 @@ async function fixture(page: Page, emptyGallery = false) {
   const calls: { path: string; body: any }[] = [];
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     const body = req.postData() ? JSON.parse(req.postData()!) : null;
     if (req.method() !== "GET") calls.push({ path, body });
     let json: any = {};

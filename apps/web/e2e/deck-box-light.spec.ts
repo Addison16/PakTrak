@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { navigate } from "./navigation";
+import { noPriceAlerts } from "./price-alert-fixture";
 
 async function shelf(page: Page) {
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: unknown = {};
     if (path === "/api/auth/session") json = { owner_id: "box-light-fixture", display_name: "Deck collector", csrf_token: "fixture-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };

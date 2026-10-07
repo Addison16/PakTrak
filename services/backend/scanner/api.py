@@ -25,6 +25,7 @@ from scanner.card_images import router as card_images_router
 from scanner.catalog import router as catalog_router
 from scanner.collection_api import router as collection_router
 from scanner.collection_bulk import router as collection_bulk_router
+from scanner.collection_insights import router as collection_insights_router
 from scanner.deck_scans import router as deck_scans_router
 from scanner.decks_api import router as decks_router
 from scanner.diagnostics import (
@@ -44,10 +45,14 @@ from scanner.photo_formats import (
     photo_mime,
     sniff_type,
 )
+from scanner.price_alerts import router as price_alerts_router
 from scanner.recognition_policy import AUTO_IMPORT_THRESHOLD
 from scanner.scan_batches import batch_data
 from scanner.scan_batches import router as scan_batches_router
 from scanner.settings import get_settings
+from scanner.social import router as friends_router
+from scanner.social import trades as trade_offers_router
+from scanner.wishlist import router as wishlist_router
 
 settings = get_settings()
 app = FastAPI(
@@ -64,11 +69,16 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(accounts_router)
 app.include_router(catalog_router)
+app.include_router(collection_insights_router)
 app.include_router(collection_router)
+app.include_router(wishlist_router)
+app.include_router(friends_router)
+app.include_router(trade_offers_router)
 app.include_router(collection_bulk_router)
 app.include_router(decks_router)
 app.include_router(deck_scans_router)
 app.include_router(gallery_router)
+app.include_router(price_alerts_router)
 app.include_router(card_images_router)
 app.include_router(scan_batches_router)
 app.include_router(diagnostics_router)

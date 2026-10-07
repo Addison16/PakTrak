@@ -7,6 +7,24 @@
 - The header shows **Offline** and how many changes are waiting. **Menu → Queued actions** lists every waiting change so it can be tracked, retried or removed.
 - On an HTTPS address PakTrak also opens with no connection and keeps up to 1,000 card pictures. When the server's address is HTTPS, a plain http:// visit moves to it automatically. See [using PakTrak offline](docs/OFFLINE.md).
 
+## Wishlist, friends, trade offers and price history — October 7, 2026
+
+- Add **Menu → Wishlist** with finishes, quantities, prices and store buttons. Add cards by search, a pasted list, a deck's missing cards, a set's missing cards, or the wishlist rows of an imported file.
+- Add **Menu → Friends**. People connect only with a private friend code and an accepted request; PakTrak never lists accounts, a wrong code gets the same answer whether or not the account exists, and repeated wrong codes are slowed. Friends can browse each other's collections and wishlists (each can be turned off) and see which of their cards are on the other's wishlist. Storage locations and notes stay private.
+- Add **Menu → Trade offers** and a notice at the top of Home when an offer needs you. Send offers from Trade value or a friend's page. Accepting adds the cards you get to a **Trades** binder and removes the cards you give; each person's app updates only their own collection.
+- Save daily price history for owned and wanted cards and each collection's daily value. **Collection → Value over time** and card details chart them.
+- Card details list the decks using a card and how many copies are free; deck cards note the other decks that use them.
+- Scan review notes when you already own a card, and where.
+- Decks get a mana curve, sample opening hands with mulligans, and **Export for MTG Arena** / **Export for MTGO**.
+- Add **Menu → Set completion** with progress for each set you own cards from, the missing cards and the cost to finish.
+
+## Price alerts — October 7, 2026
+
+- A short banner on Home says when your cards went up or down in price since you last checked. Tapping it opens the full list with each card's old and new price, the change and the percent. "Got it" clears it, and nothing shows when nothing moved.
+- Choose the size of change that counts in My account: a percent, a dollar amount or both (both must be met). New accounts start at 20% and $1.00, so cheap cards don't alert over cents. Alerts can be turned off.
+- Each account keeps its own settings and the prices it last saw. A card only takes its new price as the starting point once you dismiss its alert, so slow changes still add up to an alert. Switching price source starts fresh, so prices from different stores are never compared.
+- Misprints, altered cards and cards with an unknown finish are left out, because their value isn't the market price.
+
 ## Store buttons and referral links — October 7, 2026
 
 - Add **Open in TCGplayer**, **Open in ManaPool** and **Open in Card Kingdom** buttons to a deck's buy list, and the same three for the whole deck under **Export deck list**. TCGplayer and ManaPool open with the list already filled in; Card Kingdom opens its deck builder with the list copied to paste. Very long lists fall back to copy and paste.
