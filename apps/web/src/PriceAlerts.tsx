@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { money, mutation, providers, request, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
+import { Icon } from "./Icon";
 import "./price-alerts.css";
 
 export type PriceAlertSettings = { enabled: boolean; percent: number | null; amount: string | null };
@@ -32,36 +33,59 @@ function MoverList({ title, items, total, direction }: { title: string; items: M
 
 export default function PriceAlerts({ session, onSettings }: { session: Session; onSettings: () => void }) {
   const [alerts, setAlerts] = useState<Alerts | null>(null);
+  const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<Error | string>("");
+  const sheet = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const controller = new AbortController();
     // Alerts are a bonus on Home; a failed check stays quiet and retries next visit.
     void request<Alerts>("/api/v1/price-alerts", { signal: controller.signal, quiet: true }).then(setAlerts).catch(() => {});
     return () => controller.abort();
   }, [session.owner_id]);
+  useEffect(() => {
+    const element = sheet.current;
+    if (!open || !element) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    element.showModal();
+    return () => { element.close(); document.body.style.overflow = overflow; };
+  }, [open]);
   if (!alerts || !alerts.rises.length && !alerts.drops.length) return null;
+  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   async function dismiss() {
     if (!alerts) return;
     setError("");
     const cards = [...alerts.rises, ...alerts.drops].map(({ printing_id, finish }) => ({ printing_id, finish }));
     try {
       await request("/api/v1/price-alerts/seen", mutation(session, { cards }));
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setAlerts(null);
+      setOpen(false);
+      if (reduced()) setAlerts(null);
       else setLeaving(true);
     } catch (e) { setError(e as Error); }
   }
   const rose = alerts.rises.reduce((sum, item) => sum + Number(item.change) * item.quantity, 0);
   const fell = alerts.drops.reduce((sum, item) => sum + Number(item.change) * item.quantity, 0);
-  return <section className={"price-alerts" + (leaving ? " leaving" : "")} aria-labelledby="price-alerts-title" onAnimationEnd={(event) => { if (leaving && event.target === event.currentTarget) setAlerts(null); }}>
-    <div className="eyebrow">PRICE CHANGES</div>
-    <h2 id="price-alerts-title">{alerts.rises.length && alerts.drops.length ? "Some of your cards moved" : alerts.rises.length ? "Your cards went up" : "Some cards lost value"}</h2>
-    <p className="fine">Since you last checked · {providers[alerts.provider] ?? alerts.provider} prices{rose ? ` · ${money(rose)} up` : ""}{fell ? ` · ${money(-fell)} down` : ""}</p>
-    <MoverList title="Went up" items={alerts.rises} total={alerts.rise_count} direction="up" />
-    <MoverList title="Went down" items={alerts.drops} total={alerts.drop_count} direction="down" />
-    {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
-    <div className="actions"><button type="button" className="button primary" disabled={leaving} onClick={() => void dismiss()}>Got it</button><button type="button" className="text-button" onClick={() => { revealSettings = true; onSettings(); }}>Change alert amounts</button></div>
-  </section>;
+  const counts = [alerts.rise_count && `${alerts.rise_count} ${alerts.rise_count === 1 ? "card" : "cards"} went up`, alerts.drop_count && `${alerts.drop_count}${alerts.rise_count ? "" : alerts.drop_count === 1 ? " card" : " cards"} went down`].filter(Boolean).join(" · ");
+  return <>
+    <button type="button" className={"price-alert-banner" + (alerts.rises.length ? " up" : " down") + (leaving ? " leaving" : "")} disabled={leaving} aria-haspopup="dialog"
+      onClick={() => setOpen(true)} onAnimationEnd={(event) => { if (leaving && event.target === event.currentTarget) setAlerts(null); }}>
+      <span className="price-alert-banner-icon" aria-hidden="true"><Icon name="spark" /></span>
+      <span className="price-alert-banner-copy"><strong>{alerts.rises.length ? "Your cards are on the move!" : "Price alerts"}</strong><small>{counts}{rose ? ` · ${money(rose)} up` : ""}</small></span>
+      <Icon name="arrow" />
+    </button>
+    {open && <dialog ref={sheet} className="price-alert-sheet" aria-labelledby="price-alerts-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <div className="price-alert-sheet-heading">
+        <div><div className="eyebrow">PRICE ALERTS</div><h2 id="price-alerts-title">{alerts.rises.length && alerts.drops.length ? "Some of your cards moved" : alerts.rises.length ? "Your cards went up" : "Some cards lost value"}</h2></div>
+        <button type="button" className="price-alert-close" aria-label="Close" onClick={() => setOpen(false)}><Icon name="close" /></button>
+      </div>
+      <p className="fine">Since you last checked · {providers[alerts.provider] ?? alerts.provider} prices{rose ? ` · ${money(rose)} up` : ""}{fell ? ` · ${money(-fell)} down` : ""}</p>
+      <MoverList title="Went up" items={alerts.rises} total={alerts.rise_count} direction="up" />
+      <MoverList title="Went down" items={alerts.drops} total={alerts.drop_count} direction="down" />
+      {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
+      <div className="actions"><button type="button" className="button primary" disabled={leaving} onClick={() => void dismiss()}>Got it</button><button type="button" className="text-button" onClick={() => { revealSettings = true; setOpen(false); onSettings(); }}>Change alert amounts</button></div>
+    </dialog>}
+  </>;
 }
 
 export function PriceAlertSettingsForm({ session }: { session: Session }) {

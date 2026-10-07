@@ -45,7 +45,11 @@ for (const width of [320, 390, 1280]) {
     const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
     const state = await collector(page);
     await page.goto("/");
-    const notice = page.getByRole("region", { name: "Some of your cards moved", exact: true });
+    const banner = page.getByRole("button", { name: /Your cards are on the move!/ });
+    await expect(banner).toContainText("4 cards went up · 1 went down · $71.00 up");
+    await banner.screenshot({ path: `../../artifacts/price-alerts/banner-${width}-${test.info().project.name}.png` });
+    await banner.click();
+    const notice = page.getByRole("dialog", { name: "Some of your cards moved", exact: true });
     await expect(notice).toBeVisible();
     await expect(notice.getByText("Ragavan, Nimble Pilferer", { exact: true })).toBeVisible();
     await expect(notice.getByText("+$16.65", { exact: true })).toBeVisible();
@@ -56,12 +60,17 @@ for (const width of [320, 390, 1280]) {
     await expect(notice.getByText("Sheoldred, the Apocalypse", { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await notice.screenshot({ path: `../../artifacts/price-alerts/home-${width}-${test.info().project.name}.png` });
+    await notice.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    expect(state.seen).toEqual([]);
+    await banner.click();
     await notice.getByRole("button", { name: "Got it", exact: true }).click();
     await expect(notice).toHaveCount(0);
+    await expect(banner).toHaveCount(0);
     expect(state.seen).toEqual([{ cards: [...rises, ...drops].map(({ printing_id, finish }) => ({ printing_id, finish })) }]);
     await page.reload();
     await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
-    await expect(page.getByRole("region", { name: /moved|went up|lost value/ })).toHaveCount(0);
+    await expect(page.locator(".price-alert-banner")).toHaveCount(0);
     expect(state.unexpected).toEqual([]);
     expect(errors).toEqual([]);
   });
@@ -71,7 +80,7 @@ test("Home stays clear when nothing moved and settings save from My account", as
   const state = await collector(page, { rises: [], drops: [] });
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeVisible();
-  await expect(page.locator(".price-alerts")).toHaveCount(0);
+  await expect(page.locator(".price-alert-banner")).toHaveCount(0);
   await page.goto("/#account");
   const form = page.getByRole("form", { name: "Price alerts", exact: true });
   await expect(form.getByLabel("Percent change")).toHaveValue("20");
@@ -91,6 +100,7 @@ test("Home stays clear when nothing moved and settings save from My account", as
 test("Change alert amounts opens the settings in My account", async ({ page }) => {
   await collector(page);
   await page.goto("/");
+  await page.getByRole("button", { name: /Your cards are on the move!/ }).click();
   await page.getByRole("button", { name: "Change alert amounts", exact: true }).click();
   const form = page.getByRole("form", { name: "Price alerts", exact: true });
   await expect(form).toBeInViewport();
