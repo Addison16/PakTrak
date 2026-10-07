@@ -301,6 +301,10 @@ details p { font-size: 14px; }
 .deck-save { border-top: 1px solid var(--line); padding-top: 18px; margin: 20px 0; }
 .deck-save > p { margin: 0 0 14px; font-size: 14px; }
 .signup-setting { border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.backup-notice { padding: 14px 16px; border-left: 3px solid var(--copper); background: var(--warning-bg); }
+.backup-notice p { margin: 0 0 8px; }
+.backup-list > li { padding: 12px 0; }
+.backup-list .actions { margin: 6px 0 0; align-items: center; }
 .collection-search .button { min-height: 46px; }
 .deck-cards .badge { max-width: none; }
 .quantity-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 44px; padding: 4px 10px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--surface-muted); color: var(--forest); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }

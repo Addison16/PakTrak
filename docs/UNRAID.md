@@ -32,6 +32,26 @@ If you run a reverse proxy on Unraid with a hostname and certificate, point it a
 
 The **Data** folder holds the database, your photos and `paktrak.env`, which contains the container's private passwords. Keep it private. To back up, stop the container and copy the whole folder, or use a backup plugin that does the same. Restoring the folder and starting the container brings everything back.
 
+## Automatic backups
+
+PakTrak backs up its databases every day into the `backups` folder inside the Data folder: every account, collection, deck and setting. Scan photos are left out; they expire on their own after a few days. In **Menu → Administration → Backups** an administrator can:
+
+- choose how many backups to keep (7 by default; the oldest beyond that are deleted when a new one is saved) or turn daily backups off,
+- back up right away,
+- download a backup, to keep a copy off the server,
+- restore a backup. PakTrak restores it the next time the container restarts (**Docker** page, PakTrak icon, **Restart**), and saves the current data as a new backup first, so a restore can be undone the same way.
+
+A backup holds the container's private passwords too, so keep downloaded copies private. Backups live in the Data folder, so a copy somewhere else (a download, or a backup plugin that copies the Data folder) also protects you if that disk fails.
+
+### Moving to another server, or restoring when PakTrak won't start
+
+1. Download the newest backup from **Backups**, or copy one from the `backups` folder of the old Data folder.
+2. Install PakTrak on the new server as above. Its Data folder can be empty.
+3. Create a folder named `restore` inside the new Data folder and put the backup file in it. Leave only one file there.
+4. Start or restart the container. It restores the backup, moves the file into `backups`, then starts. Sign in with the same accounts as before. If the address changed, set **App address** to the new one; accounts are kept.
+
+If the file can't be restored, the container stops and its log says why. Remove the file from `restore` to start without restoring.
+
 ## Moving from a Docker Compose installation
 
 If PakTrak already runs on this server with Docker Compose, move its data into the single container instead of starting fresh. Your accounts, collections, decks and photos come with it.

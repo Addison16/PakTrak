@@ -87,6 +87,8 @@ jobs:
             curl --fail --silent --show-error -o /dev/null http://localhost:8095/identity/realms/scanner/.well-known/openid-configuration
             [ "$attempt" = 2 ] || docker restart -t 120 paktrak
           done
+      - name: Back up, restore and move to a fresh data folder
+        run: sh scripts/test-single-container-backups.sh paktrak:verify
       - name: Show container logs on failure
         if: failure()
         run: docker logs --tail 200 paktrak
