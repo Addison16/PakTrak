@@ -39,11 +39,11 @@ function validSavedReview(value: SavedReview | null): value is SavedReview {
 // Auto-imported cards turn over to the clean catalog image; anything you still
 // check by eye keeps your own photo. Falls back to the photo if the image fails.
 function ScanTileImage({ scanId, crop, printing, preferCatalog }: { scanId: string; crop?: string | null; printing?: Printing | null; preferCatalog: boolean }) {
-  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [failedCatalog, setFailedCatalog] = useState<string | null>(null);
   const catalog = printing?.image_url ? `/api/v1/scans/${scanId}/reference/${printing.id}/image` : null;
-  const src = catalog && (preferCatalog || !crop) && !(catalogFailed && crop) ? catalog : crop;
+  const src = catalog && (preferCatalog || !crop) && !(failedCatalog === catalog && crop) ? catalog : crop;
   if (!src) return <div className="scan-crop-missing">Photo expired</div>;
-  return <img key={src} src={src} alt="" loading="lazy" onError={() => { if (src === catalog) setCatalogFailed(true); }} />;
+  return <img key={src} src={src} alt="" loading="lazy" onError={() => { if (src === catalog) setFailedCatalog(catalog); }} />;
 }
 
 export default function Review({ scanId, photo, session, onStateChange, processing = false, progress, onChange }: {
