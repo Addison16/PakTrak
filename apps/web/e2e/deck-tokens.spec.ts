@@ -23,6 +23,10 @@ async function fixture(page: Page) {
     });
     return { items, missing_details: 0 };
   }
+  function collection(cards: typeof state.cards) {
+    const copies = cards.reduce((sum, card) => sum + card.quantity, 0);
+    return { copies, owned_copies: 0, missing_copies: copies, cards: cards.map((card) => ({ ...card, printing: printings.find((printing) => printing.id === card.printing_id), owned: 0, available: 0, missing: card.quantity, locations: [] })), missing_cards: [] };
+  }
   function deck() {
     return { id: "token-deck", name: "Token parade", format: state.format, notes: "", match_mode: "any", version: state.version, copies: state.cards.reduce((sum, card) => sum + card.quantity, 0), owned_copies: 0, missing_copies: 6,
       cards: state.cards.map((card) => ({ ...card, printing: printings.find((printing) => printing.id === card.printing_id), owned: 0, available: 0, missing: card.quantity, locations: [] })), missing_cards: [], tokens: report(state.cards) };
@@ -34,7 +38,7 @@ async function fixture(page: Page) {
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
     if (path.startsWith("/api/v1/card-images/")) return state.failImages ? route.fulfill({ status: 503, body: "Artwork unavailable" }) : route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="336"><rect width="240" height="336" rx="14" fill="#244d46"/><rect x="12" y="12" width="216" height="312" rx="8" fill="#f2e7d3"/><circle cx="120" cy="160" r="70" fill="#85a791"/><text x="30" y="45" font-size="22">Token fixture</text></svg>' });
     if (path === "/api/auth/status") return reply({ setup_required: false, guest_signup_enabled: true });
-    if (path === "/api/auth/session") return reply({ owner_id: "token-fixture", display_name: "Token collector", csrf_token: "token-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0 });
+    if (path === "/api/auth/session") return reply({ owner_id: "token-fixture", display_name: "Token collector", csrf_token: "token-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null });
     if (path === "/api/v1/capabilities") return reply({ max_upload_bytes: 104857600 });
     if (path === "/api/v1/scans") return reply({ items: [], next_offset: null });
     if (path === "/api/v1/decks") return reply({ items: [deck()], next_offset: null });
@@ -49,6 +53,7 @@ async function fixture(page: Page) {
       const body = req.postDataJSON(); state.tokenCalls.push(body);
       return state.failTokens ? reply({ detail: "Temporarily unavailable" }, 503) : reply(report(body.cards));
     }
+    if (path === "/api/v1/decks/collection-preview") return reply(collection(req.postDataJSON().cards));
     if (path === "/api/v1/decks/legality") return reply({ format: state.format, status: "not_checked", issues: [], counts: { main: 0, sideboard: 0, commander: 0 }, checked_at: "2026-09-21T00:00:00Z", catalog_updated_at: null, checks: [], limitations: [] });
     state.unexpected.push(path); return reply({ detail: "Unexpected test request" }, 500);
   });
