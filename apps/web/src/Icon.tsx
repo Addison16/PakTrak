@@ -1,4 +1,4 @@
-type IconName = "user" | "camera" | "batches" | "collection" | "decks" | "transfer" | "settings" | "image" | "arrow" | "spark" | "pin" | "close" | "light" | "frame";
+type IconName = "user" | "camera" | "batches" | "collection" | "decks" | "transfer" | "settings" | "image" | "arrow" | "spark" | "pin" | "close" | "light" | "frame" | "trade";
 
 const paths: Record<IconName, string> = {
   user: "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 6 0 0 1 16 0v2",
@@ -15,6 +15,7 @@ const paths: Record<IconName, string> = {
   close: "m6 6 12 12M18 6 6 18",
   light: "m13 2-9 12h7l-1 8 10-13h-8l1-7Z",
   frame: "M3 8V3h5m8 0h5v5m0 8v5h-5M8 21H3v-5M8 3v18M16 3v18M3 8h18M3 16h18",
+  trade: "M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4",
 };
 
 export function Icon({ name }: { name: IconName }) {

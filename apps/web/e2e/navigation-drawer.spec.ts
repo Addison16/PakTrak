@@ -51,7 +51,7 @@ for (const viewport of [{ width: 320, height: 660 }, { width: 1280, height: 900 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
     for (const [destination, heading] of [
-      ["Collection", "Your collection"], ["Batches", "Saved batches"], ["Decks", "Your decks"],
+      ["Collection", "Your collection"], ["Batches", "Saved batches"], ["Decks", "Your decks"], ["Trade value", "Trade value"],
       ["Import / export", "Bring your collection"], ["Administration", "Account administration"],
       ["Upload photo", "Start with a clear photo."],
     ] as const) {
@@ -64,7 +64,7 @@ for (const viewport of [{ width: 320, height: 660 }, { width: 1280, height: 900 
       await expect(menu).toHaveAttribute("aria-expanded", "false");
       const navigation = await openNavigation(page);
       await expect(navigation.locator("[aria-current=page]")).toHaveText(destination);
-      await expect(navigation.getByRole("button")).toHaveCount(7);
+      await expect(navigation.getByRole("button")).toHaveCount(8);
       await navigation.getByRole("button", { name: destination, exact: true }).click();
       await expect(page.getByRole("dialog", { name: "Menu", exact: true })).not.toBeVisible();
     }

@@ -778,3 +778,5 @@ details p { font-size: 14px; }
 .scan-deck-target { border-block: 1px solid var(--line); padding: 16px 0; margin-bottom: 20px; }
 .scan-deck-target h3 { overflow-wrap: anywhere; }
 .card-swipe { touch-action: pan-y pinch-zoom; }
+.trade-view .hero, .trade-view .account-allowance { display: none; }
+.trade-view > .panel, .trade-view > div > .panel { max-width: 760px; margin-inline: auto; margin-top: 0; }
