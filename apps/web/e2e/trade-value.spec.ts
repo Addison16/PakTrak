@@ -54,7 +54,7 @@ test("compares both sides of a trade with per-card finishes and quantities", asy
   await expect(page.getByText("Added Shivan Dragon.")).toBeVisible();
   await page.getByRole("button", { name: "Done adding", exact: true }).click();
   await expect(total(page, "You give")).toHaveText("$30.00");
-  await expect(page.getByText("You own 3")).toBeVisible();
+  await expect(page.getByText("You have 3 in Trade binder")).toBeVisible();
 
   // Get two Lightning Bolts and a Sol Ring from the full catalog.
   await page.getByRole("button", { name: "Add a card you get", exact: true }).click();
@@ -110,4 +110,22 @@ test("the trade page fits a phone screen without sideways scrolling", async ({ p
   await expect(total(page, "You get")).toHaveText("$2.50");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("prices are checked again when returning to the page after a while", async ({ page }) => {
+  await page.clock.install();
+  const state = await fixture(page);
+  await page.getByRole("button", { name: "Add a card you get", exact: true }).click();
+  await page.getByLabel("Find an exact printing").fill("Sol Ring");
+  await page.getByRole("button", { name: /Sol Ring/ }).click();
+  await page.getByRole("button", { name: "Done adding", exact: true }).click();
+  await expect(total(page, "You get")).toHaveText("$5.00");
+  const calls = state.valueCalls.length;
+  await navigate(page, "Collection");
+  prices[ring.id].nonfoil = 7;
+  await page.clock.fastForward("06:00");
+  await navigate(page, "Trade value");
+  await expect(total(page, "You get")).toHaveText("$7.00");
+  expect(state.valueCalls.length).toBe(calls + 1);
+  prices[ring.id].nonfoil = 5;
 });

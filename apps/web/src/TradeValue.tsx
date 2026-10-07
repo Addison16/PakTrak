@@ -8,7 +8,10 @@ import "./trade-value.css";
 
 type Side = "give" | "get";
 type Finish = "nonfoil" | "foil" | "etched";
-type TradeCard = { key: string; printing: Printing; finish: Finish; quantity: number; owned?: number };
+// Lots record which collection copies a row was picked from, so ownership is never shown as a total.
+type PickedLot = { id: string; binder: string; quantity: number };
+type TradeCard = { key: string; printing: Printing; finish: Finish; quantity: number; lots?: PickedLot[] };
+const joinLots = (a: PickedLot[] = [], b: PickedLot[] = []) => [...a, ...b.filter((lot) => !a.some((known) => known.id === lot.id))];
 type Trade = Record<Side, TradeCard[]>;
 type Quote = { unit_amount: string | null; finish: string | null; printing_id: string };
 type Valuation = { items: Quote[]; feed: DataFeed | null; price_kind: string };
@@ -51,10 +54,14 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const [feed, setFeed] = useState<{ provider: string; feed: DataFeed | null; kind: string } | null>(null);
   const [priceError, setPriceError] = useState("");
   const [retry, setRetry] = useState(0);
+  const pricedAt = useRef(0);
   const [error, setError] = useState<Error | string>("");
   const provider = preference.provider;
 
   useEffect(() => { try { sessionStorage.setItem(storageKey, JSON.stringify(trade)); } catch { /* The trade still works without tab storage. */ } }, [trade, storageKey]);
+
+  // The page stays mounted between visits; price again on return so a feed update reaches the totals.
+  useEffect(() => { if (active && pricedAt.current && Date.now() - pricedAt.current > 5 * 60 * 1000) setPrices({}); }, [active]);
 
   const rows = [...trade.give, ...trade.get];
   const missing = [...new Set(rows.map((card) => priceKey(provider, card.printing.id, card.finish)).filter((key) => !(key in prices)))];
@@ -77,7 +84,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
           for (const item of report.items) if (item.finish === finish) found[priceKey(provider, item.printing_id, finish)] = item.unit_amount;
           setFeed({ provider, feed: report.feed, kind: report.price_kind });
         }
-        setPrices((current) => ({ ...current, ...found })); setPriceError("");
+        setPrices((current) => ({ ...current, ...found })); setPriceError(""); pricedAt.current = Date.now();
       }).catch((reason: Error) => { if (!controller.signal.aborted) setPriceError(reason.message); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
@@ -98,16 +105,16 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const share = give.amount + get.amount ? give.amount / (give.amount + get.amount) : 0.5;
 
   function update(side: Side, change: (cards: TradeCard[]) => TradeCard[]) { setTrade((current) => ({ ...current, [side]: change(current[side]) })); }
-  function add(side: Side, printing: Printing, finish: Finish, owned?: number) {
+  function add(side: Side, printing: Printing, finish: Finish, lot?: PickedLot) {
     const existing = trade[side].find((card) => card.printing.id === printing.id && card.finish === finish);
     if (!existing && trade[side].length >= MAX_ROWS) { setError(`A trade side can list up to ${MAX_ROWS} different cards.`); return; }
     setError("");
-    update(side, (cards) => existing ? cards.map((card) => card === existing ? { ...card, quantity: Math.min(999, card.quantity + 1) } : card) : [...cards, { key: crypto.randomUUID(), printing, finish, quantity: 1, owned }]);
+    update(side, (cards) => existing ? cards.map((card) => card === existing ? { ...card, quantity: Math.min(999, card.quantity + 1), lots: lot ? joinLots(card.lots, [lot]) : card.lots } : card) : [...cards, { key: crypto.randomUUID(), printing, finish, quantity: 1, lots: lot && [lot] }]);
   }
   function addLot(side: Side, lot: Lot) {
     const available = finishesOf(lot.printing);
     const finish = available.includes(lot.finish as Finish) ? lot.finish as Finish : available[0] || "nonfoil";
-    add(side, lot.printing, finish, lot.quantity);
+    add(side, lot.printing, finish, { id: lot.id, binder: lot.binder, quantity: lot.quantity });
   }
   function addPrinting(side: Side, printing: Printing) { add(side, printing, finishesOf(printing)[0] || "nonfoil"); }
   function setQuantity(side: Side, key: string, quantity: number) {
@@ -117,7 +124,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
     update(side, (cards) => {
       const moving = cards.find((card) => card.key === key)!;
       const twin = cards.find((card) => card.key !== key && card.printing.id === moving.printing.id && card.finish === finish);
-      if (twin) return cards.filter((card) => card.key !== key).map((card) => card === twin ? { ...card, quantity: Math.min(999, card.quantity + moving.quantity) } : card);
+      if (twin) return cards.filter((card) => card.key !== key).map((card) => card === twin ? { ...card, quantity: Math.min(999, card.quantity + moving.quantity), lots: joinLots(card.lots, moving.lots) } : card);
       return cards.map((card) => card.key === key ? { ...card, finish } : card);
     });
   }
@@ -165,7 +172,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
             {card.printing.image_url ? <img src={card.printing.image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <span className="printing-art-placeholder" aria-hidden="true" />}
             <div className="trade-card-body">
               <strong>{card.printing.display_name || card.printing.name}</strong>
-              <small>{card.printing.set_name ? `${card.printing.set_name} · ` : ""}{card.printing.set_code.toUpperCase()} #{card.printing.collector_number}{card.owned !== undefined && ` · You own ${card.owned}`}</small>
+              <small>{card.printing.set_name ? `${card.printing.set_name} · ` : ""}{card.printing.set_code.toUpperCase()} #{card.printing.collector_number}{card.lots?.length ? ` · You have ${card.lots.map((lot) => `${lot.quantity} in ${lot.binder}`).join(", ")}` : ""}</small>
               <div className="trade-card-controls">
                 {options.length > 1 ? <label className="trade-finish">Finish<select value={card.finish} aria-label={`Finish for ${card.printing.name}`} onChange={(event) => setFinish(side, card.key, event.target.value as Finish)}>{options.map((finish) => <option key={finish} value={finish}>{finishNames[finish]}</option>)}</select></label>
                   : <span className="trade-finish-fixed">{finishNames[card.finish]}</span>}
