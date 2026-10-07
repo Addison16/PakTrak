@@ -20,7 +20,7 @@ started() {
   CURRENT=$1
   for i in $(seq 1 150); do
     [ "$(docker logs "$1" 2>&1 | grep -c 'PakTrak is running')" -ge "$2" ] && return 0
-    docker logs "$1" 2>&1 | grep -q 'Startup stopped' && fail "$1 did not start"
+    [ "$(docker logs "$1" 2>&1 | grep -c 'Startup stopped')" -gt "${3:-0}" ] && fail "$1 did not start"
     sleep 3
   done
   fail "$1 did not start in time"
@@ -58,6 +58,34 @@ started "$FIRST" 2
 backups_in "$FIRST" | grep -q 'before-restore' || fail 'the data before the restore was not saved'
 docker exec "$FIRST" test -f /data/backups/last-restore.json || fail 'restore was not recorded'
 docker exec "$FIRST" test ! -e /data/paktrak.env.before-restore || fail 'old settings left behind'
+
+# A backup PostgreSQL rejects leaves the current data in place.
+docker exec -i "$FIRST" python - <<'EOF_BAD'
+import hashlib, io, json, tarfile
+from pathlib import Path
+from scanner import backups
+good = sorted(p for p in Path("/data/backups").glob("paktrak-backup-*") if "manual" in p.name)[0]
+with tarfile.open(good) as source:
+    settings = source.extractfile("settings.env").read()
+    identity = source.extractfile("identity.dump").read()
+dumps = {"scanner.dump": b"PGDMP not really a dump", "identity.dump": identity}
+manifest = json.loads(tarfile.open(good).extractfile("manifest.json").read())
+manifest["databases"]["scanner"]["sha256"] = hashlib.sha256(dumps["scanner.dump"]).hexdigest()
+bad = Path("/data/backups/paktrak-backup-20200101-000000Z-manual.tar")
+with tarfile.open(bad, "w") as archive:
+    for name, data in [("manifest.json", json.dumps(manifest).encode()), ("settings.env", settings), *dumps.items()]:
+        info = tarfile.TarInfo(name); info.size = len(data); archive.addfile(info, io.BytesIO(data))
+backups.match_owner(bad, bad.parent)
+backups.write_json(Path("/data/backups") / backups.RESTORE_REQUEST, {"name": bad.name})
+EOF_BAD
+docker restart -t 120 "$FIRST" >/dev/null
+for i in $(seq 1 100); do docker logs "$FIRST" 2>&1 | grep -q 'current data was kept' && break; sleep 3; done
+docker logs "$FIRST" 2>&1 | grep -q 'current data was kept' || fail 'a failed restore was not reported'
+docker wait "$FIRST" >/dev/null 2>&1 || true
+docker start "$FIRST" >/dev/null
+started "$FIRST" 3 1
+[ "$(psql_in "$FIRST" 'SELECT tcgplayer_affiliate FROM account_policy')" = saved-in-backup ] || fail 'a failed restore changed the data'
+docker exec "$FIRST" rm -f /data/backups/paktrak-backup-20200101-000000Z-manual.tar
 
 # Move: a fresh data folder at a new address, restoring from the restore folder.
 docker run --rm -v "$FIRST_DATA:/a" -v "$SECOND_DATA:/b" --entrypoint sh "$IMAGE" -c "mkdir /b/restore && cp /a/backups/$SAVED /b/restore/moved.tar"

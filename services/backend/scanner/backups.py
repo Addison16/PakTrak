@@ -69,6 +69,7 @@ MAX_KEEP = 60
 INTERVAL = timedelta(hours=24)
 RETRY = timedelta(hours=1)
 SOCKET = "/var/run/postgresql"
+RESTORING = "restoring_"
 
 SETTINGS_FILE = "settings.json"
 STATUS_FILE = "status.json"
@@ -601,6 +602,7 @@ def set_role_passwords(secrets):
 
 
 def restore_database(path, database, owner, filename):
+    """Restore one database into a new database named ``database``."""
     sql(f"DROP DATABASE IF EXISTS {identifier(database)} WITH (FORCE)")
     sql(f"CREATE DATABASE {identifier(database)} OWNER {identifier(owner)}")
     with tarfile.open(path, "r:") as archive:
@@ -644,10 +646,22 @@ def restore(folder):
         log(f"saved the current data as {saved.name} before restoring")
         pending["saved"] = saved.name
         write_json(pending_path, pending)
+    # Restore into new databases first and swap them in only once both
+    # succeed, so a failed restore leaves the current data untouched.
     set_role_passwords(secrets)
-    for database, owner, filename in DATABASES:
-        log(f"restoring the {database} database")
-        restore_database(path, database, owner, filename)
+    try:
+        for database, owner, filename in DATABASES:
+            log(f"restoring the {database} database")
+            restore_database(path, RESTORING + database, owner, filename)
+    except (OSError, BackupError, subprocess.CalledProcessError) as error:
+        undo_restore(folder, settings, previous, path, error)
+        raise BackupError(
+            "The backup could not be restored, so the current data was kept. "
+            "Start the container again to use it."
+        ) from None
+    for database, _owner, _filename in DATABASES:
+        sql(f"DROP DATABASE IF EXISTS {identifier(database)} WITH (FORCE)")
+        sql(f"ALTER DATABASE {identifier(RESTORING + database)} RENAME TO {identifier(database)}")
     previous.unlink(missing_ok=True)
     write_json(
         folder / LAST_RESTORE,
@@ -659,6 +673,25 @@ def restore(folder):
     )
     pending_path.unlink(missing_ok=True)
     log(f"restored {path.name}")
+
+
+def undo_restore(folder, settings, previous, path, error):
+    """Put the previous private settings back after a failed restore."""
+    log(f"restoring {path.name} failed: {error}")
+    for database, _owner, _filename in DATABASES:
+        sql(f"DROP DATABASE IF EXISTS {identifier(RESTORING + database)} WITH (FORCE)")
+    if previous.exists():
+        set_role_passwords(read_secrets(previous))
+        previous.replace(settings)
+    write_json(
+        folder / LAST_RESTORE,
+        {
+            "name": path.name,
+            "error": "PostgreSQL could not load this backup. The current data was kept.",
+            "at": datetime.now(UTC).isoformat(),
+        },
+    )
+    (folder / RESTORE_PENDING).unlink(missing_ok=True)
 
 
 def main(argv):
