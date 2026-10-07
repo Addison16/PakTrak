@@ -5,6 +5,7 @@ import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
 import Onboarding from "./Onboarding";
 import MembershipWelcome from "./MembershipWelcome";
+import PriceAlerts from "./PriceAlerts";
 import { useOnboarding } from "./useOnboarding";
 import BatchList, { batchNeedsReview, batchStatus } from "./BatchList";
 import type { ReviewState, Scan } from "./scanTypes";
@@ -587,6 +588,7 @@ function App() {
       </section> : <>
         {(session.role === "guest" || session.scans_paused || session.scan_card_limit !== null) && <div className="message account-allowance"><strong>{session.role === "guest" ? "Guest account" : "Card scan allowance"} · {session.scan_cards_used.toLocaleString()}{session.scan_card_limit !== null ? ` / ${session.scan_card_limit.toLocaleString()}` : ""} card scans used</strong><p>{session.scans_paused ? "New scans are paused. Your collection and decks are still available. Contact your administrator to resume scanning." : session.scan_cards_remaining === null ? "Unlimited card scans." : session.scan_cards_remaining > 0 ? `${session.scan_cards_remaining.toLocaleString()} card scans left in your lifetime allowance.` : "Your lifetime scan allowance is used. An administrator can raise the limit or restore unlimited scanning."}</p><button className="text-button" onClick={() => navigate("account")}>View my account</button></div>}
         {notice && <div className="message success" role="status">{notice}</div>}
+        {page === "scan" && !selected && !route.targetDeck && <PriceAlerts session={session} onSettings={() => navigate("account")} />}
         {page === "scan" && <section className="panel capture">
           {route.targetDeck && <div className="scan-deck-target" aria-label="Deck scan destination">
             <div className="eyebrow">SCANNING A DECK</div><h3>{scanDeck ? scanDeck.name : "Opening your deck…"}</h3>
