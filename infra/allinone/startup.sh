@@ -1,7 +1,8 @@
 #!/bin/sh
 # Runs once per container start, in the order compose.yaml and
 # scripts/start.sh use: database roles, sign-in service, migrations, then the
-# app and finally the web server. A failure stops the container.
+# app and finally the web server. A pending backup restore runs first, and
+# automatic backups start last. A failure stops the container.
 set -eu
 log() { printf 'paktrak: %s\n' "$*"; }
 ctl() { supervisorctl -c /etc/paktrak/supervisord.conf "$@"; }
@@ -26,6 +27,7 @@ url_ready() { python -c "import sys, urllib.request; urllib.request.urlopen(sys.
 as_app() { gosu paktrak "$@"; }
 
 wait_for 'The database' 300 pg_isready -h 127.0.0.1 -U postgres -q
+python -m scanner.backups restore || fail 'Restoring the backup failed; see the messages above.'
 log 'Preparing database roles.'
 as_app python -m scanner.database_setup || fail 'Database setup failed.'
 ctl start identity >/dev/null || fail 'The sign-in service could not start.'
@@ -36,4 +38,5 @@ SCANNER_IDENTITY_ADMIN_PASSWORD=$KEYCLOAK_ADMIN_PASSWORD as_app python -m scanne
 ctl start api worker transfer-worker dispatcher data-worker >/dev/null || fail 'The app services could not start.'
 wait_for 'The API' 90 url_ready http://127.0.0.1:8000/api/health/ready
 ctl start web >/dev/null || fail 'The web server could not start.'
+ctl start backups >/dev/null || log 'Automatic backups could not start; the app still works.'
 log "PakTrak is running. Open $APP_URL"

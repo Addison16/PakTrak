@@ -1,5 +1,11 @@
 # Changelog
 
+## Automatic backups — October 7, 2026
+
+- The single-container install backs up its databases every day into the `backups` folder of its Data folder. **Menu → Administration → Backups** sets how many to keep (7 by default), turns daily backups off, backs up right away, and downloads, restores or deletes a backup. Only administrators can see them.
+- Restoring happens on the next container restart, after PakTrak saves the current data as a new backup.
+- To move to another server, put a downloaded backup in a `restore` folder inside the new Data folder and start the container. Accounts, collections, decks and settings come along; see the Unraid guide.
+
 ## Offline mode — October 7, 2026
 
 - View your collection, card details, storage locations and decks when the server can't be reached. Everything opened while connected is saved on the device, the whole collection and every deck are saved in the background about once a day, and **Menu → Queued actions → Save collection for offline** saves them now along with card pictures.

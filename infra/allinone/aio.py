@@ -117,6 +117,7 @@ def environment(origin, values):
             "SCANNER_STORAGE_ACCESS_KEY": values["STORAGE_ACCESS_KEY"],
             "SCANNER_STORAGE_SECRET_KEY": values["STORAGE_SECRET_KEY"],
             "POSTGRES_HOST": "127.0.0.1",
+            "SCANNER_BACKUP_DIR": "/data/backups",
             # SeaweedFS creates its S3 admin identity from these.
             "AWS_ACCESS_KEY_ID": values["STORAGE_ACCESS_KEY"],
             "AWS_SECRET_ACCESS_KEY": values["STORAGE_SECRET_KEY"],

@@ -1,6 +1,7 @@
 import ErrorNotice from "./ErrorNotice";
 import DataUpdates from "./DataUpdates";
 import ErrorLogs from "./ErrorLogs";
+import Backups from "./Backups";
 import { useEffect, useState } from "react";
 import { mutation, request, type Session } from "./api";
 
@@ -69,6 +70,7 @@ export default function Admin({ session, navigationRef }: { session: Session; na
       <p className="fine">Enter a referral code, or an https:// tracking link from the store’s affiliate program. Codes are added as {"partner="} (TCGplayer, Card Kingdom) or {"ref="} (ManaPool). In a tracking link, {"{url}"} marks where the store page goes. People see a short note that store links include a referral.</p>
       <div className="actions"><button className="button secondary" disabled={busy}>Save referral links</button></div>
     </form>}
+    <Backups session={session} />
     <DataUpdates />
     <ErrorLogs />
     </>}

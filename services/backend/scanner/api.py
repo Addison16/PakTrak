@@ -21,6 +21,7 @@ from scanner.account_access import check_scan_allowance
 from scanner.accounts_api import router as accounts_router
 from scanner.auth import DB, Identity
 from scanner.auth import router as auth_router
+from scanner.backups_api import router as backups_router
 from scanner.card_images import router as card_images_router
 from scanner.catalog import router as catalog_router
 from scanner.collection_api import router as collection_router
@@ -82,6 +83,7 @@ app.include_router(price_alerts_router)
 app.include_router(card_images_router)
 app.include_router(scan_batches_router)
 app.include_router(diagnostics_router)
+app.include_router(backups_router)
 
 
 @app.middleware("http")
