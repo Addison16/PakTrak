@@ -172,13 +172,14 @@ function AccountGallery({ session }: { session: Session }) {
     if (!sourceReady || !active) return;
     let stopped = false; let busy = false; setLoading(true);
     async function poll() {
-      if (busy || document.hidden || !navigator.onLine) return;
+      // Offline, requests answer from saved copies (see offline.ts).
+      if (busy || document.hidden) return;
       busy = true;
       try { await refresh(() => !stopped); } catch (e) { if (!stopped) { backgroundError.failed(e as Error); setLoading(false); } } finally { busy = false; }
     }
     void poll(); const timer = window.setInterval(() => void poll(), 15000);
-    document.addEventListener("visibilitychange", poll); window.addEventListener("online", poll);
-    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); };
+    document.addEventListener("visibilitychange", poll); window.addEventListener("online", poll); window.addEventListener("paktrak:synced", poll);
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); window.removeEventListener("paktrak:synced", poll); };
   }, [search, filters, provider, sourceReady, sort, seed, offset, active]);
   function filter(key: keyof typeof initial, value: string) { setFilters({ ...filters, [key]: value }); setOffset(0); }
   function clearFilters() { setFilters(initial); setQuery(""); setSearch(""); setOffset(0); setMinPrice(""); setMaxPrice(""); setPriceError(""); }

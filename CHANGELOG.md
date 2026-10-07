@@ -6,6 +6,13 @@
 - Restoring happens on the next container restart, after PakTrak saves the current data as a new backup.
 - To move to another server, put a downloaded backup in a `restore` folder inside the new Data folder and start the container. Accounts, collections, decks and settings come along; see the Unraid guide.
 
+## Offline mode — October 7, 2026
+
+- View your collection, card details, storage locations and decks when the server can't be reached. Everything opened while connected is saved on the device, the whole collection and every deck are saved in the background about once a day, and **Menu → Queued actions → Save collection for offline** saves them now along with card pictures.
+- Removing copies, editing a copy's finish, condition or notes, moving copies, new storage locations and deck saves made offline wait in a queue and are sent in order when PakTrak is reachable again. Changes the server turns down stay in the list with the reason.
+- The header shows **Offline** and how many changes are waiting. **Menu → Queued actions** lists every waiting change so it can be tracked, retried or removed.
+- On an HTTPS address PakTrak also opens with no connection and keeps up to 1,000 card pictures. When the server's address is HTTPS, a plain http:// visit moves to it automatically. See [using PakTrak offline](docs/OFFLINE.md).
+
 ## Wishlist, friends, trade offers and price history — October 7, 2026
 
 - Add **Menu → Wishlist** with finishes, quantities, prices and store buttons. Add cards by search, a pasted list, a deck's missing cards, a set's missing cards, or the wishlist rows of an imported file.

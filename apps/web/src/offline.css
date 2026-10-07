@@ -1,0 +1,30 @@
+/* Connection status, queued actions and offline saving. Plain text and icons:
+   no dots or pills, per the simplified styling. */
+.topbar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.connection-status { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; animation: connection-status-in .2s ease-out; }
+.connection-status[data-offline] { color: var(--ink); }
+.connection-status .icon { width: 18px; height: 18px; }
+@keyframes connection-status-in { from { opacity: 0; transform: translateY(-3px); } }
+@media (hover: hover) { .connection-status:hover { background: var(--surface-hover); } }
+@media (prefers-reduced-motion: reduce) { .connection-status { animation: none; } }
+@media (max-width: 480px) { .topbar-actions { gap: 4px; } .connection-status { padding: 0 4px; font-size: 12px; } }
+@media (max-width: 360px) { .brand-wordmark small { display: none; } }
+.menu-count { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.menu-links [aria-current=page] .menu-count { color: inherit; }
+
+.queued-actions h3 { margin: 30px 0 6px; }
+.queue-connection { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; }
+.queue-connection .icon { margin-top: 1px; color: var(--forest); }
+.queue-empty { color: var(--muted); }
+.queue-list { margin: 18px 0 12px; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.queue-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); animation: queue-item-in .22s ease-out both; }
+.queue-list li[data-state=sending] { opacity: .7; }
+.queue-item-text { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.queue-item-text .fine { margin: 0; }
+.queue-item-text > span:not(.fine, .queue-error) { color: var(--muted); font-size: 14px; }
+.queue-error { color: var(--error-text); font-size: 14px; }
+.queue-item-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; flex-shrink: 0; }
+.queue-help { margin-top: 26px; }
+.queue-help p { margin: 10px 0; }
+@keyframes queue-item-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .queue-list li { animation: none; } }
