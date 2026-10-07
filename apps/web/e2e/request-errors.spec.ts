@@ -72,7 +72,9 @@ test("invalid fields name the failed action and remain visible until dismissed o
   await expect(alert).toBeVisible(); expect(state.posts).toHaveLength(1);
   await alert.getByRole("button", { name: "Dismiss error" }).click();
   await expect(alert).toHaveCount(0);
-  await expect(page.getByText(/Unfinished upload: diagnostic-test.jpg/)).toBeVisible();
+  // The photo stays on this device as a recovery copy, ready to retry.
+  await expect(page.getByRole("heading", { name: "Your photo is still here." })).toBeVisible();
+  await expect(page.getByText(/^diagnostic-test\.jpg · Collection scan$/)).toBeVisible();
 });
 
 test("a renewed session updates the verification token even for the same account", async ({ page }) => {

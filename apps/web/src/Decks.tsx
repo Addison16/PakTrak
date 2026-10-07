@@ -357,7 +357,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       setNotice(`${updating ? "Deck list updated" : "Deck imported"}. You own ${value.owned_copies} of ${value.copies} copies; ${value.missing_copies} still needed.`);
       void list(0).catch((e: Error) => setError(e));
     }} />}
-    {scanning && (!route.deck || deck) && <DeckScan key={deck?.id || "new"} session={session} deck={deck} fromBatch={route.fromBatch} onStateChange={setImportState} onCreated={(value) => {
+    {scanning && (!route.deck || deck) && <DeckScan key={`scan:${deck?.id || "new"}`} session={session} deck={deck} fromBatch={route.fromBatch} onStateChange={setImportState} onCreated={(value) => {
       fill(value); setImportState({ dirty: false, busy: false }); navigation.go({ page: "decks", deck: value.id, view: "scan", fromBatch: route.fromBatch }, { replace: true, force: true });
       void list(0).catch((e: Error) => setError(e));
     }} onSaved={(value) => {
@@ -489,6 +489,6 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       <div className="batch-exit actions">{editing && <button className="button primary" disabled={busy || !name.trim() || invalidQuantities} onClick={finishEditing}>{dirty ? "Save & done" : "Done editing"}</button>}<button className="button secondary" disabled={busy} onClick={closeDeck}>Close deck</button></div>
       {editing && <details className="deck-archive"><summary>Archive deck</summary><label className="checkbox"><input type="checkbox" checked={archiveReady} onChange={(e) => setArchiveReady(e.target.checked)} />Remove this deck from my saved list. Keep my collection.</label><button className="button secondary" disabled={busy || !archiveReady || dirty} onClick={() => void act(async () => { await request("/api/v1/decks/" + deck.id + "/archive", mutation(session, { expected_version: deck.version })); navigation.go({ page: "decks" }, { replace: true, force: true }); resetView(); await list(); })}>Archive this deck</button></details>}
     </section>}
-    {opening && <DeckOpening key={opening.deck.id} origin={opening} ready={deck?.id === opening.deck.id} onComplete={() => setOpening(null)} />}
+    {opening && <DeckOpening key={`opening:${opening.deck.id}`} origin={opening} ready={deck?.id === opening.deck.id} onComplete={() => setOpening(null)} />}
   </>;
 }

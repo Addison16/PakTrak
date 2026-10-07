@@ -33,7 +33,7 @@ async function fixture(page: Page, holdAcceptance = false) {
     const req = route.request(), path = new URL(req.url()).pathname;
     if (path === "/api/v1/price-alerts") return route.fulfill({ json: noPriceAlerts });
     let json: any = {};
-    if (path === "/api/auth/session") json = { owner_id: "photo-fixture", display_name: "Photo collector", csrf_token: "photo-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0 };
+    if (path === "/api/auth/session") json = { owner_id: "photo-fixture", display_name: "Photo collector", csrf_token: "photo-csrf", role: "member", tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };
     else if (path === "/api/v1/capabilities") json = { max_upload_bytes: 104857600 };
     else if (path === "/api/v1/scans" && req.method() === "GET") json = { items: scan ? [scan] : [], next_offset: null };
