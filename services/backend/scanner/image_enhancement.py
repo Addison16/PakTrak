@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
 
-VERSION = "cpu-text-v1"
+VERSION = "cpu-text-v2"
 EXTRA_SECONDS = 8.0
 
 
@@ -17,6 +17,13 @@ def remaining_timeout(deadline, maximum):
     if remaining <= 0.05:
         raise TimeoutError("Enhancement time budget exhausted")
     return min(maximum, remaining)
+
+
+def dark_background(part):
+    # Text covers far less of a strip than its background, so the median is
+    # the background. Old black frames, showcase and borderless titles print
+    # light text, which Tesseract reads far better once inverted.
+    return float(np.median(np.asarray(part))) < 110
 
 
 def prepare_text(image, box, invert=False):
@@ -34,7 +41,7 @@ def prepare_text(image, box, invert=False):
         (width, height), Image.Resampling.LANCZOS
     )
     part = part.filter(ImageFilter.UnsharpMask(radius=1, percent=90, threshold=3))
-    if invert:
+    if dark_background(part) if invert is None else invert:
         part = ImageOps.invert(part)
     return ImageOps.expand(part, border=12, fill="white")
 
