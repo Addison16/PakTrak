@@ -29,6 +29,7 @@ def test_capabilities_report_100_mib_upload_limit():
         response = client.get("/api/v1/capabilities")
     assert response.status_code == 200
     assert response.json()["max_upload_bytes"] == 100 * 1024 * 1024
+    assert response.json()["app_url"] == get_settings().app_url
 
 
 def test_csrf_and_forged_owner_rejected(clients, photo):

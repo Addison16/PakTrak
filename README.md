@@ -62,6 +62,7 @@ The data worker automatically prepares the default card catalog and daily price 
 - See a deck's mana curve, draw sample opening hands with mulligans, and export a deck for MTG Arena or MTGO. Each deck card notes the other decks that use it, and card details show how many copies your decks leave free.
 - Keep a wishlist with prices and store buttons, check set completion and the cost to finish a set, and follow your collection's value and each card's price over time. See [wishlist, friends and trade offers](docs/FRIENDS.md).
 - Add friends with private codes (PakTrak never lists who has an account), browse each other's collections and wishlists, and send trade offers that each person accepts into their own collection. Scan review notes when you already own a card.
+- Keep using your collection and decks when the server can't be reached. Removals, copy edits, moves and deck saves made offline are queued and sent when you're back; the header shows when you're offline and **Menu → Queued actions** lists what's waiting. See [using PakTrak offline](docs/OFFLINE.md).
 - Download CSV with common columns, plain text lists, or full CSV with reversible spreadsheet-safe escaping. Every export retains card quantities, including cards with unknown finish or condition.
 
 Photo and CSV workers have separate queues. PostgreSQL stores authoritative jobs and replayable dispatch records, so a lost broker message does not strand accepted work. The phone performs no required recognition, CSV parsing, or collection commits.

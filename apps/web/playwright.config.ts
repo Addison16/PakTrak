@@ -16,6 +16,8 @@ export default defineConfig({
     baseURL: process.env.SCANNER_E2E_URL || "http://localhost:8095",
     viewport: { width: 390, height: 844 },
     trace: "off",
+    // page.route can't see requests a service worker answers; offline.spec.ts turns it on where needed.
+    serviceWorkers: "block",
     screenshot: "off",
   },
 });
