@@ -36,6 +36,16 @@ function validSavedReview(value: SavedReview | null): value is SavedReview {
   return !!value && value.schema === 1 && Array.isArray(value.cards) && value.cards.every((entry) => Array.isArray(entry) && typeof entry[0] === "string" && entry[1] && typeof entry[1].version === "number" && typeof entry[1].finish === "string" && typeof entry[1].condition === "string" && (!entry[1].choice || typeof entry[1].choice.id === "string" && Array.isArray(entry[1].choice.finishes))) && Array.isArray(value.selected) && value.selected.every((id) => typeof id === "string") && typeof value.binder === "string" && typeof value.bulkBinder === "string";
 }
 
+// Auto-imported cards turn over to the clean catalog image; anything you still
+// check by eye keeps your own photo. Falls back to the photo if the image fails.
+function ScanTileImage({ scanId, crop, printing, preferCatalog }: { scanId: string; crop?: string | null; printing?: Printing | null; preferCatalog: boolean }) {
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const catalog = printing?.image_url ? `/api/v1/scans/${scanId}/reference/${printing.id}/image` : null;
+  const src = catalog && (preferCatalog || !crop) && !(catalogFailed && crop) ? catalog : crop;
+  if (!src) return <div className="scan-crop-missing">Photo expired</div>;
+  return <img key={src} src={src} alt="" loading="lazy" onError={() => { if (src === catalog) setCatalogFailed(true); }} />;
+}
+
 export default function Review({ scanId, photo, session, onStateChange, processing = false, progress, onChange }: {
   scanId: string; photo: string | null; session: Session;
   onStateChange: (state: ReviewState) => void; processing?: boolean; progress?: WorkProgress | null; onChange?: () => void;
@@ -418,7 +428,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
           <button disabled={busy} onClick={() => chooseRegion(item, true)} aria-pressed={item.id === regionId} aria-label={`${item.state === "NEEDS_REVIEW" ? "Review" : "View"} card ${i + 1}: ${name}`}>
             <span className="scan-tile-art" data-flip={flipping.has(item.id) || undefined}>
               {processing && !item.recognition?.status && !reducedMotion() ? <img className="scan-tile-back" src="/cards/mtg-card-back.png" alt="" />
-                : item.crop_url || item.lot?.printing.image_url || item.confirmed_printing?.image_url || suggested?.printing.image_url ? <img src={item.crop_url || `/api/v1/scans/${scanId}/reference/${(item.lot?.printing || item.confirmed_printing || suggested!.printing).id}/image`} alt="" loading="lazy" /> : <div className="scan-crop-missing">Photo expired</div>}
+                : <ScanTileImage scanId={scanId} crop={item.crop_url} printing={item.lot?.printing || item.confirmed_printing || suggested?.printing} preferCatalog={item.state === "COMMITTED" && !!(deckOnly ? item.recognition?.auto_confirmed : item.recognition?.auto_imported)} />}
               {flipping.has(item.id) && <img className="scan-tile-back scan-tile-back-turning" src="/cards/mtg-card-back.png" alt="" />}
             </span>
             <span className="scan-tile-number">{i + 1}</span><strong>{name}</strong>

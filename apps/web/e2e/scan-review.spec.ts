@@ -850,6 +850,43 @@ test("cards turn over from the card back as the server identifies them", async (
   await expect(page.locator(".scan-gallery .scan-tile-back")).toHaveCount(0);
 });
 
+test("auto-imported cards turn over to the catalog image and others keep the photo", async ({ page }) => {
+  const mock = await fixture(page, 4, 2, [0], 0, 0);
+  const tiles = page.locator(".scan-gallery .scan-tile-art");
+  await expect(tiles.nth(0).locator("img")).toHaveAttribute("src", base + "/reference/printing-0/image");
+  await expect(tiles.nth(1).locator("img")).toHaveAttribute("src", base + "/observations/region-1/image");
+  // One card auto-imports as it is identified, the other waits for review.
+  Object.assign(mock.rows[2], { state: "COMMITTED", recognition: { status: "MATCHED", reason: "Check the collector number.", auto_imported: true }, candidates: [{ printing_id: "printing-2", printing: printing(2), match_score: .95, evidence: [] }], lot: { id: "lot-region-2", version: 1, printing: printing(2), finish: "nonfoil", condition: "ungraded", quantity: 1, binder: "Scanned cards" } });
+  Object.assign(mock.rows[3], { recognition: { status: "MATCHED", reason: "Check the collector number." }, candidates: [{ printing_id: "printing-3", printing: printing(3), match_score: .7, evidence: [] }] });
+  await expect(tiles.nth(2)).toHaveAttribute("data-flip", "true", { timeout: 15000 });
+  await expect(tiles.nth(2).locator("img:not(.scan-tile-back)")).toHaveAttribute("src", base + "/reference/printing-2/image");
+  await expect(tiles.nth(3).locator("img:not(.scan-tile-back)")).toHaveAttribute("src", base + "/observations/region-3/image");
+  // Picking foils always shows your own photo, since foil shine only shows there.
+  mock.finish();
+  await page.getByRole("button", { name: "Change foil cards", exact: true }).click({ timeout: 20000 });
+  await expect(page.locator(".foil-gallery .scan-tile img").first()).toHaveAttribute("src", base + "/observations/region-0/image");
+  if (process.env.SCANNER_E2E_SHOTS) await page.locator(".scan-gallery").first().screenshot({ path: process.env.SCANNER_E2E_SHOTS + "/batch-tiles.png" });
+});
+
+test("the approve button lines up with the arrows in the review bar", async ({ page }) => {
+  await fixture(page, 3, 0, [], 0, 0);
+  const bar = page.getByRole("navigation", { name: "Card review navigation", exact: true });
+  const approve = await bar.getByRole("button", { name: "Approve & import", exact: true }).boundingBox();
+  const previous = await bar.getByRole("button", { name: "Previous card", exact: true }).boundingBox();
+  const next = await bar.getByRole("button", { name: "Next card", exact: true }).boundingBox();
+  for (const arrow of [previous!, next!]) {
+    expect(Math.abs(arrow.y - approve!.y)).toBeLessThan(1);
+    expect(Math.abs(arrow.height - approve!.height)).toBeLessThan(1);
+  }
+  const counter = await bar.getByText("1 / 3", { exact: true }).boundingBox();
+  expect(counter!.y).toBeGreaterThanOrEqual(approve!.y + approve!.height);
+  const storage = await page.getByLabel("Storage location").boundingBox();
+  const box = await bar.boundingBox();
+  expect(Math.abs(box!.x - storage!.x)).toBeLessThan(1);
+  expect(Math.abs(box!.x + box!.width - storage!.x - storage!.width)).toBeLessThan(1);
+  if (process.env.SCANNER_E2E_SHOTS) await bar.screenshot({ path: process.env.SCANNER_E2E_SHOTS + "/review-bar.png" });
+});
+
 test("the upload page starts with the photo controls on a phone", async ({ page }) => {
   await fixture(page, 1, 0, [], 0, 0);
   await page.goto("/");
