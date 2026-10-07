@@ -37,7 +37,7 @@ export default function MyAccount({ session, onChange, navigationRef }: { sessio
   }
   return <section className="panel my-account" aria-labelledby="my-account-title">
     <div className="section-heading"><div><div className="eyebrow">YOUR PAKTRAK</div><h2 id="my-account-title">My account</h2></div><span className="badge">{accountRole(session.role)}</span></div>
-    {error && <ErrorNotice error={error} onDismiss={() => setError("")} onRetry={() => { if (canLeave()) void act(async () => fill(await request<Account>("/api/auth/me"))); }} retryLabel="Reload account" />}
+    {error && <ErrorNotice error={error} onDismiss={() => setError("")} onRetry={() => { if (!busy && (!profileDirty || window.confirm("Discard your unsaved display name?"))) void act(async () => fill(await request<Account>("/api/auth/me"))); }} retryLabel="Reload account" />}
     {notice && <p className="message success" role="status">{notice}</p>}
     {!account && !error && <p role="status">Loading your account…</p>}
     {account && <>
