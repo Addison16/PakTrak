@@ -81,10 +81,10 @@ function fieldMessage(details: { loc?: (string | number)[]; msg?: string }[]) {
 // Answers that mean PakTrak's server itself can't be reached, for example
 // while the container restarts after an update: nginx with no API behind it
 // (502, 504), or Cloudflare with no server behind it (502, 503, 504, 520-527,
-// 530). The API's own 503s carry an X-Request-ID and show as errors instead.
+// 530). The API's own 503s are JSON with an X-Request-ID and show as errors instead.
 export function serverUnreachable(response: Response) {
   const status = response.status;
-  if (status === 503) return !response.headers.has("X-Request-ID");
+  if (status === 503) return !response.headers.has("X-Request-ID") && !response.headers.get("Content-Type")?.includes("json");
   return status === 502 || status === 504 || status >= 520 && status <= 527 || status === 530;
 }
 const unreachableMessage = "PakTrak’s server isn’t answering right now. It may be restarting; try again in a minute.";
