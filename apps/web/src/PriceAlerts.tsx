@@ -127,8 +127,8 @@ export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Se
     {!saved && !error ? <p role="status">Loading price alerts…</p> : saved && <>
       <label className="checkbox"><input type="checkbox" checked={enabled} disabled={busy} onChange={(e) => setEnabled(e.target.checked)} />Show my cards’ price changes on Home</label>
       <div className="price-alert-fields">
-        <label>Percent change<span className="price-alert-input"><input type="number" inputMode="numeric" min={1} max={1000} step={1} placeholder="Any" disabled={busy || !enabled} value={percent} onChange={(e) => setPercent(e.target.value)} /><span aria-hidden="true">%</span></span></label>
-        <label>Dollar change<span className="price-alert-input"><span aria-hidden="true">$</span><input type="number" inputMode="decimal" min={0.01} max={100000} step={0.01} placeholder="Any" disabled={busy || !enabled} value={amount} onChange={(e) => setAmount(e.target.value)} /></span></label>
+        <label>Percent change<span className="price-alert-input unit-end"><input type="number" inputMode="numeric" min={1} max={1000} step={1} placeholder="Any" disabled={busy || !enabled} value={percent} onChange={(e) => setPercent(e.target.value)} /><span aria-hidden="true">%</span></span></label>
+        <label>Dollar change<span className="price-alert-input unit-start"><span aria-hidden="true">$</span><input type="number" inputMode="decimal" min={0.01} max={100000} step={0.01} placeholder="Any" disabled={busy || !enabled} value={amount} onChange={(e) => setAmount(e.target.value)} /></span></label>
       </div>
       <p className="fine">A card shows when its price rises or drops by at least {percent.trim() && amount.trim() ? "both amounts" : "this amount"} since you last dismissed it. Leave one empty to use only the other. Prices come from your chosen price source.</p>
       {missing && <p className="fine" role="status">Enter a percent, a dollar amount or both.</p>}
