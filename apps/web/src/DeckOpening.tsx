@@ -23,10 +23,13 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
   const complete = useRef(onComplete);
   complete.current = onComplete;
   const [stage] = useState(() => {
-    const width = Math.min(206, window.innerWidth * .43, window.innerHeight * .28);
+    // The overlay spans the page's content box, which a desktop scrollbar (or
+    // its reserved gutter) makes narrower than the window; centre on that.
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const width = Math.min(206, viewportWidth * .43, window.innerHeight * .28);
     const height = width * origin.height / origin.width;
-    const cardWidth = Math.min(110, window.innerWidth * .19, width * .57);
-    return { width, height, left: (window.innerWidth - width) / 2, top: Math.max(cardWidth * 1.6 + 20, (window.innerHeight - height) * .56), cardWidth, viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
+    const cardWidth = Math.min(110, viewportWidth * .19, width * .57);
+    return { width, height, left: (viewportWidth - width) / 2, top: Math.max(cardWidth * 1.6 + 20, (window.innerHeight - height) * .56), cardWidth, viewportWidth, viewportHeight: window.innerHeight };
   });
   const { presentation } = useDeckPresentation(origin.ownerId || "", origin.deck);
   const previews = [...presentationCovers(origin.deck, presentation), ...(origin.deck.preview_cards || [])];
@@ -162,7 +165,7 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
     <div className="deck-opening-box" style={boxStyle}><DeckBoxVisual deck={origin.deck} presentation={presentation} opening /></div>
     <div className="deck-opening-box deck-opening-box--foreground" style={boxStyle}><DeckBoxVisual deck={origin.deck} presentation={presentation} foreground /></div>
     {cards.map((card, index) => <span key={index} className="deck-opening-card" data-printing-id={card?.id} style={{
-      left: (window.innerWidth - stage.cardWidth) / 2, top: stage.top + stage.height * .08, width: stage.cardWidth,
+      left: (stage.viewportWidth - stage.cardWidth) / 2, top: stage.top + stage.height * .08, width: stage.cardWidth,
       zIndex: 4,
     } as CSSProperties}>
       <span className="deck-opening-card-front">

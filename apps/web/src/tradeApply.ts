@@ -77,10 +77,14 @@ export async function applyTrade<T extends TradeLine>(session: Session, give: T[
       options.onReceived?.();
     }
     options.onStep?.("Removing the cards you give…");
-    for (const { card, lot, take } of removals) {
-      await request(`/api/v1/collection/${lot.id}/quantity`, { ...mutation(session, { expected_version: lot.version, quantity: lot.quantity - take }), action: "Remove traded cards" });
-      removed += take;
-      options.onRemoved?.(card, take);
+    // One lot can cover several lines, so each lot is changed once; a second request would carry a stale version.
+    const perLot = new Map<string, Removal<T>[]>();
+    for (const removal of removals) perLot.set(removal.lot.id, [...(perLot.get(removal.lot.id) || []), removal]);
+    for (const parts of perLot.values()) {
+      const lot = parts[0].lot, taken = parts.reduce((sum, part) => sum + part.take, 0);
+      await request(`/api/v1/collection/${lot.id}/quantity`, { ...mutation(session, { expected_version: lot.version, quantity: lot.quantity - taken }), action: "Remove traded cards" });
+      removed += taken;
+      for (const { card, take } of parts) options.onRemoved?.(card, take);
     }
     return { added, removed };
   } catch (reason) {

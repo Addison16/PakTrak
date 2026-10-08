@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { mutation, request, type Session } from "./api";
 import { accountRole, type Account, type AccountNavigation } from "./accountTypes";
 import { AccountActivity, AccountUsage } from "./AccountSummary";
@@ -16,14 +16,23 @@ export default function MyAccount({ session, onChange, navigationRef }: { sessio
   const profileDirty = !!account && name !== account.display_name;
   const dirty = profileDirty || alertsDirty;
   function fill(value: Account) { setAccount(value); setName(value.display_name); onChange(value); }
+  // Set once a discard is confirmed, so the browser's own "Leave site?" prompt doesn't ask a second time.
+  const leaving = useRef(false);
   function canLeave() {
     if (busy) { setNotice("Please wait for the account update to finish."); return false; }
-    return !dirty || window.confirm(profileDirty && alertsDirty ? "Discard your unsaved display name and price alert changes?" : profileDirty ? "Discard your unsaved display name?" : "Discard your unsaved price alert changes?");
+    if (dirty && !window.confirm(profileDirty && alertsDirty ? "Discard your unsaved display name and price alert changes?" : profileDirty ? "Discard your unsaved display name?" : "Discard your unsaved price alert changes?")) return false;
+    if (dirty) {
+      leaving.current = true;
+      // Still here and interacting means the navigation didn't happen, so the prompt comes back.
+      const stay = () => { leaving.current = false; window.removeEventListener("pointerdown", stay); window.removeEventListener("keydown", stay); };
+      window.addEventListener("pointerdown", stay); window.addEventListener("keydown", stay);
+    }
+    return true;
   }
-  useEffect(() => { navigationRef.current = canLeave; return () => { navigationRef.current = null; }; }, [dirty, busy]);
+  useEffect(() => { navigationRef.current = canLeave; return () => { navigationRef.current = null; }; }, [dirty, profileDirty, alertsDirty, busy]);
   useEffect(() => {
     if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    const warn = (e: BeforeUnloadEvent) => { if (leaving.current) return; e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   useEffect(() => {

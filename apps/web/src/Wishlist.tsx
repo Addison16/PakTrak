@@ -47,6 +47,8 @@ export default function Wishlist({ session, active }: { session: Session; active
     const next = { quantity: item.quantity, finish: item.finish, notes: item.notes || "", ...change };
     if (next.quantity < 1) await request(`/api/v1/wishlist/${item.id}`, { method: "DELETE", headers: { "X-CSRF-Token": session.csrf_token }, action: "Remove from wishlist" });
     else await request(`/api/v1/wishlist/${item.id}`, mutation(session, next));
+    // Show the saved quantity right away so a quick second tap counts from it, not from the stale item.
+    setData((current) => current && { ...current, items: next.quantity < 1 ? current.items.filter((row) => row.id !== item.id) : current.items.map((row) => row.id === item.id ? { ...row, quantity: next.quantity, finish: next.finish } : row) });
   });
 
   const items = data?.items || [];

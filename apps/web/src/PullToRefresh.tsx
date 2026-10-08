@@ -6,6 +6,7 @@ import "./pull-refresh.css";
 const reach = 120; // Furthest the page moves, however far the finger goes.
 const trigger = 64; // Pull at least this far to refresh.
 const hold = 52; // Gap kept open while the screen reloads.
+const deadZone = 6; // Movement needed before a touch counts as a pull or a scroll.
 const minimumSpin = 600;
 const messageTime = 2400;
 const offlineText = "You’re offline. Showing saved copies.";
@@ -78,9 +79,13 @@ export default function PullToRefresh({ enabled }: { enabled: boolean }) {
       if (event.touches.length !== 1) { mode = "other"; if (distance) move(0, true); return; }
       const dx = event.touches[0].clientX - start.x;
       const dy = event.touches[0].clientY - start.y;
-      // Decide on the first movement, before the browser starts its own scroll or bounce.
-      if (!mode) mode = dy > 0 && dy >= Math.abs(dx) && window.scrollY <= 0 ? "pull" : "other";
+      // Decide once the finger has clearly moved: the first move events of a flick
+      // often jitter a pixel or two downward, and locking onto a pull then would
+      // cancel the scroll the person meant.
+      if (!mode) { if (Math.hypot(dx, dy) < deadZone) return; mode = dy > 0 && dy >= Math.abs(dx) && window.scrollY <= 0 ? "pull" : "other"; }
       if (mode !== "pull") return;
+      // A pull that reverses into an upward swipe hands the gesture back to the page.
+      if (dy < 0) { mode = "other"; if (distance) { distance = 0; setState("idle"); move(0, true); } return; }
       if (event.cancelable) event.preventDefault();
       distance = resist(Math.max(0, dy));
       setState("pulling"); move(distance, false);

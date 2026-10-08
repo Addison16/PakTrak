@@ -195,8 +195,10 @@ export function setOfflineOwner(owner: string) {
   if (owner === state.owner) return;
   set({ owner }); void countQueue();
 }
+// An answer from the server is the final word: some desktop browsers report
+// being offline (a VPN or virtual adapter) while requests still go through.
 export function markReachable(reachable: boolean, savedCopy = false) {
-  set({ reachable: reachable && navigator.onLine, savedCopy: reachable ? false : savedCopy || state.savedCopy });
+  set({ reachable, savedCopy: reachable ? false : savedCopy || state.savedCopy });
   if (!reachable) schedule();
 }
 export function markSavedCopy() { set({ savedCopy: true }); }
@@ -211,7 +213,6 @@ let lastCheck = 0;
 export async function checkConnection(force = true) {
   if (state.checking || !force && Date.now() - lastCheck < 5000) return state.reachable;
   lastCheck = Date.now();
-  if (!navigator.onLine) { markReachable(false); return false; }
   set({ checking: true });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 6000);

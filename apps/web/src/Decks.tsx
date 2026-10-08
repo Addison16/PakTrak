@@ -83,6 +83,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   const scanning = active && route.view === "scan";
   const [importState, setImportState] = useState<DeckWorkState>({ dirty: false, busy: false });
   const editing = active && route.view === "edit";
+  const archived = !!deck?.archived;
   const [creating, setCreating] = useState(false);
   const [cardFilter, setCardFilter] = useState("");
   const [gallery, setGallery] = useState(true);
@@ -188,7 +189,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     if (!active) return;
     const synced = () => {
       void list().catch(() => {});
-      if (deck && !dirty && !working.current) void request<Deck>("/api/v1/decks/" + deck.id).then((value) => { if (!working.current) fill(value); }).catch(() => {});
+      if (deck && !dirty && !working.current) void request<Deck>("/api/v1/decks/" + deck.id).then((value) => { if (!working.current && !dirtyNow.current && navigation.route.deck === value.id) fill(value); }).catch(() => {});
     };
     window.addEventListener("paktrak:synced", synced);
     return () => window.removeEventListener("paktrak:synced", synced);
@@ -292,6 +293,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   }
   async function save() {
     if (!deck) return;
+    if (deck.archived) throw new Error("This deck is archived and can’t be changed.");
     if (cards.some(quantityProblem)) throw new Error("Finish entering card quantities before saving your deck.");
     const body = {
       name: name.trim(), format, notes, match_mode: matchMode, expected_version: baseVersion.current || deck.version,
@@ -361,11 +363,11 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
         if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setOpening({ deck: item, ownerId: session.owner_id, left, top, width, height });
         setGallery(true);
       }} />}
-    {importing && <DeckImport session={session} deck={deck || undefined} onStateChange={setImportState} onCancel={() => {
+    {importing && (!route.deck || deck) && <DeckImport key={`import:${deck?.id || "new"}`} session={session} deck={deck || undefined} onStateChange={setImportState} onCancel={() => {
       navigation.close({ page: "decks", deck: deck?.id });
     }} onImported={(value) => {
       const updating = !!deck;
-      fill(value); navigation.go({ page: "decks", deck: value.id }, { replace: true, force: true }); setGallery(true); setImportState({ dirty: false, busy: false }); setOffset(0); focusTitle();
+      fill(value); if (updating) navigation.close({ page: "decks", deck: value.id }, true); else navigation.go({ page: "decks", deck: value.id }, { replace: true, force: true }); setGallery(true); setImportState({ dirty: false, busy: false }); setOffset(0); focusTitle();
       setNotice(`${updating ? "Deck list updated" : "Deck imported"}. You own ${value.owned_copies} of ${value.copies} copies; ${value.missing_copies} still needed.`);
       void list(0).catch((e: Error) => setError(e));
     }} />}
@@ -373,7 +375,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       fill(value); setImportState({ dirty: false, busy: false }); navigation.go({ page: "decks", deck: value.id, view: "scan", fromBatch: route.fromBatch }, { replace: true, force: true });
       void list(0).catch((e: Error) => setError(e));
     }} onSaved={(value) => {
-      fill(value); setImportState({ dirty: false, busy: false }); navigation.go({ page: "decks", deck: value.id }, { replace: true, force: true }); setGallery(true); focusTitle();
+      fill(value); setImportState({ dirty: false, busy: false }); navigation.close({ page: "decks", deck: value.id }, true); setGallery(true); focusTitle();
       setNotice("Scanned cards saved to your deck. You can add more photo batches anytime."); void list().catch((e: Error) => setError(e));
     }} />}
     {deck && deckIsCurrent && !importing && !scanning && <section className="panel deck-detail" data-deck-view={deck.id} data-art-view={!editing && artView || undefined} aria-label={editing ? "Deck editor" : "Deck overview"}>
@@ -381,14 +383,15 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
         <div className="batch-toolbar deck-studio-toolbar"><button className="button secondary" disabled={busy} onClick={closeDeck}>← Back to decks</button>
           <div className="deck-studio-toolbar-actions">
             {!editing && <button className="button secondary" aria-pressed={artView} onClick={() => changeArtView(!artView)}>{artView ? "Exit art view" : "Art view"}</button>}
-            <button ref={appearanceTrigger} className="button secondary" disabled={busy || dirty} onClick={() => setShowAppearance(true)}>Customize case</button>
-            <button className="button primary" disabled={busy || (editing && (!name.trim() || invalidQuantities))} onClick={() => editing ? finishEditing() : navigation.go({ page: "decks", deck: deck.id, view: "edit" })}>{editing ? dirty ? "Save & done" : "Done editing" : "Edit deck"}</button>
+            <button ref={appearanceTrigger} className="button secondary" disabled={busy || dirty || archived} onClick={() => setShowAppearance(true)}>Customize case</button>
+            <button className="button primary" disabled={busy || archived || (editing && (!name.trim() || invalidQuantities))} onClick={() => editing ? finishEditing() : navigation.go({ page: "decks", deck: deck.id, view: "edit" })}>{editing ? dirty ? "Save & done" : "Done editing" : "Edit deck"}</button>
           </div>
         </div>
         <div className="deck-hero-identity">
           <div className="deck-hero-title"><div className="eyebrow">{editing ? "DECK STUDIO" : artView ? "THE ART OF YOUR DECK" : "YOUR NEXT GAME"}</div>
             <h2 id="deck-title" tabIndex={-1}>{deck.name}</h2>
       <div className="batch-detail-meta"><span className="badge deck-format">{deck.format}</span><span>{cards.reduce((sum, card) => sum + card.quantity, 0)} cards</span><span>{deck.match_mode === "any" ? "Any printing counts" : "Exact printings"}</span></div>
+      {archived && <p className="fine" role="status">This deck is archived.</p>}
       <p className="batch-save-status" role="status">{busy ? "Working…" : dirty ? localDraftSaved ? "Unsaved changes · draft backed up on this device." : "Unsaved changes · device backup unavailable. Save your deck to keep your work." : "✓ All changes saved"}</p>
           </div>
       {deck.valuation && <DeckValue compact key={`value:${deck.id}`} session={session} cards={cards.filter(card => card.quantity > 0).map(card => ({ printing_id: card.printing.id, quantity: card.quantity, section: card.section }))} saved={deck.valuation} live={dirty} paused={invalidQuantities} busy={busy} onCard={(id, section) => { const card = cards.find(item => item.printing.id === id && item.section === section); if (card) { setOnlyMissing(false); setCardFilter(""); setPreviewCard(card); } }} />}
@@ -466,8 +469,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       {previewCard && previewIndex >= 0 && <DeckCardPreview card={ownership.get(previewCard.printing.id + ":" + previewCard.section) || previewCard} origin={cardFlight?.deckId === deck.id && cardFlight.cardKey === route.card ? cardFlight.origin : null} position={previewIndex} total={previewCards.length} onPrevious={() => setPreviewCard(previewCards[previewIndex - 1])} onNext={() => setPreviewCard(previewCards[previewIndex + 1])} onClose={() => setPreviewCard(null)} />}
       {cards.length === 0 ? <p>{editing ? "Search your collection above or import a deck list to add cards." : "This deck is empty. Import a list or use Edit deck to add cards."}</p> : visibleCards.length === 0 && <p>No cards match this view. Clear the search or missing-card filter to see the whole deck.</p>}
       <div className="deck-studio-secondary">
-      <div className="deck-overview-actions"><button className="button secondary" disabled={busy || dirty} onClick={startImport}>Import deck list</button>
-        <button className="button secondary" disabled={busy || dirty} onClick={() => navigation.go({ page: "decks", deck: deck.id, view: "scan" })}><Icon name="camera" />Scan cards</button>
+      <div className="deck-overview-actions"><button className="button secondary" disabled={busy || dirty || archived} onClick={startImport}>Import deck list</button>
+        <button className="button secondary" disabled={busy || dirty || archived} onClick={() => navigation.go({ page: "decks", deck: deck.id, view: "scan" })}><Icon name="camera" />Scan cards</button>
         <p className="fine">{dirty ? "Save or discard these edits before importing another list." : "Replace this deck’s card list or add cards from a CSV / text file."}</p></div>
 
       {comparison && <><div className="deck-availability" aria-label="Deck collection comparison"><span><strong>{comparison.copies}</strong> Needed</span><span><strong>{comparison.owned_copies}</strong> Owned</span><span><strong>{comparison.missing_copies}</strong> Missing</span></div><progress value={comparison.owned_copies} max={Math.max(1, comparison.copies)} aria-label="Deck collection completion" />
@@ -498,8 +501,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
           fill(copied, true); navigation.go({ page: "decks", deck: copied.id }, { force: true }); setOffset(0); setNotice("Deck duplicated. Your collection quantities stay the same."); await list(0); focusTitle();
         }); }}><label>Name for the duplicate<input maxLength={255} value={duplicateName} disabled={busy} onChange={(e) => setDuplicateName(e.target.value)} /></label><p className="fine">Copies the saved cards, notes, format and collection matching. Use it to try a different build.</p><div className="actions"><button className="button primary" disabled={busy || !duplicateName.trim()}>Create duplicate</button><button className="text-button" type="button" disabled={busy} onClick={() => setDuplicating(false)}>Cancel duplicate</button></div></form>}
       </div>}
-      <div className="batch-exit actions">{editing && <button className="button primary" disabled={busy || !name.trim() || invalidQuantities} onClick={finishEditing}>{dirty ? "Save & done" : "Done editing"}</button>}<button className="button secondary" disabled={busy} onClick={closeDeck}>Close deck</button></div>
-      {editing && <details className="deck-archive"><summary>Archive deck</summary><label className="checkbox"><input type="checkbox" checked={archiveReady} onChange={(e) => setArchiveReady(e.target.checked)} />Remove this deck from my saved list. Keep my collection.</label><button className="button secondary" disabled={busy || !archiveReady || dirty} onClick={() => void act(async () => { await request("/api/v1/decks/" + deck.id + "/archive", mutation(session, { expected_version: deck.version })); navigation.go({ page: "decks" }, { replace: true, force: true }); resetView(); await list(); })}>Archive this deck</button></details>}
+      <div className="batch-exit actions">{editing && <button className="button primary" disabled={busy || archived || !name.trim() || invalidQuantities} onClick={finishEditing}>{dirty ? "Save & done" : "Done editing"}</button>}<button className="button secondary" disabled={busy} onClick={closeDeck}>Close deck</button></div>
+      {editing && <details className="deck-archive"><summary>Archive deck</summary><label className="checkbox"><input type="checkbox" checked={archiveReady} onChange={(e) => setArchiveReady(e.target.checked)} />Remove this deck from my saved list. Keep my collection.</label><button className="button secondary" disabled={busy || !archiveReady || dirty} onClick={() => void act(async () => { await request("/api/v1/decks/" + deck.id + "/archive", mutation(session, { expected_version: deck.version })); navigation.close({ page: "decks" }, true); resetView(); await list(); })}>Archive this deck</button></details>}
     </section>}
     {opening && <DeckOpening key={`opening:${opening.deck.id}`} origin={opening} ready={deck?.id === opening.deck.id} onComplete={() => setOpening(null)} />}
   </>;

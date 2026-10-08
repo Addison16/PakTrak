@@ -110,11 +110,14 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
       pinchScroll.current = { left: start.fx * view.clientWidth * next - start.mx, top: start.fy * start.height * next - start.my };
       setZoom(next); setLoupe(null);
     };
-    const end = (event: TouchEvent) => { if (event.touches.length < 2) pinch.current = null; };
+    // The second finger of a pinch is not captured, so if it lifts outside the canvas its pointer id would otherwise linger and make every later tap look like a multi-touch.
+    const end = (event: TouchEvent) => { if (event.touches.length < 2) pinch.current = null; if (event.touches.length === 0) fingers.current.clear(); };
+    const lift = (event: globalThis.PointerEvent) => { fingers.current.delete(event.pointerId); };
     view.addEventListener("touchstart", begin, { passive: true });
     view.addEventListener("touchmove", change, { passive: false });
     view.addEventListener("touchend", end); view.addEventListener("touchcancel", end);
-    return () => { view.removeEventListener("touchstart", begin); view.removeEventListener("touchmove", change); view.removeEventListener("touchend", end); view.removeEventListener("touchcancel", end); };
+    window.addEventListener("pointerup", lift); window.addEventListener("pointercancel", lift);
+    return () => { view.removeEventListener("touchstart", begin); view.removeEventListener("touchmove", change); view.removeEventListener("touchend", end); view.removeEventListener("touchcancel", end); window.removeEventListener("pointerup", lift); window.removeEventListener("pointercancel", lift); };
   }, []);
   function start(e: PointerEvent<HTMLDivElement>) {
     if (e.pointerType === "touch") fingers.current.add(e.pointerId);
@@ -124,10 +127,11 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     const handle = (e.target as Element).closest<HTMLElement>("[data-corner]");
     let index = handle ? Number(handle.dataset.corner) : -1;
     if (index < 0) index = points.findIndex((p) => Math.hypot((p[0] - pointer[0]) * box.width, (p[1] - pointer[1]) * box.height) < 24);
+    // Only a corner that is actually added or dragged earns an undo entry.
+    if (index < 0 && points.length >= 4) return;
     let next = points;
     remember();
     if (index < 0) {
-      if (points.length >= 4) return;
       index = points.length; next = [...points, [clamp(pointer[0]), clamp(pointer[1])]]; setPoints(next);
     }
     // Keep the grab offset so the corner moves with the finger instead of jumping beneath it.

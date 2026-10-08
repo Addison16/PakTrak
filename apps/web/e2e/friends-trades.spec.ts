@@ -15,8 +15,8 @@ function offer(state: "pending" | "accepted", attention: string | null) {
 
 async function fixture(page: Page) {
   const state = {
-    offer: offer("pending", "respond") as ReturnType<typeof offer> | null, calls: [] as string[], importBody: "", removal: null as any, codeAttempts: [] as string[],
-    wishlist: [{ id: "wish-1", printing: ring, finish: "any", quantity: 2, notes: "", price_finish: "nonfoil", unit_amount: "5.00", owned: 0, created_at: "2026-10-01T00:00:00Z" }], wishlistAdds: [] as any[],
+    offer: offer("pending", "respond") as ReturnType<typeof offer> | null, calls: [] as string[], importBody: "", removal: null as any, codeAttempts: [] as string[], dragonCopies: 2,
+    wishlist: [{ id: "wish-1", printing: ring, finish: "any", quantity: 2, notes: "", price_finish: "nonfoil", unit_amount: "5.00", owned: 0, created_at: "2026-10-01T00:00:00Z" }], wishlistAdds: [] as any[], wishlistSaves: [] as number[],
   };
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
@@ -30,7 +30,7 @@ async function fixture(page: Page) {
     else if (path === "/api/v1/trade-offers") json = { items: state.offer ? [state.offer] : [], attention: state.offer?.attention ? 1 : 0 };
     else if (path === "/api/v1/trade-offers/offer-1/accept") { state.offer = offer("accepted", "apply"); json = state.offer; }
     else if (path === "/api/v1/trade-offers/offer-1/applied") { state.offer = offer("accepted", null); json = state.offer; }
-    else if (path === "/api/v1/collection" && url.searchParams.get("printing_id") === dragon.id) json = { copies: 2, next_offset: null, items: [{ id: "lot-9", printing: dragon, quantity: 2, finish: "foil", condition: "NM", binder: "Binder", binder_id: "b1", binder_kind: "binder", notes: "", version: 3 }] };
+    else if (path === "/api/v1/collection" && url.searchParams.get("printing_id") === dragon.id) json = { copies: state.dragonCopies, next_offset: null, items: [{ id: "lot-9", printing: dragon, quantity: state.dragonCopies, finish: "foil", condition: "NM", binder: "Binder", binder_id: "b1", binder_kind: "binder", notes: "", version: 3 }] };
     else if (path === "/api/v1/collection/lot-9/quantity") { state.removal = body; json = { id: "lot-9", quantity: body.quantity, version: 4 }; }
     else if (path === "/api/v1/imports" && method === "POST") { state.importBody = req.postData() || ""; json = { id: "trade-import", state: "REVIEW", revision: 2, summary: { ready_copies: 2, committed_copies: 0, unresolved_rows: 0 } }; }
     else if (path === "/api/v1/imports/trade-import/confirm") json = { id: "trade-import", state: "COMPLETED", revision: 3, summary: { ready_copies: 0, committed_copies: 2, unresolved_rows: 0 } };
@@ -39,8 +39,13 @@ async function fixture(page: Page) {
       state.codeAttempts.push(body.code);
       if (body.code === "ZZZZZ-ZZZZZ") { status = 404; json = { detail: "No one can be added with that code. Check it with the person who gave it to you." }; }
       else json = { state: "pending" };
-    } else if (path === "/api/v1/wishlist" && method === "GET") json = { provider: "tcgplayer", items: state.wishlist, copies: 2, priced_copies: 2, amount: "10.00" };
+    } else if (path === "/api/v1/wishlist" && method === "GET") {
+      // After a save the refetch is slow, so a second tap must count from the quantity just saved.
+      if (state.wishlistSaves.length) await new Promise((resolve) => setTimeout(resolve, 400));
+      json = { provider: "tcgplayer", items: state.wishlist, copies: 2, priced_copies: 2, amount: "10.00" };
+    }
     else if (path === "/api/v1/wishlist" && method === "POST") { state.wishlistAdds.push(...body.items); json = { added: body.items.length }; }
+    else if (path.startsWith("/api/v1/wishlist/") && method === "POST") { state.wishlistSaves.push(body.quantity); state.wishlist = state.wishlist.map((item) => item.id === path.split("/").pop() ? { ...item, ...body } : item); json = {}; }
     else if (path === "/api/v1/collection/sets") json = { items: [{ code: "frd", name: "Friend Fixtures", released_at: "2026-09-01", set_type: "expansion", owned: 1, total: 3, copies: 2 }] };
     else if (path === "/api/v1/collection/sets/frd") json = { code: "frd", name: "Friend Fixtures", released_at: "2026-09-01", provider: "tcgplayer", owned: 1, total: 3, cost_to_finish: "7.50", missing_unpriced: 0,
       cards: [{ printing: dragon, owned: 2, price_finish: "nonfoil", unit_amount: "10.00" }, { printing: bolt, owned: 0, price_finish: "nonfoil", unit_amount: "2.50" }, { printing: ring, owned: 0, price_finish: "nonfoil", unit_amount: "5.00" }] };
@@ -79,6 +84,18 @@ test("an incoming trade offer shows on Home and accepting it updates only this c
   await expect(page.getByRole("complementary", { name: "Trade offers" })).toHaveCount(0);
 });
 
+test("a collection short of the cards given stops the accept before the friend hears of it", async ({ page }) => {
+  const state = await fixture(page);
+  state.dragonCopies = 0;
+  await page.getByRole("complementary", { name: "Trade offers" }).getByRole("button", { name: "View offer", exact: true }).click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Accept trade", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Your collection has 0 foil copies of Shivan Dragon, but this trade gives 1.");
+  // Nothing was posted, so the offer is still waiting for an answer.
+  expect(state.calls).toEqual([]);
+  await expect(page.getByRole("button", { name: "Accept trade", exact: true })).toBeEnabled();
+});
+
 test("friends are added only by code and a wrong code says nothing about accounts", async ({ page }) => {
   const state = await fixture(page);
   await navigate(page, "Friends");
@@ -101,6 +118,10 @@ test("wishlist totals and set completion add missing cards to the wishlist", asy
   await expect(page.locator(".social-total")).toContainText("2 cards wanted");
   await expect(page.locator(".social-total")).toContainText("$10.00");
   await expect(page.getByText("Sol Ring", { exact: true })).toBeVisible();
+  const more = page.getByRole("button", { name: "One more Sol Ring", exact: true });
+  await more.click(); await more.click();
+  await expect(page.getByRole("group", { name: "Copies of Sol Ring wanted" })).toContainText("4");
+  expect(state.wishlistSaves).toEqual([3, 4]);
 
   await navigate(page, "Set completion");
   await page.getByRole("button", { name: /Friend Fixtures/ }).click();

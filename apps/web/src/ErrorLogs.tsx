@@ -42,8 +42,9 @@ export default function ErrorLogs() {
         <p className="error-log-route">{entry.method} {entry.route}</p>
         {entry.context.fields?.map((field, i) => <p className="fine" key={i}>{field.field}: {field.issue}</p>)}
         <details><summary>Diagnostic details</summary><pre>{JSON.stringify(entry, null, 2)}</pre><button className="text-button" onClick={() => {
-          void navigator.clipboard?.writeText(JSON.stringify(entry, null, 2)).then(() => setCopied(entry.request_id), () => setCopied(""));
-        }}>Copy log entry</button>{copied === entry.request_id && <span className="fine" role="status">Copied.</span>}</details>
+          if (!navigator.clipboard) { setCopied("manual:" + entry.request_id); return; }
+          void navigator.clipboard.writeText(JSON.stringify(entry, null, 2)).then(() => setCopied(entry.request_id), () => setCopied("manual:" + entry.request_id));
+        }}>Copy log entry</button>{copied === entry.request_id && <span className="fine" role="status">Copied.</span>}{copied === "manual:" + entry.request_id && <span className="fine" role="status">Select and copy the details above.</span>}</details>
         <p className="fine error-reference">Reference: {entry.request_id}</p>
       </li>)}</ul>
       <div className="pagination">{offset > 0 && <button className="text-button" disabled={busy} onClick={() => setOffset(Math.max(0, offset - 50))}>Newer errors</button>}{data?.next_offset != null && <button className="text-button" disabled={busy} onClick={() => setOffset(data.next_offset!)}>Older errors</button>}</div>

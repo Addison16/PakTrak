@@ -93,9 +93,11 @@ test("the spinner stays until a slow screen has its new data", async ({ page }) 
   const state = await fixture(page);
   await page.goto("/#/sets");
   await expect(page.getByText("Add cards to your collection")).toBeVisible();
+  // The dev server mounts effects twice, so count reads from here rather than from zero.
+  const before = state.setReads;
   await pull(page, 260);
   await page.waitForTimeout(1200);
   await expect(page.locator(".pull-refresh-spinner")).toBeVisible();
-  expect(state.setReads).toBe(2);
+  expect(state.setReads).toBe(before + 1);
   await expect(page.locator(".pull-refresh-spinner")).toHaveCount(0, { timeout: 5000 });
 });

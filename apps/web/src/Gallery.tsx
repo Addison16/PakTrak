@@ -35,6 +35,9 @@ function decodeView(value: string | undefined): View {
   if (!colors.some(([color]) => color === filters.color)) filters.color = "";
   if (!["", "nonfoil", "foil", "etched", "unknown"].includes(filters.finish)) filters.finish = "";
   for (const key of ["min_price", "max_price"] as const) if (filters[key] && (!Number.isFinite(Number(filters[key])) || Number(filters[key]) < 0)) filters[key] = "";
+  // The API expects a binder UUID and a set code of at most 16 characters; a stale bookmark must not make every poll fail.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.binder)) filters.binder = "";
+  filters.set_code = filters.set_code.slice(0, 16);
   const sort = params.get("sort") || "name";
   return { query: (params.get("q") || "").slice(0, 255), filters, sort: ["name", "price_asc", "price_desc", "quantity", "newest", "mana", "shuffle"].includes(sort) ? sort : "name", seed: (params.get("seed") || "").slice(0, 80), view: params.get("view") === "list" ? "list" : "gallery" };
 }
@@ -78,7 +81,9 @@ function AccountGallery({ session }: { session: Session }) {
   const [offset, setOffset] = useState(0); const [view, setView] = useState(start.view);
   // "More cards" adds the next page below the cards already shown instead of replacing them.
   const [kept, setKept] = useState<CollectionCard[]>([]);
-  useEffect(() => { if (offset === 0) setKept([]); }, [offset]);
+  // Offsets of the earlier pages still shown, so a refresh can refetch them too.
+  const [keptOffsets, setKeptOffsets] = useState<number[]>([]);
+  useEffect(() => { if (offset === 0) { setKept([]); setKeptOffsets([]); } }, [offset]);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
     const values = readSetting<unknown>(settingsKey + ".saved", []);
     return Array.isArray(values) ? values.filter((item): item is SavedView => item && typeof item.name === "string" && typeof item.value === "string" && item.value.length <= 2400).slice(0, 20) : [];
@@ -113,7 +118,10 @@ function AccountGallery({ session }: { session: Session }) {
   }
   useEffect(() => {
     if (!active || route.collectionQuery === undefined || route.collectionQuery === lastEncoded.current) return;
-    lastEncoded.current = route.collectionQuery; hydrating.current = true; loadView(route.collectionQuery);
+    lastEncoded.current = route.collectionQuery;
+    // A view equal to the current state changes nothing, so the clearing effect below would never run.
+    if (encodeView(decodeView(route.collectionQuery)) === encoded) return;
+    hydrating.current = true; loadView(route.collectionQuery);
   }, [route.collectionQuery, active]);
   useEffect(() => {
     if (!active) return;
@@ -151,11 +159,16 @@ function AccountGallery({ session }: { session: Session }) {
     if (!filters.min_price) params.delete("min_price"); if (!filters.max_price) params.delete("max_price");
     // Locations and the set list rarely change; refresh them with the cards about once a minute.
     const meta = Date.now() - metaLoaded.current > 60000;
-    const [result, bins, options] = await Promise.all([
-      request<Result>("/api/v1/collection/cards?" + params), meta ? request<{ items: Location[] }>("/api/v1/binders") : null, meta ? request<{ sets: { code: string; name: string }[] }>("/api/v1/collection/filters") : null,
+    // After "More cards", the earlier pages are refetched too so kept cards do not go stale.
+    const earlier = offset > 0 ? keptOffsets.filter((at) => at < offset) : [];
+    const page = (at: number) => { const query = new URLSearchParams(params); query.set("offset", String(at)); return request<Result>("/api/v1/collection/cards?" + query); };
+    const [pages, bins, options] = await Promise.all([
+      Promise.all([...earlier, offset].map(page)), meta ? request<{ items: Location[] }>("/api/v1/binders") : null, meta ? request<{ sets: { code: string; name: string }[] }>("/api/v1/collection/filters") : null,
     ]);
     if (!isCurrent()) return;
     if (bins && options) { metaLoaded.current = Date.now(); setLocations(bins.items); setSets(options.sets); }
+    const result = pages[pages.length - 1];
+    if (earlier.length) setKept(pages.slice(0, -1).flatMap((item) => item.items));
     setData(result); setShownProvider(provider); setLoading(false); backgroundError.recovered();
     requestAnimationFrame(restoreScroll);
     if (selected) {
@@ -164,7 +177,7 @@ function AccountGallery({ session }: { session: Session }) {
         if (isCurrent() && navigation.route.card === selected) setSelectedCard(detail);
       } catch (error) {
         if (isCurrent() && navigation.route.card === selected) {
-          if (error instanceof ApiError && error.status === 404) { setSelectedCard(null); navigation.go({ ...navigation.route, card: undefined }, { replace: true, force: true }); }
+          if (error instanceof ApiError && error.status === 404) { setSelectedCard(null); navigation.close({ ...navigation.route, card: undefined }, true); }
           else setCardError(error as Error);
         }
       }
@@ -232,17 +245,17 @@ function AccountGallery({ session }: { session: Session }) {
     </div><button className="text-button" onClick={clearFilters}>Clear search & filters</button></div>}
     {backgroundError.error && <ErrorNotice error={backgroundError.error} onDismiss={backgroundError.dismiss} />}
     <div className="gallery-result-note" role="status">{loading ? "Finding your cards…" : data?.cards ? `${data.cards.toLocaleString()} printings${search ? " matching “" + search + "”" : " to explore"}` : "No cards in this view"}</div>
+    {selected && !card && <div className="message" role="status">{cardError ? <><ErrorNotice error={cardError} onDismiss={() => setSelected(null)} /><button className="text-button" onClick={() => setCardRetry((value) => value + 1)}>Retry opening card</button><button className="text-button" onClick={() => setSelected(null)}>Close card</button></> : "Opening card details…"}</div>}
     <div className="collection-selection-toolbar"><button className="button secondary" aria-pressed={selectionMode} onClick={() => { setSelectionMode(!selectionMode); setSelection([]); }}>{selectionMode ? "Done selecting" : "Select cards"}</button>{selectionMode && <><button className="text-button" disabled={loading} onClick={() => setSelection((current) => [...new Set([...current, ...(data?.items.map((item) => item.printing.id) || [])])].slice(0, 100))}>Select this page</button><button className="text-button" disabled={!selection.length} onClick={() => setSelection([])}>Clear selection</button><span className="fine" role="status">{selection.length} / 100 selected</span><button className="button primary" disabled={!selection.length} onClick={() => setOrganizing(true)}>Organize selected</button></>}</div>
     {!loading && data?.cards === 0 && <div className="gallery-empty"><span aria-hidden="true">✧</span><h3>{filterCount || search ? "Try another discovery" : "A collection worth exploring"}</h3><p>{filterCount || search ? "Clear a filter or try a different card name or ability." : "Import your card list or add cards from a scan. Their artwork, details and locations will be waiting here."}</p>{(filterCount > 0 || search) && <button className="button secondary" onClick={clearFilters}>Show all my cards</button>}</div>}
-    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{shown.map((item) => { const sheen = ownedSheen(item); return <li className="collection-card" data-selected={selection.includes(item.printing.id)} key={item.printing.id}>{selectionMode && <label className="collection-select"><input type="checkbox" aria-label={`Select ${item.printing.name}`} checked={selection.includes(item.printing.id)} disabled={!selection.includes(item.printing.id) && selection.length >= 100} onChange={(event) => setSelection((current) => event.target.checked ? [...current, item.printing.id] : current.filter((id) => id !== item.printing.id))} /><span>Select</span></label>}<button className="gallery-card" disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number + (sheen ? " · Includes " + sheen.description : "")} onClick={(event) => setSelected(item.printing.id, event.currentTarget)}>
+    <ul className={"gallery-grid " + (view === "list" ? "gallery-list" : "")} aria-label="Your cards" aria-busy={loading}>{shown.map((item) => { const sheen = ownedSheen(item); return <li className="collection-card" data-selected={selection.includes(item.printing.id)} key={item.printing.id}>{selectionMode && <label className="collection-select"><input type="checkbox" aria-label={`Select ${item.printing.name}`} checked={selection.includes(item.printing.id)} disabled={!selection.includes(item.printing.id) && selection.length >= 100} onChange={(event) => setSelection((current) => event.target.checked ? [...current, item.printing.id] : current.filter((id) => id !== item.printing.id))} /><span>Select</span></label>}<button className="gallery-card" data-printing-id={item.printing.id} disabled={loading} aria-label={"Open " + item.printing.name + " · " + item.printing.set_code.toUpperCase() + " #" + item.printing.collector_number + (sheen ? " · Includes " + sheen.description : "")} onClick={(event) => setSelected(item.printing.id, event.currentTarget)}>
       <div className="card-finish-art" data-owned-finish={sheen?.finish}><CardArt url={item.printing.image_url} name={item.printing.name} />{sheen && <span className="card-finish-label" aria-hidden="true" title={"Includes " + sheen.description}><span>✧</span>{sheen.label}</span>}</div><div className="gallery-card-info"><div className="gallery-card-title"><strong>{item.printing.name}</strong><span className="quantity-badge">×{item.quantity.toLocaleString()}</span></div><span className="gallery-card-set">{item.printing.set_code.toUpperCase()} · #{item.printing.collector_number} <span className={"rarity-dot rarity-" + item.printing.rarity} title={item.printing.rarity} /></span>
         <span className="gallery-card-price">{item.price_min ? money(item.price_min) + (item.price_max !== item.price_min ? "–" + money(item.price_max) : "") : item.pricing_issues?.unknown_finish ? "Finish not set" : item.pricing_issues?.custom_value ? "Custom value" : "No price available"}<small>{item.price_min ? item.priced_copies < item.quantity ? "per priced copy" : "per copy" : item.pricing_issues?.unknown_finish ? "Normal, foil or etched?" : item.pricing_issues?.custom_value ? "Altered or misprinted" : "No quote from " + providers[shownProvider]}</small></span><span className="gallery-card-location"><Icon name="pin" /><span>{item.locations[0]?.name}{item.location_count > 1 ? ` +${item.location_count - 1}` : ""}</span></span>
       </div></button></li>; })}</ul>
-    <div className="pagination">{data?.next_offset != null && <button className="button secondary" disabled={loading} onClick={() => { setKept((current) => [...current, ...data.items]); setOffset(data.next_offset!); }}>More cards</button>}{offset > 0 && <button className="text-button" disabled={loading} onClick={() => { setOffset(0); window.scrollTo(0, 0); }}>Back to the first cards</button>}</div>
+    <div className="pagination">{data?.next_offset != null && <button className="button secondary" disabled={loading} onClick={() => { setKept((current) => [...current, ...data.items]); setKeptOffsets((current) => [...current, offset]); setOffset(data.next_offset!); }}>More cards</button>}{offset > 0 && <button className="text-button" disabled={loading} onClick={() => { setOffset(0); window.scrollTo(0, 0); }}>Back to the first cards</button>}</div>
     <Locations locations={locations} session={session} onSaved={refreshAll} />
     <DataUpdates />
     <p className="fine gallery-credit">Card imagery © Wizards of the Coast · Card data and images via Scryfall</p>
-    {selected && !card && <div className="message" role="status">{cardError ? <><ErrorNotice error={cardError} onDismiss={() => setSelected(null)} /><button className="text-button" onClick={() => setCardRetry((value) => value + 1)}>Retry opening card</button><button className="text-button" onClick={() => setSelected(null)}>Close card</button></> : "Opening card details…"}</div>}
     {organizing && <BulkCollection ids={selection} binder={filters.binder} locations={locations} session={session} onClose={() => setOrganizing(false)} onSaved={async (copies) => { setNotice(`${copies} copies updated. Import history and notes are preserved.`); setSelection([]); try { await refreshAll(); } catch (error) { backgroundError.failed(error as Error); } }} />}
     {card && <CardDetail key={card.printing.id} card={card} origin={cardFlight?.cardKey === card.printing.id ? cardFlight.origin : null} binder={filters.binder} locations={locations} session={session} onSaved={refreshAll} onCorrected={async () => { await refreshAll(); setSelected(null); setNotice("Card details saved. Your collection and prices are updated."); }} onClose={() => setSelected(null)} onStep={stepCard} />}
   </section>;

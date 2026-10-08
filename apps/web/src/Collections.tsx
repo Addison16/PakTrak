@@ -22,7 +22,7 @@ const formatNames: Record<string, string> = { auto: "Automatic", canonical: "Ful
 const fields: Record<string, string> = { scryfall_id: "Scryfall ID", name: "Card name", set_code: "Set code", collector_number: "Collector number", quantity: "Quantity", language: "Language", finish: "Finish / foil", condition: "Condition", binder: "Binder name", binder_type: "Binder or list type", notes: "Notes", purchase_price: "Purchase price", purchase_currency: "Purchase currency", misprint: "Misprint", altered: "Altered", source_metadata_json: "Source metadata JSON" };
 const stateNames: Record<string, string> = { PREVIEWING: "Preparing preview", REVIEW: "Ready to review", COMMITTING: "Adding copies", COMPLETED: "Import complete", UNDOING: "Undo in progress", UNDONE: "Import undone", FAILED: "Needs attention", QUEUED: "Queued", PROCESSING: "Preparing export", READY: "Ready", EXPIRED: "Expired" };
 
-function Mapping({ batch, session, onChange, onError }: { batch: Import; session: Session; onChange: (value: Import) => void; onError: (message: string) => void }) {
+function Mapping({ batch, session, open, onToggle, onChange, onError }: { batch: Import; session: Session; open: boolean; onToggle: (open: boolean) => void; onChange: (value: Import) => void; onError: (message: string) => void }) {
   const [mapping, setMapping] = useState(batch.mapping);
   const [delimiter, setDelimiter] = useState(String(batch.options.delimiter || "auto"));
   const [encoding, setEncoding] = useState(String(batch.options.encoding || "utf-8-sig"));
@@ -41,7 +41,7 @@ function Mapping({ batch, session, onChange, onError }: { batch: Import; session
     } catch (e) { onError((e as Error).message); }
     finally { setBusy(false); }
   }
-  return <details className="mapping"><summary>Column mapping and file options</summary>
+  return <details className="mapping" open={open} onToggle={(event) => onToggle(event.currentTarget.open)}><summary>Column mapping and file options</summary>
     <p className="fine">Choose which source columns describe your owned cards. Extra columns are retained as source metadata. A list or wishlist is excluded when its type is mapped.</p>
     <div className="form-grid">{Object.entries(fields).map(([field, label]) => <label key={field}>{label}<select value={mapping[field] || ""} onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}><option value="">Not supplied</option>{batch.headers.map((name) => <option key={name}>{name}</option>)}</select></label>)}</div>
     <div className="form-grid"><label>Delimiter<select value={delimiter} onChange={(e) => setDelimiter(e.target.value)}><option value="auto">Detect</option><option value=",">Comma</option><option value=";">Semicolon</option><option value={"\t"}>Tab</option></select></label><label>Encoding<select value={encoding} onChange={(e) => setEncoding(e.target.value)}><option value="utf-8-sig">UTF-8 (with or without BOM)</option><option value="utf-16">UTF-16</option></select></label></div>
@@ -143,6 +143,9 @@ function CollectionTransfers({ session }: { session: Session }) {
   }, [binder, selectedId, revision, rowOffset, attentionOnly, focusRow, historyOffset, exportOffset]);
   usePullRefresh(true, () => refresh());
   useEffect(() => { setOwned(false); setPartial(false); setUndoReady(false); }, [selectedId, revision]);
+  // The mapping panel keeps its open state across preview rebuilds (which remount Mapping).
+  const [mappingOpen, setMappingOpen] = useState(false);
+  useEffect(() => { setMappingOpen(false); }, [selectedId]);
 
   async function act(operation: () => Promise<void>) {
     setError(""); setBusy(true);
@@ -196,7 +199,7 @@ function CollectionTransfers({ session }: { session: Session }) {
         {selected.state === "UNDONE" && <p className="saved">Removed {selected.summary.undone_copies} remaining copies from this import. {selected.summary.previously_removed_copies || 0} copies had already been removed.</p>}
         {["PREVIEWING", "COMMITTING", "UNDOING"].includes(selected.state) && <p className="saved" role="status">Saved on the server. You can close this page.</p>}
         {selected.jobs.filter((job) => ["QUEUED", "RUNNING"].includes(job.state)).map((job) => <ProgressView key={job.id} value={job.progress} />)}
-        {["REVIEW", "FAILED"].includes(selected.state) && <Mapping key={selected.id + ":" + selected.revision} batch={selected} session={session} onChange={setSelected} onError={setError} />}
+        {["REVIEW", "FAILED"].includes(selected.state) && <Mapping key={selected.id + ":" + selected.revision} batch={selected} session={session} open={mappingOpen} onToggle={setMappingOpen} onChange={setSelected} onError={setError} />}
         <div className="import-attention-toolbar"><label className="checkbox"><input type="checkbox" checked={attentionOnly} onChange={(event) => { setAttentionOnly(event.target.checked); setRowOffset(0); setFocusRow(null); }} />Needs attention only · {issues.count}</label><button className="text-button" disabled={issues.previous === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.previous); setRowOffset(0); }}>Previous issue</button><button className="text-button" disabled={issues.next === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.next); setRowOffset(0); }}>Next issue</button>{focusRow && <button className="text-button" onClick={() => { setFocusRow(null); setRowOffset(Math.floor((focusRow - 1) / 40) * 40); }}>Show surrounding rows</button>}</div>
         {!rows.length && attentionOnly && <p className="saved" role="status">No rows need attention in this import.</p>}
         {rows.length > 0 && <details open><summary>Review source rows</summary><ul className="plain-list import-rows">{rows.map((row) => <li key={row.id}>
