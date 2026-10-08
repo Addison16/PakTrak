@@ -26,9 +26,12 @@ const priceKey = (provider: string, printing: string, finish: Finish) => `${prov
 
 /** Open Trade value with cards already listed, such as cards a friend has that you want. */
 export function openTrade(owner: string, trade: Trade) {
-  try { sessionStorage.setItem("paktrak:trade:" + owner, JSON.stringify(trade)); } catch { /* The event below still reaches an open page. */ }
+  const key = "paktrak:trade:" + owner, current = readTrade(key);
+  if ((current.give.length || current.get.length) && !window.confirm("Replace the trade you’re building?")) return;
+  // Nothing is replaced until the page actually opens; a refused navigation keeps the trade in progress.
+  if (!navigation.go({ page: "trade" })) return;
+  try { sessionStorage.setItem(key, JSON.stringify(trade)); } catch { /* The event below still reaches an open page. */ }
   window.dispatchEvent(new CustomEvent(LOAD_EVENT, { detail: { owner, trade } }));
-  navigation.go({ page: "trade" });
 }
 
 // A trade is a scratch comparison: it lives in this browser tab only and never changes the collection.
@@ -58,7 +61,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
   const preference = usePriceSource(session);
   const [trade, setTrade] = useState<Trade>(() => readTrade(storageKey));
   const [adding, setAdding] = useState<Side | null>(null);
-  const [source, setSource] = useState<Record<Side, Source>>({ give: "collection", get: "catalog" });
+  const [source, setSource] = useState<Record<Side, Source>>(() => ({ give: "collection", get: trade.friend ? "friend" : "catalog" }));
   const [prices, setPrices] = useState<Record<string, string | null>>({});
   const [feed, setFeed] = useState<{ provider: string; feed: DataFeed | null; kind: string } | null>(null);
   const [priceError, setPriceError] = useState("");

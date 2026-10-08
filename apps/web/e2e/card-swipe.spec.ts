@@ -18,6 +18,7 @@ async function collectionFixture(page: Page) {
     else if (path === "/api/v1/capabilities") json = { max_upload_bytes: 104857600 };
     else if (path === "/api/v1/collection/cards") json = { copies: 3, cards: 3, items: cards, next_offset: null, valuation: { provider: "tcgplayer", amount: "3.00", priced_copies: 3, unpriced_copies: 0, feed: null } };
     else if (path.startsWith("/api/v1/collection/cards/") && index >= 0) json = cards[index];
+    else if (path.endsWith("/price-history")) json = { provider: "tcgplayer", finishes: { nonfoil: { points: [{ day: "2026-10-01", amount: "1.00" }, { day: "2026-10-02", amount: "1.50" }, { day: "2026-10-03", amount: "1.25" }], change: null } } };
     else if (path.startsWith("/api/v1/collection/printings/") && index >= 0) json = { printing: printings[index], faces: [{ name: printings[index].name, image_url: printings[index].image_url }], legalities: {}, prices: [], released_at: null, scryfall_url: null };
     else if (path === "/api/v1/collection") json = { items: [], next_offset: null };
     else if (path === "/api/v1/collection/filters") json = { sets: [{ code: "tst", name: "Swipe fixtures" }] };
@@ -73,6 +74,13 @@ test("swiping the collection card viewer steps through the cards in list order",
   await expect(title).toHaveText("Island");
   await page.keyboard.press("ArrowRight");
   await expect(title).toHaveText("Forest");
+  // Dragging across the price chart scrubs the readout instead of stepping cards.
+  const chart = page.locator("dialog .value-chart");
+  await chart.scrollIntoViewIfNeeded();
+  await swipe(page, chart.locator("svg"), .9, .1);
+  await page.waitForTimeout(400);
+  await expect(title).toHaveText("Forest");
+  await expect(chart.locator(".value-chart-readout")).toContainText("$1.00");
 });
 
 test("swiping the deck card preview steps through the deck and stops at the ends", async ({ page }) => {

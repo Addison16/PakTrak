@@ -21,7 +21,7 @@ export default function DeckScan({ session, deck, fromBatch, onCreated, onSaved,
   const [selected, setSelected] = useState<Set<string>>(() => new Set(fromBatch ? [fromBatch] : []));
   const [preview, setPreview] = useState<Preview | null>(null);
   const [choices, setChoices] = useState<Record<string, Section | "skip">>({});
-  const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<Error | string>("");
   const working = useRef(false);
   const receipt = useRef<{ body: string; key: string } | null>(null);
@@ -31,15 +31,16 @@ export default function DeckScan({ session, deck, fromBatch, onCreated, onSaved,
 
   useEffect(() => {
     if (!deck) return;
+    setLoaded(false);
     let stopped = false, reading = false;
     async function list() {
       if (stopped || reading || document.hidden) return;
-      reading = true; setLoading(true);
+      reading = true;
       try {
         const value = await request<{ items: PhotoBatch[]; next_offset: number | null }>(`/api/v1/deck-scans/batches?deck_id=${deck!.id}&linked_only=${!allBatches}&offset=${offset}`);
         if (!stopped) { setBatches(value.items); setNext(value.next_offset); }
       } catch (reason) { if (!stopped) setError(reason as Error); }
-      finally { reading = false; if (!stopped) setLoading(false); }
+      finally { reading = false; if (!stopped) setLoaded(true); }
     }
     void list();
     const timer = window.setInterval(() => void list(), 5000);
@@ -94,8 +95,8 @@ export default function DeckScan({ session, deck, fromBatch, onCreated, onSaved,
         <p className="fine">Repeat for the rest of your deck. Choose a commander and sideboard cards in the preview below.</p></div>
       <h3>Choose photo batches</h3>
       <label className="checkbox"><input type="checkbox" checked={allBatches} disabled={busy} onChange={(event) => { setAllBatches(event.target.checked); setOffset(0); }} />Include my other saved batches</label>
-      {loading && batches.length === 0 && <p role="status">Loading photo batches…</p>}
-      {!loading && batches.length === 0 && <p>No {allBatches ? "saved" : "linked"} photos on this page yet. Take a photo or include your other batches.</p>}
+      {!loaded && batches.length === 0 && <p role="status">Loading photo batches…</p>}
+      {loaded && batches.length === 0 && <p>No {allBatches ? "saved" : "linked"} photos on this page yet. Take a photo or include your other batches.</p>}
       <ul className="plain-list deck-scan-batches">{batches.map((batch) => <li key={batch.id}>
         <label className="deck-scan-batch"><input type="checkbox" checked={selected.has(batch.id)} disabled={busy || selected.size >= 32 && !selected.has(batch.id)} onChange={() => chooseBatch(batch.id)} />
           {batch.thumbnail_url && <img src={batch.thumbnail_url} alt="" loading="lazy" />}

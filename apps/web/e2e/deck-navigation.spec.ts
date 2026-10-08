@@ -867,3 +867,26 @@ test("browser history protects import text and recovers from a missing saved dec
   await page.getByRole("button", { name: /Back to decks/ }).click();
   await expect(page.getByRole("heading", { name: "Your decks", exact: true })).toBeVisible();
 });
+
+test("reloading an import screen keeps its deck and one Back after importing returns to the shelf", async ({ page }) => {
+  const mock = await fixture(page);
+  await openSaved(page);
+  await page.getByRole("button", { name: "Import deck list", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Import into Friday night", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/#\/decks\/saved-deck\/import$/);
+  await expect(page.getByRole("heading", { name: "Import into Friday night", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Import a deck list", exact: true })).toHaveCount(0);
+  await page.evaluate(() => history.back());
+  await expect(page.getByRole("region", { name: "Deck overview", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Import deck list", exact: true }).click();
+  await page.getByRole("textbox", { name: "Paste deck list", exact: true }).fill("2 deck-card-0 main");
+  await page.getByRole("button", { name: "Preview deck list", exact: true }).click();
+  await page.getByRole("button", { name: "Replace deck list", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Friday night", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/#\/decks\/saved-deck$/);
+  expect(mock.decks).toHaveLength(2);
+  await page.evaluate(() => history.back());
+  await expect(page).toHaveURL(/#\/decks$/);
+  await expect(page.getByRole("heading", { name: "Your decks", exact: true })).toBeVisible();
+});

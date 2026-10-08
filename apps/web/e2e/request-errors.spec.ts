@@ -29,6 +29,7 @@ async function fixture(page: Page, role = "member") {
       return reply({ error_code: state.postCode, detail: state.postStatus === 403 ? "Your sign-in verification changed. Refresh sign-in and try the action again." : [{ loc: ["body", "foil_count"], msg: "Use a value at most 32.", type: "less_than_equal" }] }, state.postStatus);
     }
     if (path === "/api/auth/accounts") return reply({ items: [], next_offset: null });
+    if (path === "/api/v1/backups") return reply({ available: true, settings: { enabled: true, keep: 7 }, running: false, requested: false, last_success_at: null, last_error: null, last_error_at: null, next_at: null, restore_requested: null, last_restore: null, backups: [] });
     if (path === "/api/auth/settings") return reply({ guest_signup_enabled: true, version: 1 });
     if (path === "/api/v1/data/status") return reply({ feeds: [] });
     if (path === "/api/v1/diagnostics/errors") {

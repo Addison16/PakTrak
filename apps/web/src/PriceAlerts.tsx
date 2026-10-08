@@ -38,6 +38,7 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<Error | string>("");
   const sheet = useRef<HTMLDialogElement>(null);
+  const banner = useRef<HTMLButtonElement>(null);
   const { reload, setReload, settle } = usePullReload(true);
   useEffect(() => {
     const controller = new AbortController();
@@ -51,7 +52,11 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     element.showModal();
-    return () => { element.close(); document.body.style.overflow = overflow; };
+    return () => {
+      element.close(); document.body.style.overflow = overflow;
+      // Closed while Home is still showing: focus returns to the banner, and a refused "Change alert amounts" doesn't scroll a later My account visit.
+      if (banner.current?.isConnected) { revealSettings = false; banner.current.focus({ preventScroll: true }); }
+    };
   }, [open]);
   if (!alerts || !alerts.rises.length && !alerts.drops.length) return null;
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -70,13 +75,18 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
   const fell = alerts.drops.reduce((sum, item) => sum + Number(item.change) * item.quantity, 0);
   const counts = [alerts.rise_count && `${alerts.rise_count} ${alerts.rise_count === 1 ? "card" : "cards"} went up`, alerts.drop_count && `${alerts.drop_count}${alerts.rise_count ? "" : alerts.drop_count === 1 ? " card" : " cards"} went down`].filter(Boolean).join(" · ");
   return <>
-    <button type="button" className={"price-alert-banner" + (alerts.rises.length ? " up" : " down") + (leaving ? " leaving" : "")} disabled={leaving} aria-haspopup="dialog"
+    <button ref={banner} type="button" className={"price-alert-banner" + (alerts.rises.length ? " up" : " down") + (leaving ? " leaving" : "")} disabled={leaving} aria-haspopup="dialog"
       onClick={() => setOpen(true)} onAnimationEnd={(event) => { if (leaving && event.target === event.currentTarget) setAlerts(null); }}>
       <span className="price-alert-banner-icon" aria-hidden="true"><Icon name="spark" /></span>
       <span className="price-alert-banner-copy"><strong>{alerts.rises.length ? "Your cards are on the move!" : "Price alerts"}</strong><small>{counts}{rose ? ` · ${money(rose)} up` : ""}</small></span>
       <Icon name="arrow" />
     </button>
-    {open && <dialog ref={sheet} className="price-alert-sheet" aria-labelledby="price-alerts-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+    {open && <dialog ref={sheet} className="price-alert-sheet" aria-labelledby="price-alerts-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClick={(event) => {
+      // Only the backdrop closes the sheet; its own padding and scrollbar are inside its rect.
+      if (event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) setOpen(false);
+    }}>
       <div className="price-alert-sheet-heading">
         <div><div className="eyebrow">PRICE ALERTS</div><h2 id="price-alerts-title">{alerts.rises.length && alerts.drops.length ? "Some of your cards moved" : alerts.rises.length ? "Your cards went up" : "Some cards lost value"}</h2></div>
         <button type="button" className="price-alert-close" aria-label="Close" onClick={() => setOpen(false)}><Icon name="close" /></button>
@@ -107,8 +117,9 @@ function UnitInput({ unit, side, decimals, value, onChange, disabled }: { unit: 
   function clean(text: string) {
     // A comma before the last one or two digits is a decimal comma from the keyboard ("1,50"); other commas are thousands separators.
     if (decimals && !text.includes(".")) text = text.replace(/,(\d{0,2})$/, ".$1");
-    const digits = text.replace(decimals ? /[^\d.]/g : /\D/g, "");
-    if (!decimals) return digits;
+    // A whole number drops any fraction typed ("2.5" stays 2), rather than folding its digits in.
+    if (!decimals) return text.split(/[.,]/)[0].replace(/\D/g, "");
+    const digits = text.replace(/[^\d.]/g, "");
     const [whole, ...rest] = digits.split(".");
     return rest.length ? `${whole}.${rest.join("").slice(0, decimals)}` : whole;
   }

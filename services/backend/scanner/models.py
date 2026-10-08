@@ -653,9 +653,7 @@ class TradeOfferCard(Base):
     __table_args__ = (
         CheckConstraint("side IN ('sender','recipient')", name="trade_card_side_valid"),
         CheckConstraint("quantity > 0 AND quantity <= 999", name="trade_card_quantity_valid"),
-        CheckConstraint(
-            "finish IN ('nonfoil','foil','etched')", name="trade_card_finish_valid"
-        ),
+        CheckConstraint("finish IN ('nonfoil','foil','etched')", name="trade_card_finish_valid"),
     )
     offer_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("trade_offers.id", ondelete="CASCADE"), primary_key=True

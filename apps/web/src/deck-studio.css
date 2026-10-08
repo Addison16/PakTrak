@@ -1,7 +1,7 @@
 .decks-view { max-width: 1130px; }
 .decks-view .panel.deck-list { max-width: 840px; margin-inline: auto; }
 .panel.deck-detail { --deck-gutter: clamp(18px, 3vw, 36px); max-width: 1064px; padding: 0 var(--deck-gutter) 28px; overflow: visible; }
-.deck-hero { display: block; max-width: none; padding: 0; border: 0; position: relative; isolation: isolate; min-width: 0; margin: 0 calc(var(--deck-gutter) * -1) 26px; border-radius: 10px 10px 0 0; background: #142524; color: #f9f5e9; }
+.deck-hero { display: block; max-width: none; padding: 0; border: 0; position: relative; z-index: 1; isolation: isolate; min-width: 0; margin: 0 calc(var(--deck-gutter) * -1) 26px; border-radius: 10px 10px 0 0; background: #142524; color: #f9f5e9; }
 .deck-hero-art { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; border-radius: inherit; background: radial-gradient(ellipse at 80% 20%, #49605c 0, #1c3430 42%, #111e1b 100%); }
 .deck-hero-art[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .deck-hero-art-face { position: relative; display: block; min-width: 0; min-height: 0; }

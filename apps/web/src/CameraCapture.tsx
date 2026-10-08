@@ -32,6 +32,8 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
   const capturing = useRef(false);
   const captureSequence = useRef(0);
   const submitting = useRef(false);
+  // Set while this component closes its own dialog, so the close event is not treated as a browser-initiated close.
+  const closing = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<"opening" | "live" | "paused" | "error">("opening");
   const [error, setError] = useState("");
@@ -76,7 +78,7 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
     // The camera fills the screen, so give it the scrollbar space too.
     document.documentElement.style.scrollbarGutter = "auto";
     return () => {
-      element.close(); stop.current();
+      closing.current = true; element.close(); stop.current();
       document.body.style.overflow = bodyOverflow; document.documentElement.style.overflow = rootOverflow; document.documentElement.style.scrollbarGutter = rootGutter;
       if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
@@ -264,7 +266,16 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
   const zoomStops = zoom && zoom.min > 0 && zoom.max > zoom.min ? [...new Set([zoom.min, 1, 2, 3].filter((value) => value >= zoom.min && value <= zoom.max).map((value) => Math.min(zoom.max, zoom.min + Math.round((value - zoom.min) / (zoom.step || .1)) * (zoom.step || .1))))] : [];
   const w = dimensions.width || 4, h = dimensions.height || 3;
 
-  return <dialog ref={dialog} className="camera-dialog" aria-labelledby="camera-title" onCancel={(event) => { event.preventDefault(); void close(); }}>
+  // Chromium's close watcher may close the dialog outright on a repeated Escape without a cancelable cancel event.
+  // Keep the dialog open while a photo is pending or work is in progress; otherwise tear down like close().
+  function closedByBrowser() {
+    if (closing.current) return;
+    const element = dialog.current;
+    if (photo || capturing.current || submitting.current) { if (element && !element.open) element.showModal(); return; }
+    stop.current(); onClose();
+  }
+
+  return <dialog ref={dialog} className="camera-dialog" aria-labelledby="camera-title" onCancel={(event) => { event.preventDefault(); void close(); }} onClose={closedByBrowser}>
     <header className="camera-heading">
       <div><span className="eyebrow">PAKTRAK CAMERA</span><h2 ref={heading} tabIndex={-1} id="camera-title">{photo ? "Check your photo" : "Make every card clear."}</h2></div>
       <button type="button" className="menu-close" aria-label="Close camera" disabled={uploading || taking} onClick={() => void close()}><Icon name="close" /></button>

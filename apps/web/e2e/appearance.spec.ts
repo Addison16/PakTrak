@@ -21,6 +21,8 @@ async function fixture(context: BrowserContext, signedIn = true) {
     else if (path === "/api/v1/collection/cards/theme-card") json = card;
     else if (path === "/api/v1/collection/cards") json = { copies: 2, cards: 1, items: [card], next_offset: null, valuation: { provider: "tcgplayer", amount: "4.00", priced_copies: 2, unpriced_copies: 0, feed: null } };
     else if (path === "/api/v1/collection/printings/theme-card") json = { printing, faces: [{ name: printing.name, image_url: printing.image_url, oracle_text: "Synthetic theme fixture.", flavor_text: "Keep every card in reach.", power: "2", toughness: "2" }], legalities: { commander: "legal" }, released_at: null, scryfall_url: null, prices: [{ provider: "tcgplayer", name: "TCGplayer", kind: "Reference value", feed: null, finishes: [{ finish: "nonfoil", amount: "2.00", available: true, url: null }] }] };
+    else if (path === "/api/v1/collection/printings/theme-card/price-history") json = { provider: "tcgplayer", days: 365, finishes: {} };
+    else if (path === "/api/v1/collection/printings/theme-card/decks") json = { name: printing.name, owned: 2, used: 0, free: 2, decks: [] };
     else if (path === "/api/v1/collection/filters") json = { sets: [] };
     else if (path === "/api/v1/data/status") json = { feeds: [] };
     else if (path === "/api/v1/catalog/status") json = { printings: 1 };

@@ -44,6 +44,17 @@ const QueuedActions = lazy(() => import("./QueuedActions"));
 // the connection drops before they were first visited.
 const offlineScreens = () => Promise.all([import("./Collections"), import("./Decks"), import("./QueuedActions")]).catch(() => {});
 type AccountStatus = { setup_required: boolean; guest_signup_enabled: boolean };
+
+// A screen's lazy import can fail when the service worker has replaced the shell
+// while this page is still running; without a boundary React would unmount the whole app.
+class ScreenBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <div className="message error" role="alert"><p>This part of PakTrak couldn't be opened. It may have been updated since this page loaded.</p><button type="button" className="button secondary" onClick={() => location.reload()}>Reload PakTrak</button></div>;
+  }
+}
 type Draft = { id?: string; key: string; filename: string; size: number; content_type: string; foil_count?: number; target_deck_id?: string; add_to_collection?: boolean; photo_saved_at?: number };
 
 function Navigation({ session, page, offerCount, onNavigate, onLogout, onReplayTour }: {
@@ -65,11 +76,15 @@ function Navigation({ session, page, offerCount, onNavigate, onLogout, onReplayT
     if (!open) return;
     const bodyOverflow = document.body.style.overflow;
     const rootOverflow = document.documentElement.style.overflow;
+    const rootGutter = document.documentElement.style.scrollbarGutter;
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    // The drawer covers the page, so release the scrollbar space while it is open.
+    document.documentElement.style.scrollbarGutter = "auto";
     return () => {
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = rootOverflow;
+      document.documentElement.style.scrollbarGutter = rootGutter;
     };
   }, [open]);
 
@@ -81,7 +96,7 @@ function Navigation({ session, page, offerCount, onNavigate, onLogout, onReplayT
       onPointerDown={() => setPointerFocus(true)} onKeyDown={() => setPointerFocus(false)}
       onClick={() => navigation.go({ ...route, overlay: "menu" })}>
       <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-      Menu
+      <span className="menu-trigger-label">Menu</span>
     </button>
     <dialog ref={drawer} id="main-menu" className="navigation-drawer" aria-labelledby="menu-title" data-pointer-focus={pointerFocus || undefined}
       onClose={() => {
@@ -414,7 +429,8 @@ function App() {
         const account = await request<Session>("/api/auth/session", { signal: controller.signal });
         if (stopped) return;
         if (account.owner_id !== owner) throw new ApiError("Another account signed in in a different tab. Reload PakTrak before making changes.", {}, undefined, { code: "account_changed", action: "Refresh sign-in" });
-        setSession((current) => current && (Object.keys(account) as (keyof Session)[]).every((key) => current[key] === account[key]) ? current : account);
+        // Object-valued fields (store_links) are freshly parsed each poll; compare them structurally so an unchanged session keeps its object and does not re-render the app.
+        setSession((current) => current && (Object.keys(account) as (keyof Session)[]).every((key) => current[key] === account[key] || (typeof current[key] === "object" && typeof account[key] === "object" && JSON.stringify(current[key]) === JSON.stringify(account[key]))) ? current : account);
         // The small sign-in check keeps allowance changes live; the batch list waits longer while nothing is processing.
         if (!force && !activeWork.current && Date.now() - lastLoaded < 15000) { setRefreshError(null); failures = 0; nextAttempt = 0; return; }
         const data = await request<{ items: Scan[]; next_offset: number | null }>(
@@ -510,15 +526,18 @@ function App() {
   async function chooseFiles(files: FileList | null) {
     const list = [...(files || [])];
     if (list.length < 2) { await chooseFile(list[0]); return; }
+    const duplicates: string[] = [];
     for (const [index, file] of list.entries()) {
       setQueue({ index: index + 1, total: list.length });
-      const ok = await chooseFile(file, undefined, { stay: index < list.length - 1 });
+      const ok = await chooseFile(file, undefined, { stay: index < list.length - 1, duplicates });
       if (!ok) break;
     }
     setQueue(null);
+    // Each file clears the notice when it starts, so report the duplicates once the queue is done.
+    if (duplicates.length) setNotice((current) => `${current ? current + " " : ""}${duplicates.length} ${duplicates.length === 1 ? "photo matches an earlier batch" : "photos match earlier batches"}: ${duplicates.join(", ")}. Open Batches to finish or delete ${duplicates.length === 1 ? "it" : "them"}.`);
   }
 
-  async function chooseFile(file: File | undefined, recovered?: PendingPhoto, options: { stay?: boolean } = {}): Promise<boolean> {
+  async function chooseFile(file: File | undefined, recovered?: PendingPhoto, options: { stay?: boolean; duplicates?: string[] } = {}): Promise<boolean> {
     if (!file || !session || busyRef.current) return false;
     setError(""); setNotice(""); setProgress(null);
     if (session.scans_paused || session.scan_cards_remaining === 0) { setError(session.scans_paused ? "New scans are paused. Contact your administrator to resume scanning." : "Your lifetime scan allowance is used. Contact your administrator to raise the limit."); return false; }
@@ -573,7 +592,8 @@ function App() {
       const uploaded = await request<Scan>("/api/v1/scans/" + scan.id);
       select(uploaded);
       if (uploaded.duplicate_scan_id && !uploaded.accepted_at) {
-        setNotice("This photo matches an earlier batch. Check that batch before submitting it again.");
+        if (options.duplicates) options.duplicates.push(file.name);
+        else setNotice("This photo matches an earlier batch. Check that batch before submitting it again.");
       } else await accept(scan.id, pending.key, pending.photo_saved_at, options.stay);
       setOffset(0);
       return true;
@@ -651,7 +671,7 @@ function App() {
       </section> : <>
         {(session.role === "guest" || session.scans_paused || session.scan_card_limit !== null) && <div className="message account-allowance"><strong>{session.role === "guest" ? "Guest account" : "Card scan allowance"} · {session.scan_cards_used.toLocaleString()}{session.scan_card_limit !== null ? ` / ${session.scan_card_limit.toLocaleString()}` : ""} card scans used</strong><p>{session.scans_paused ? "New scans are paused. Your collection and decks are still available. Contact your administrator to resume scanning." : session.scan_cards_remaining === null ? "Unlimited card scans." : session.scan_cards_remaining > 0 ? `${session.scan_cards_remaining.toLocaleString()} card scans left in your lifetime allowance.` : "Your lifetime scan allowance is used. An administrator can raise the limit or restore unlimited scanning."}</p><button className="text-button" onClick={() => navigate("account")}>View my account</button></div>}
         {notice && <div className="message success" role="status">{notice}</div>}
-        {offerCount > 0 && <Suspense fallback={null}><OfferNotice session={{ ...session, trade_offers_waiting: offerCount }} show={page === "scan" && !selected && !route.targetDeck} /></Suspense>}
+        {offerCount > 0 && <ScreenBoundary><Suspense fallback={null}><OfferNotice session={{ ...session, trade_offers_waiting: offerCount }} show={page === "scan" && !selected && !route.targetDeck} /></Suspense></ScreenBoundary>}
         {page === "scan" && !selected && !route.targetDeck && <PriceAlerts session={session} onSettings={() => navigate("account")} />}
         {page === "scan" && <section className="panel capture">
           {route.targetDeck && <div className="scan-deck-target" aria-label="Deck scan destination">
@@ -703,33 +723,33 @@ function App() {
           </div>}
           {selected.job && !terminal && <p role="status">{selected.job.stage}</p>}
           {selected.job?.error_message && <p className="message error">{selected.job.error_message}</p>}
-          {!!selected.width && <Suspense fallback={<p>Opening saved card regions…</p>}><Review key={selected.id} scanId={selected.id} photo={selected.thumbnail_url} session={session} onStateChange={setReviewState} processing={!!selected.job && ["QUEUED", "RUNNING"].includes(selected.job.state)} progress={selected.job?.progress} onChange={refreshSelected} /></Suspense>}
+          {!!selected.width && <ScreenBoundary><Suspense fallback={<p>Opening saved card regions…</p>}><Review key={selected.id} scanId={selected.id} photo={selected.thumbnail_url} session={session} onStateChange={setReviewState} processing={!!selected.job && ["QUEUED", "RUNNING"].includes(selected.job.state)} progress={selected.job?.progress} onChange={refreshSelected} /></Suspense></ScreenBoundary>}
           {selected.state === "EXPIRED" && <p>The photo expired under the retention policy. This batch record is still available.</p>}
           {selected.width && <p className="fine">{selected.width} × {selected.height} pixels · Prepared on the server</p>}
-          {selected.duplicate_scan_id && <p className="message">An earlier batch contains the same photo. <button className="text-button" onClick={() => leaveReview(() => { request<Scan>("/api/v1/scans/" + selected.duplicate_scan_id).then(openBatch).catch((e: Error) => setError(e)); })}>View earlier batch</button></p>}
+          {selected.duplicate_scan_id && <p className="message">An earlier batch contains the same photo. <button className="text-button" onClick={() => leaveReview(() => { request<Scan>("/api/v1/scans/" + selected.duplicate_scan_id).then((scan) => openBatch(scan, true)).catch((e: Error) => setError(e)); })}>View earlier batch</button></p>}
           {selected.uploaded && !selected.accepted_at && <button className="button primary" disabled={busy || scanBlocked} onClick={() => void finishUpload()}>Confirm server processing</button>}
           <div className="batch-exit actions"><button className="button secondary" disabled={busy || reviewState.busy || deleting} onClick={closeBatch}>Close batch</button></div>
           <div className="scan-delete"><button className="button danger" disabled={busy || deleting || reviewState.busy} onClick={() => void deleteSelected()}>{deleting ? "Reviewing deletion…" : "Delete batch"}</button><p className="fine">Also removes the remaining collection copies added by this scan.</p></div>
         </section>}
-        {openedCollection && <div hidden={page !== "collection"}><Suspense fallback={<p role="status">Opening your collection…</p>}><Collections session={session} mode="collection" /></Suspense></div>}
-        {page === "transfers" && <Suspense fallback={<p role="status">Opening your transfers…</p>}><Collections session={session} mode="transfers" /></Suspense>}
-        {openedDecks && <div hidden={page !== "decks"}><Suspense fallback={<p role="status">Opening your decks…</p>}><Decks session={session} active={page === "decks"} navigationRef={deckNavigation} /></Suspense></div>}
-        {openedTrade && <div hidden={page !== "trade"}><Suspense fallback={<p role="status">Opening trade value…</p>}><TradeValue session={session} active={page === "trade"} /></Suspense></div>}
-        {page === "wishlist" && <Suspense fallback={<p role="status">Opening your wishlist…</p>}><Wishlist session={session} active /></Suspense>}
-        {page === "sets" && <Suspense fallback={<p role="status">Opening set completion…</p>}><Sets session={session} setCode={route.set} /></Suspense>}
-        {page === "friends" && <Suspense fallback={<p role="status">Opening friends…</p>}><Friends session={session} active friendId={route.friend} /></Suspense>}
-        {page === "offers" && <Suspense fallback={<p role="status">Opening trade offers…</p>}><TradeOffers session={session} active onCount={setOfferCount} /></Suspense>}
-        {page === "account" && <Suspense fallback={<p role="status">Opening your account…</p>}><MyAccount session={session} navigationRef={accountNavigation} onChange={(account) => setSession((current) => current ? { ...current, display_name: account.display_name, role: account.role, scan_cards_used: account.scan_cards_used, scan_card_limit: account.scan_card_limit, scan_cards_remaining: account.scan_cards_remaining, scans_paused: account.scans_paused, account_version: account.account_version } : current)} /></Suspense>}
-        {page === "queue" && <Suspense fallback={<p role="status">Opening queued actions…</p>}><QueuedActions session={session} active={page === "queue"} /></Suspense>}
-        {page === "admin" && session.role === "admin" && <Suspense fallback={<p role="status">Opening account settings…</p>}><Admin session={session} navigationRef={accountNavigation} /></Suspense>}
+        {openedCollection && <div hidden={page !== "collection"}><ScreenBoundary><Suspense fallback={<p role="status">Opening your collection…</p>}><Collections session={session} mode="collection" /></Suspense></ScreenBoundary></div>}
+        {page === "transfers" && <ScreenBoundary><Suspense fallback={<p role="status">Opening your transfers…</p>}><Collections session={session} mode="transfers" /></Suspense></ScreenBoundary>}
+        {openedDecks && <div hidden={page !== "decks"}><ScreenBoundary><Suspense fallback={<p role="status">Opening your decks…</p>}><Decks session={session} active={page === "decks"} navigationRef={deckNavigation} /></Suspense></ScreenBoundary></div>}
+        {openedTrade && <div hidden={page !== "trade"}><ScreenBoundary><Suspense fallback={<p role="status">Opening trade value…</p>}><TradeValue session={session} active={page === "trade"} /></Suspense></ScreenBoundary></div>}
+        {page === "wishlist" && <ScreenBoundary><Suspense fallback={<p role="status">Opening your wishlist…</p>}><Wishlist session={session} active /></Suspense></ScreenBoundary>}
+        {page === "sets" && <ScreenBoundary><Suspense fallback={<p role="status">Opening set completion…</p>}><Sets session={session} setCode={route.set} /></Suspense></ScreenBoundary>}
+        {page === "friends" && <ScreenBoundary><Suspense fallback={<p role="status">Opening friends…</p>}><Friends session={session} active friendId={route.friend} /></Suspense></ScreenBoundary>}
+        {page === "offers" && <ScreenBoundary><Suspense fallback={<p role="status">Opening trade offers…</p>}><TradeOffers session={session} active onCount={setOfferCount} /></Suspense></ScreenBoundary>}
+        {page === "account" && <ScreenBoundary><Suspense fallback={<p role="status">Opening your account…</p>}><MyAccount session={session} navigationRef={accountNavigation} onChange={(account) => setSession((current) => current ? { ...current, display_name: account.display_name, role: account.role, scan_cards_used: account.scan_cards_used, scan_card_limit: account.scan_card_limit, scan_cards_remaining: account.scan_cards_remaining, scans_paused: account.scans_paused, account_version: account.account_version } : current)} /></Suspense></ScreenBoundary>}
+        {page === "queue" && <ScreenBoundary><Suspense fallback={<p role="status">Opening queued actions…</p>}><QueuedActions session={session} active={page === "queue"} /></Suspense></ScreenBoundary>}
+        {page === "admin" && session.role === "admin" && <ScreenBoundary><Suspense fallback={<p role="status">Opening account settings…</p>}><Admin session={session} navigationRef={accountNavigation} /></Suspense></ScreenBoundary>}
         {page === "batches" && !selected && (route.batch ? <section className="panel"><button className="button secondary" onClick={closeBatch}>← Back to batches</button>{!error && <p role="status">Opening batch…</p>}</section> : <BatchList scans={scans} offset={offset} nextOffset={nextOffset} onPage={setOffset} onOpen={openBatch} onUpload={() => navigate("scan")} />)}
       </>}
       <footer><img src="/brand/paktrak-mark.svg" alt="" width="24" height="24" /><span><strong>PakTrak</strong> · Every card. In reach.</span></footer>
     </main>
-    {session && cameraOpen && <Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
+    {session && cameraOpen && <ScreenBoundary><Suspense fallback={<p role="status">Opening the camera…</p>}><CameraCapture progress={progress} uploadError={typeof error === "string" ? error : error instanceof ApiError ? error.userMessage : error.message}
       onClose={() => setCameraOpen(false)} onUpload={(file, next) => chooseFile(file, undefined, { stay: next })} onCapture={async (file) => { await keepPhoto(file); }} onDiscard={discardPhoto}
       onNativeCamera={() => { setCameraOpen(false); camera.current?.click(); }}
-      onChoosePhoto={() => { setCameraOpen(false); picker.current?.click(); }} /></Suspense>}
+      onChoosePhoto={() => { setCameraOpen(false); picker.current?.click(); }} /></Suspense></ScreenBoundary>}
     {showTabs && <TabBar page={page} review={scans.filter(batchNeedsReview).length} onNavigate={navigate} />}
     {session?.membership_welcome && <MembershipWelcome key={session.owner_id + session.approved_at} session={session} onDismiss={() => setSession((current) => current ? { ...current, membership_welcome: false } : current)} />}
     {onboarding.active && !session?.membership_welcome && <Onboarding key={onboarding.active.owner} replay={onboarding.active.replay} onDismiss={() => {

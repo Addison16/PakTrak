@@ -407,7 +407,14 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     {summary && expected !== "" && summary.cards !== expected && <p className="message">{summary.cards} of {expected} expected cards found. Check the outlines, add a missed card or ignore an extra region.</p>}
     {photo && !cropEditor && <details className="scan-photo-details"><summary>View photo and card outlines</summary><div className="region-photo"><img src={photo} alt="Your complete uploaded batch" /><svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">{regions.map((item, i) => <g key={item.id}><polygon points={item.polygon.map((p) => p.join(",")).join(" ")} className={item.id === region?.id ? "active" : ""} /><text x={item.polygon.reduce((v, p) => v + p[0], 0) / 4} y={item.polygon.reduce((v, p) => v + p[1], 0) / 4}>{i + 1}</text></g>)}</svg></div></details>}
     {cropEditor && <CropEditor key={cropEditor === "new" ? "new" : cropEditor.id} scanId={scanId} session={session} region={cropEditor === "new" ? null : cropEditor} onStateChange={setCropState}
-      onCancel={() => setCropEditor(null)} onSaved={(id) => { setCropEditor(null); setRegionId(id); setChoice(null); setEditing(false); void refresh(); onChange?.(); }} />}
+      onCancel={() => setCropEditor(null)} onSaved={(id) => {
+        setCropEditor(null);
+        // Keep the outgoing card's unfinished choices, as chooseRegion does, so the new card does not inherit them.
+        if (regionId && region && regionId !== id) drafts.current.set(regionId, { version: region.version, choice, editing, finish, condition });
+        setRegionId(id); setChoice(null); setEditing(false); setFinish("unknown"); setCondition(defaultCondition);
+        void refresh().then((result) => result.items.find((row) => row.id === id), () => undefined).then((item) => { if (item) chooseRegion(item, false, false); });
+        onChange?.();
+      }} />}
     {regions.length > 0 && <>
       <div className="scan-gallery-heading"><h3 ref={galleryHeading} tabIndex={-1}><span className="eyebrow">{pending.length ? "REVIEW MATCHES" : "BATCH GALLERY"}</span>Your scanned cards</h3>{pending.some((r) => r.candidates?.length) && <button className="text-button" disabled={busy} onClick={() => setSelected(new Set(regions.filter((r) => r.state === "NEEDS_REVIEW" && r.candidates?.length).map((r) => r.id)))}>Select suggestions</button>}
         {selected.size > 0 && <button className="text-button" onClick={() => setSelected(new Set())}>Clear selection</button>}</div>

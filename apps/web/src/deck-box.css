@@ -65,7 +65,8 @@
   .deck-box-format { font-size: 9px; }
   .deck-box-count, .deck-box-open { font-size: 10px; }
 }
-.deck-opening { position: fixed; inset: 0; z-index: 60; overflow: hidden; pointer-events: none; perspective: 1000px; }
+.deck-opening { position: fixed; inset: 0; z-index: 60; overflow: hidden; pointer-events: auto; perspective: 1000px; }
+.deck-opening--revealing { pointer-events: none; }
 .deck-opening-veil { position: absolute; inset: 0; background: var(--canvas); opacity: 1; }
 .deck-opening-box { position: absolute; z-index: 6; transform-origin: center; will-change: transform; animation: deck-box-lift 460ms cubic-bezier(.22, 1, .36, 1) both; }
 .deck-opening-box > .deck-box { width: 100%; height: 100%; }

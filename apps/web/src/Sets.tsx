@@ -75,7 +75,7 @@ function SetView({ session, code }: { session: Session; code: string }) {
     } catch (reason) { setError(reason as Error); } finally { setBusy(false); }
   }
   return <section className="panel social-page" aria-labelledby="set-title">
-    <button type="button" className="text-button" onClick={() => navigation.go({ page: "sets" })}>← All sets</button>
+    <button type="button" className="text-button" onClick={() => navigation.close({ page: "sets" })}>← All sets</button>
     <div className="eyebrow">{code.toUpperCase()}{data?.released_at ? ` · ${data.released_at.slice(0, 4)}` : ""}</div>
     <h2 id="set-title">{data?.name || "Opening set…"}</h2>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}

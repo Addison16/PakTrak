@@ -30,7 +30,7 @@ export default function ValueChart({ points, label, empty }: { points: HistoryPo
   return <figure className="value-chart">
     <figcaption className="value-chart-readout" aria-live="polite"><strong>{money(points[shown].amount)}</strong><span>{day(points[shown].day)}</span></figcaption>
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}: ${money(values[0])} on ${day(points[0].day)} to ${money(values[values.length - 1])} on ${day(points[points.length - 1].day)}`} aria-describedby={tableId}
-      onPointerMove={(event) => pick(event.clientX, event.currentTarget.getBoundingClientRect())} onPointerDown={(event) => pick(event.clientX, event.currentTarget.getBoundingClientRect())} onPointerLeave={() => setActive(null)}>
+      onPointerMove={(event) => pick(event.clientX, event.currentTarget.getBoundingClientRect())} onPointerDown={(event) => pick(event.clientX, event.currentTarget.getBoundingClientRect())} onPointerLeave={(event) => { if (event.pointerType === "mouse") setActive(null); }}>
       <line className="value-chart-base" x1={PAD} x2={W - PAD} y1={H - PAD} y2={H - PAD} vectorEffect="non-scaling-stroke" />
       <path className="value-chart-line" d={path} vectorEffect="non-scaling-stroke" />
       {active !== null && <line className="value-chart-cross" x1={x(active)} x2={x(active)} y1={PAD} y2={H - PAD} vectorEffect="non-scaling-stroke" />}

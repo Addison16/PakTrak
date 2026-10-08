@@ -3,7 +3,7 @@ import { money, mutation, providers, request, type OfferCard, type Session, type
 import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
 import { navigation } from "./navigation";
-import { appliedMessage, applyTrade, finishNames } from "./tradeApply";
+import { appliedMessage, applyTrade, finishNames, planRemovals } from "./tradeApply";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
 
@@ -77,7 +77,8 @@ export default function TradeOffers({ session, active, onCount }: { session: Ses
   function accept(offer: TradeOffer) {
     const summary = [offer.give.length && `remove ${cardsText(offer.give)} you give`, offer.get.length && `add ${cardsText(offer.get)} you get to your “Trades” binder`].filter(Boolean).join(" and ");
     if (!window.confirm(`Accept ${offer.friend.name}’s offer?\n\nPakTrak will ${summary}. ${offer.friend.name}’s app updates their collection when they next open it.`)) return;
-    void act(offer, async () => { await post(offer, "accept"); return await applyOffer(session, offer, step(offer)); });
+    // The collection is checked before the friend hears "accepted", so a short collection leaves the offer pending.
+    void act(offer, async () => { step(offer)("Checking your collection…"); await planRemovals(offer.give); await post(offer, "accept"); return await applyOffer(session, offer, step(offer)); });
   }
 
   const items = data?.items || [];

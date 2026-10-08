@@ -6,7 +6,7 @@
 .card-finish-art[data-owned-finish]::after { background: linear-gradient(115deg, transparent 20%, #b7dafc00 32%, #a7d7fa5c 40%, #e6bfe469 46%, #fffce8ab 50%, #eacf9d69 54%, #a3dec35c 60%, transparent 72%); background-size: 280% 100%; background-position: 100% 0; mix-blend-mode: screen; }
 .card-finish-art[data-owned-finish="etched"]::before { background: linear-gradient(125deg, #d6dcc744, transparent 35%, #b7cfcf44 72%, #f4e0b233); }
 .card-finish-art[data-owned-finish="etched"]::after { background-image: linear-gradient(115deg, transparent 25%, #bad4d000 35%, #d7ddce55 43%, #fffbe77a 50%, #e0cfaf55 57%, transparent 70%); }
-.card-finish-label { position: absolute; right: 7px; bottom: 7px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 1px solid #fff5; border-radius: 4px; background: #141a21d9; backdrop-filter: blur(6px); color: #f3ede0; font-size: 9px; line-height: 1.2; font-weight: 600; letter-spacing: .015em; z-index: 2; pointer-events: none; box-shadow: 0 1px 4px #0003; }
+.card-finish-label { position: absolute; right: 7px; bottom: 7px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 1px solid #fff5; border-radius: 4px; background: #141a21d9; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #f3ede0; font-size: 9px; line-height: 1.2; font-weight: 600; letter-spacing: .015em; z-index: 2; pointer-events: none; box-shadow: 0 1px 4px #0003; }
 .card-finish-label > span { font-size: 12px; color: #e7d8bd; }
 .gallery-card:not(:disabled):focus-visible .card-finish-art[data-owned-finish]::before { opacity: .6; }
 .gallery-card:not(:disabled):focus-visible .card-finish-art[data-owned-finish]::after { animation: owned-card-reflection 1050ms cubic-bezier(.2,.65,.3,1); }
