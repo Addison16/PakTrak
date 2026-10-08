@@ -5,6 +5,7 @@ import { checkConnection, queuedActions, removeQueued, savedResponseCount, useCo
 import { flushQueue, retryQueued } from "./offlineSync";
 import { saveForOffline } from "./offlineSave";
 import { offlineImagesReady } from "./serviceWorker";
+import { usePullRefresh } from "./pullRefresh";
 
 const time = (value: number) => new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const megabytes = (bytes: number) => bytes >= 1024 * 1024 * 1024 ? (bytes / 1024 / 1024 / 1024).toFixed(1) + " GB" : Math.max(1, Math.round(bytes / 1024 / 1024)) + " MB";
@@ -20,6 +21,7 @@ export default function QueuedActions({ session, active }: { session: Session; a
     const [pages, images, estimate] = await Promise.all([savedResponseCount(), countImages(), navigator.storage?.estimate?.().catch(() => undefined)]);
     setSaved({ pages, images, usage: estimate?.usage ?? null });
   }
+  usePullRefresh(active, load);
   useEffect(() => {
     if (!active) return;
     void load();

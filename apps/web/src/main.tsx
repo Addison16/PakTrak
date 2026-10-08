@@ -22,6 +22,8 @@ import { clearOfflineData, connection, forgetResponse, onReconnect, queuedAction
 import { flushQueue } from "./offlineSync";
 import { saveDaily } from "./offlineSave";
 import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
+import PullToRefresh from "./PullToRefresh";
+import { usePullRefresh } from "./pullRefresh";
 
 const Collections = lazy(() => import("./Collections"));
 const Review = lazy(() => import("./Review"));
@@ -602,12 +604,17 @@ function App() {
 
   const scanBlocked = !!session?.scans_paused || session?.scan_cards_remaining === 0 || !!route.targetDeck && (!scanDeck || !!scanDeck.archived);
   const terminal = selected && ["PHOTO_READY", "FAILED", "EXPIRED"].includes(selected.state);
+  // Home and the batch list reload the sign-in check and batches; other screens register their own.
+  usePullRefresh(!!session && (page === "scan" || page === "batches"), () => refreshNow.current?.(true));
+  // Not over open batches, the camera or the menu, where touches belong to the work on screen.
+  const pullEnabled = !!session && !selected && !route.batch && !route.overlay;
   const showTabs = !!session && !selected && !route.batch && ["scan", "batches", "collection", "decks"].includes(page) && !(page === "decks" && route.deck);
   return <div className="app">
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
       {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /></div>}
     </header>
+    {session && <PullToRefresh enabled={pullEnabled} />}
     <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : ["wishlist", "friends", "offers", "sets"].includes(page) ? " social-view" : page === "account" || page === "admin" || page === "queue" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">

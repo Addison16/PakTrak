@@ -4,6 +4,7 @@ import ErrorNotice from "./ErrorNotice";
 import { navigation } from "./navigation";
 import { addToWishlist } from "./Wishlist";
 import "./social.css";
+import { usePullRefresh } from "./pullRefresh";
 
 type OwnedSet = { code: string; name: string; released_at: string | null; set_type: string | null; owned: number; total: number; copies: number };
 type SetCard = { printing: Printing; owned: number; price_finish: string | null; unit_amount: string | null };
@@ -20,11 +21,13 @@ function SetList() {
   const [error, setError] = useState<Error | string>("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"closest" | "newest" | "name">("closest");
+  const [reload, setReload] = useState(0);
+  usePullRefresh(true, () => setReload((value) => value + 1));
   useEffect(() => {
     const controller = new AbortController();
     request<{ items: OwnedSet[] }>("/api/v1/collection/sets", { signal: controller.signal }).then((data) => setSets(data.items)).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
     return () => controller.abort();
-  }, []);
+  }, [reload]);
   const needle = query.trim().toLowerCase();
   const shown = (sets || []).filter((set) => !needle || set.name.toLowerCase().includes(needle) || set.code.includes(needle)).sort((a, b) =>
     sort === "name" ? a.name.localeCompare(b.name) : sort === "newest" ? (b.released_at || "").localeCompare(a.released_at || "") : b.owned / b.total - a.owned / a.total || b.owned - a.owned);
@@ -56,11 +59,13 @@ function SetView({ session, code }: { session: Session; code: string }) {
   const [notice, setNotice] = useState("");
   const [show, setShow] = useState<"missing" | "owned" | "all">("missing");
   const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+  usePullRefresh(true, () => setReload((value) => value + 1));
   useEffect(() => {
     const controller = new AbortController();
     request<SetDetail>(`/api/v1/collection/sets/${encodeURIComponent(code)}`, { signal: controller.signal }).then(setData).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
     return () => controller.abort();
-  }, [code]);
+  }, [code, reload]);
   const missing = data?.cards.filter((card) => !card.owned) || [];
   const cards = !data ? [] : show === "missing" ? missing : show === "owned" ? data.cards.filter((card) => card.owned) : data.cards;
   async function wishlistMissing() {

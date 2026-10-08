@@ -5,6 +5,7 @@ import PrintingPicker from "./PrintingPicker";
 import StoreButtons, { ReferralNote } from "./StoreButtons";
 import "./trade-value.css";
 import "./social.css";
+import { usePullRefresh } from "./pullRefresh";
 
 const finishNames: Record<WantedFinish, string> = { any: "Any finish", nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 const finishOptions = (printing: Printing): WantedFinish[] => ["any", ...(["nonfoil", "foil", "etched"] as const).filter((finish) => printing.finishes.includes(finish))];
@@ -27,6 +28,7 @@ export default function Wishlist({ session, active }: { session: Session; active
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  usePullRefresh(active, () => setReload((value) => value + 1));
 
   useEffect(() => {
     if (!active) return;

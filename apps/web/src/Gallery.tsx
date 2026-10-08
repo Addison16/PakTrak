@@ -15,6 +15,7 @@ import BulkCollection from "./BulkCollection";
 import CountUp from "./CountUp";
 import "./collection-qol.css";
 import "./card-foil.css";
+import { usePullRefresh } from "./pullRefresh";
 
 type Result = { copies: number; cards: number; items: CollectionCard[]; next_offset: number | null; valuation: { provider: string; amount: string | null; priced_copies: number; unpriced_copies: number; pricing_issues?: PricingIssues; feed: DataFeed | null } };
 const colors = [["", "All"], ["W", "White"], ["U", "Blue"], ["B", "Black"], ["R", "Red"], ["G", "Green"], ["M", "Multi"], ["C", "Colorless"]];
@@ -143,6 +144,7 @@ function AccountGallery({ session }: { session: Session }) {
   const metaLoaded = useRef(0);
   // After an edit, locations and sets may have changed too.
   const refreshAll = () => { metaLoaded.current = 0; return refresh(); };
+  usePullRefresh(active && sourceReady, refreshAll);
   async function refresh(isCurrent = () => true) {
     const params = new URLSearchParams({ q: search, offset: String(offset), provider, sort, seed, ...filters });
     params.delete("binder"); if (filters.binder) params.set("binder_id", filters.binder);

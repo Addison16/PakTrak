@@ -27,6 +27,7 @@ import { formats, sections, type Deck, type DeckCard as Card, type DeckCollectio
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./deck-qol.css";
 import "./deck-studio.css";
+import { usePullRefresh } from "./pullRefresh";
 
 type EditableCard = Card & { quantityInput?: string };
 type DeckDraft = { name: string; format: string; notes: string; matchMode: MatchMode; cards: EditableCard[]; baseVersion: number };
@@ -171,6 +172,14 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     if (!active) return;
     void list().catch((e: Error) => setError(e));
   }, [active, offset]);
+  // Pulling down reloads the list, and an open deck unless it has unsaved edits.
+  usePullRefresh(active, async () => {
+    const opened = deck && !dirty && !working.current ? deck.id : null;
+    await Promise.all([list(), opened && request<Deck>("/api/v1/decks/" + opened).then(async (value) => {
+      const pending = (await pendingPreviews<Deck>("deck:")).get("deck:" + value.id);
+      if (!working.current && navigation.route.deck === value.id) fill({ ...value, ...pending });
+    })]);
+  });
   // Queued edits reached the server: reload so the next save starts from its version.
   useEffect(() => {
     if (!active) return;

@@ -5,6 +5,7 @@ import { navigation } from "./navigation";
 import { openTrade } from "./TradeValue";
 import "./trade-value.css";
 import "./social.css";
+import { usePullRefresh } from "./pullRefresh";
 
 type FriendsData = { code: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string }[]; outgoing: { id: string; created_at: string }[] };
 type Match = { printing: Printing; finish: Finish; finish_recorded: boolean; quantity: number; wanted: number; unit_amount: string | null };
@@ -18,6 +19,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  usePullRefresh(active, () => setReload((value) => value + 1));
 
   useEffect(() => {
     if (!active) return;
