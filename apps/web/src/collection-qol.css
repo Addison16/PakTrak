@@ -24,3 +24,4 @@
 @media (max-width: 480px) { .bulk-collection-dialog { padding: 18px; } .collection-selection-toolbar .button { flex: 1; } }
 .card-step { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 12px; }
 .card-step .text-button { min-width: 44px; min-height: 44px; font-size: 18px; text-decoration: none; }
+@media (max-width: 360px) { .card-step { margin-right: 0; } .card-step .text-button { min-width: 38px; } }
