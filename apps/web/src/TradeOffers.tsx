@@ -5,7 +5,7 @@ import { Icon } from "./Icon";
 import { navigation } from "./navigation";
 import { appliedMessage, applyTrade, finishNames } from "./tradeApply";
 import "./social.css";
-import { usePullRefresh } from "./pullRefresh";
+import { usePullReload } from "./pullRefresh";
 
 type Offers = { items: TradeOffer[]; attention: number };
 const count = (cards: OfferCard[]) => cards.reduce((sum, card) => sum + card.quantity, 0);
@@ -55,13 +55,12 @@ export default function TradeOffers({ session, active, onCount }: { session: Ses
   const [error, setError] = useState<Error | string>("");
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState<{ id: string; label: string } | null>(null);
-  const [reload, setReload] = useState(0);
-  usePullRefresh(active, () => setReload((value) => value + 1));
+  const { reload, setReload, settle } = usePullReload(active);
 
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    request<Offers>("/api/v1/trade-offers", { signal: controller.signal }).then((value) => { setData(value); onCount?.(value.attention); }).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
+    request<Offers>("/api/v1/trade-offers", { signal: controller.signal }).then((value) => { setData(value); onCount?.(value.attention); settle(); }).catch((reason: Error) => { if (!controller.signal.aborted) { setError(reason); settle(reason); } });
     return () => controller.abort();
   }, [active, reload]);
 

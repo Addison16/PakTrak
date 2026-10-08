@@ -3,7 +3,7 @@ import { money, mutation, providers, request, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
 import "./price-alerts.css";
-import { usePullRefresh } from "./pullRefresh";
+import { usePullReload } from "./pullRefresh";
 
 export type PriceAlertSettings = { enabled: boolean; percent: number | null; amount: string | null };
 type Mover = { printing_id: string; name: string; set_code: string; collector_number: string; finish: "nonfoil" | "foil" | "etched"; quantity: number; image_url: string | null; old_amount: string; new_amount: string; change: string; percent: number; since: string };
@@ -38,12 +38,11 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<Error | string>("");
   const sheet = useRef<HTMLDialogElement>(null);
-  const [reload, setReload] = useState(0);
-  usePullRefresh(true, () => setReload((value) => value + 1));
+  const { reload, setReload, settle } = usePullReload(true);
   useEffect(() => {
     const controller = new AbortController();
     // Alerts are a bonus on Home; a failed check stays quiet and retries next visit.
-    void request<Alerts>("/api/v1/price-alerts", { signal: controller.signal, quiet: true }).then(setAlerts).catch(() => {});
+    void request<Alerts>("/api/v1/price-alerts", { signal: controller.signal, quiet: true }).then((value) => { setAlerts(value); settle(); }).catch(() => { if (!controller.signal.aborted) settle(); });
     return () => controller.abort();
   }, [session.owner_id, reload]);
   useEffect(() => {

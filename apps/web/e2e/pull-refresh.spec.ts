@@ -9,7 +9,7 @@ const printing = (name: string) => ({ id: "pull-" + name.toLowerCase(), name, se
 const card = (name: string) => ({ printing: printing(name), quantity: 1, location_count: 1, locations: [{ id: "red", name: "Red binder", quantity: 1 }], value: "1.00", price_min: "1.00", price_max: "1.00", priced_copies: 1 });
 
 async function fixture(page: Page) {
-  const state = { names: ["Island"], down: false, cardReads: 0 };
+  const state = { names: ["Island"], down: false, cardReads: 0, setReads: 0 };
   await page.route("**/api/**", async (route) => {
     if (state.down) return route.abort("addressunreachable");
     const path = new URL(route.request().url()).pathname;
@@ -25,6 +25,7 @@ async function fixture(page: Page) {
     else if (path === "/api/v1/collection/filters") json = { sets: [{ code: "tst", name: "Pull fixtures" }] };
     else if (path === "/api/v1/binders") json = { items: [{ id: "red", name: "Red binder", kind: "binder", copies: 1, version: 1, notes: "" }] };
     else if (path === "/api/v1/data/status") json = { feeds: [] };
+    else if (path === "/api/v1/collection/sets") { if (state.setReads++) await new Promise((resolve) => setTimeout(resolve, 2000)); json = { items: [] }; }
     else if (path === "/api/auth/me") json = { display_name: "Collector", account_version: 1 };
     else json = { items: [], next_offset: null };
     await route.fulfill({ json });
@@ -86,4 +87,15 @@ test("pulling does nothing in the card viewer or on screens without a refresh", 
   await pull(page, 260);
   await page.waitForTimeout(300);
   await expect(page.locator(".pull-refresh-spinner")).toHaveCount(0);
+});
+
+test("the spinner stays until a slow screen has its new data", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto("/#/sets");
+  await expect(page.getByText("Add cards to your collection")).toBeVisible();
+  await pull(page, 260);
+  await page.waitForTimeout(1200);
+  await expect(page.locator(".pull-refresh-spinner")).toBeVisible();
+  expect(state.setReads).toBe(2);
+  await expect(page.locator(".pull-refresh-spinner")).toHaveCount(0, { timeout: 5000 });
 });

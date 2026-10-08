@@ -172,12 +172,15 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     if (!active) return;
     void list().catch((e: Error) => setError(e));
   }, [active, offset]);
+  const dirtyNow = useRef(dirty);
+  dirtyNow.current = dirty;
   // Pulling down reloads the list, and an open deck unless it has unsaved edits.
   usePullRefresh(active, async () => {
     const opened = deck && !dirty && !working.current ? deck.id : null;
     await Promise.all([list(), opened && request<Deck>("/api/v1/decks/" + opened).then(async (value) => {
       const pending = (await pendingPreviews<Deck>("deck:")).get("deck:" + value.id);
-      if (!working.current && navigation.route.deck === value.id) fill({ ...value, ...pending });
+      // Edits may have started while this was loading; keep them.
+      if (!working.current && !dirtyNow.current && navigation.route.deck === value.id) fill({ ...value, ...pending });
     })]);
   });
   // Queued edits reached the server: reload so the next save starts from its version.
