@@ -8,7 +8,8 @@
   --card-corner-radius: 4.75% / 3.41%;
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--canvas); }
+/* The page color sits on html so the theme backdrop (backdrop-v1.css) shows through. */
+body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: transparent; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 button, input, select, textarea { font: inherit; }
 button { -webkit-appearance: none; appearance: none; cursor: pointer; }

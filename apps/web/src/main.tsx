@@ -23,6 +23,7 @@ import { flushQueue } from "./offlineSync";
 import { saveDaily } from "./offlineSave";
 import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
 import PullToRefresh from "./PullToRefresh";
+import FallingCards from "./FallingCards";
 import { usePullRefresh } from "./pullRefresh";
 
 const Collections = lazy(() => import("./Collections"));
@@ -609,7 +610,9 @@ function App() {
   // Not over open batches, the camera or the menu, where touches belong to the work on screen.
   const pullEnabled = !!session && !selected && !route.batch && !route.overlay;
   const showTabs = !!session && !selected && !route.batch && ["scan", "batches", "collection", "decks"].includes(page) && !(page === "decks" && route.deck);
+  const fallingCards = session === null || !!session && page === "scan" && !selected && !route.targetDeck && !route.batch && !cameraOpen;
   return <div className="app">
+    {fallingCards && <FallingCards />}
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
       {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /></div>}

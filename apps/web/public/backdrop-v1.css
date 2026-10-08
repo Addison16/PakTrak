@@ -1,0 +1,177 @@
+/* Theme backdrops and the falling cards on sign-in and Home. Shared with the
+   identity pages. Everything here sits behind the content and never takes taps. */
+:root, [data-palette-preview="forest"] {
+  --glow-a: #a8c9a24d; --glow-b: #e7bf7840; --glow-c: #ffffff80;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='240' fill='none' stroke='%23000'%3E%3Cpath d='M0 -240L10 -236L20 -232L30 -229L40 -228L50 -228L60 -230L70 -231L80 -233L90 -234L100 -235L110 -236L120 -236L130 -237L140 -238L150 -239L160 -240L170 -241L180 -242L190 -243L200 -244L210 -244L220 -245L230 -246L240 -247L250 -249L260 -250L270 -252L280 -252L290 -251L300 -248L310 -244L320 -240'/%3E%3Cpath d='M0 0L10 4L20 8L30 11L40 12L50 12L60 10L70 9L80 7L90 6L100 5L110 4L120 4L130 3L140 2L150 1L160 0L170 -1L180 -2L190 -3L200 -4L210 -4L220 -5L230 -6L240 -7L250 -9L260 -10L270 -12L280 -12L290 -11L300 -8L310 -4L320 -0'/%3E%3Cpath d='M0 240L10 244L20 248L30 251L40 252L50 252L60 250L70 249L80 247L90 246L100 245L110 244L120 244L130 243L140 242L150 241L160 240L170 239L180 238L190 237L200 236L210 236L220 235L230 234L240 233L250 231L260 230L270 228L280 228L290 229L300 232L310 236L320 240'/%3E%3Cpath d='M0 -198L10 -197L20 -196L30 -198L40 -200L50 -203L60 -206L70 -209L80 -210L90 -211L100 -211L110 -210L120 -209L130 -210L140 -210L150 -212L160 -214L170 -216L180 -218L190 -219L200 -219L210 -219L220 -219L230 -218L240 -218L250 -217L260 -216L270 -214L280 -211L290 -208L300 -204L310 -201L320 -198'/%3E%3Cpath d='M0 42L10 43L20 44L30 42L40 40L50 37L60 34L70 31L80 30L90 29L100 29L110 30L120 31L130 30L140 30L150 28L160 26L170 24L180 22L190 21L200 21L210 21L220 21L230 22L240 22L250 23L260 24L270 26L280 29L290 32L300 36L310 39L320 42'/%3E%3Cpath d='M0 282L10 283L20 284L30 282L40 280L50 277L60 274L70 271L80 270L90 269L100 269L110 270L120 271L130 270L140 270L150 268L160 266L170 264L180 262L190 261L200 261L210 261L220 261L230 262L240 262L250 263L260 264L270 266L280 269L290 272L300 276L310 279L320 282'/%3E%3Cpath d='M0 -169L10 -171L20 -173L30 -176L40 -179L50 -182L60 -184L70 -184L80 -184L90 -183L100 -182L110 -181L120 -182L130 -183L140 -185L150 -187L160 -190L170 -191L180 -192L190 -191L200 -189L210 -186L220 -183L230 -180L240 -177L250 -175L260 -173L270 -172L280 -170L290 -169L300 -169L310 -169L320 -169'/%3E%3Cpath d='M0 71L10 69L20 67L30 64L40 61L50 58L60 56L70 56L80 56L90 57L100 58L110 59L120 58L130 57L140 55L150 53L160 50L170 49L180 48L190 49L200 51L210 54L220 57L230 60L240 63L250 65L260 67L270 68L280 70L290 71L300 71L310 71L320 71'/%3E%3Cpath d='M0 311L10 309L20 307L30 304L40 301L50 298L60 296L70 296L80 296L90 297L100 298L110 299L120 298L130 297L140 295L150 293L160 290L170 289L180 288L190 289L200 291L210 294L220 297L230 300L240 303L250 305L260 307L270 308L280 310L290 311L300 311L310 311L320 311'/%3E%3Cpath d='M0 -148L10 -150L20 -152L30 -153L40 -155L50 -156L60 -156L70 -156L80 -155L90 -154L100 -154L110 -155L120 -156L130 -157L140 -159L150 -160L160 -160L170 -158L180 -155L190 -151L200 -147L210 -143L220 -140L230 -138L240 -137L250 -138L260 -139L270 -141L280 -143L290 -144L300 -145L310 -147L320 -148'/%3E%3Cpath d='M0 92L10 90L20 88L30 87L40 85L50 84L60 84L70 84L80 85L90 86L100 86L110 85L120 84L130 83L140 81L150 80L160 80L170 82L180 85L190 89L200 93L210 97L220 100L230 102L240 103L250 102L260 101L270 99L280 97L290 96L300 95L310 93L320 92'/%3E%3Cpath d='M0 332L10 330L20 328L30 327L40 325L50 324L60 324L70 324L80 325L90 326L100 326L110 325L120 324L130 323L140 321L150 320L160 320L170 322L180 325L190 329L200 333L210 337L220 340L230 342L240 343L250 342L260 341L270 339L280 337L290 336L300 335L310 333L320 332'/%3E%3Cpath d='M0 -123L10 -123L20 -124L30 -125L40 -126L50 -127L60 -127L70 -127L80 -127L90 -126L100 -126L110 -126L120 -125L130 -125L140 -124L150 -122L160 -119L170 -116L180 -112L190 -109L200 -106L210 -105L220 -106L230 -108L240 -111L250 -114L260 -118L270 -121L280 -122L290 -123L300 -123L310 -123L320 -123'/%3E%3Cpath d='M0 117L10 117L20 116L30 115L40 114L50 113L60 113L70 113L80 113L90 114L100 114L110 114L120 115L130 115L140 116L150 118L160 121L170 124L180 128L190 131L200 134L210 135L220 134L230 132L240 129L250 126L260 122L270 119L280 118L290 117L300 117L310 117L320 117'/%3E%3Cpath d='M0 357L10 357L20 356L30 355L40 354L50 353L60 353L70 353L80 353L90 354L100 354L110 354L120 355L130 355L140 356L150 358L160 361L170 364L180 368L190 371L200 374L210 375L220 374L230 372L240 369L250 366L260 362L270 359L280 358L290 357L300 357L310 357L320 357'/%3E%3Cpath d='M0 -93L10 -94L20 -95L30 -97L40 -98L50 -99L60 -98L70 -97L80 -95L90 -92L100 -90L110 -88L120 -86L130 -84L140 -82L150 -81L160 -79L170 -78L180 -77L190 -78L200 -79L210 -82L220 -85L230 -89L240 -93L250 -96L260 -97L270 -98L280 -97L290 -96L300 -94L310 -93L320 -93'/%3E%3Cpath d='M0 147L10 146L20 145L30 143L40 142L50 141L60 142L70 143L80 145L90 148L100 150L110 152L120 154L130 156L140 158L150 159L160 161L170 162L180 163L190 162L200 161L210 158L220 155L230 151L240 147L250 144L260 143L270 142L280 143L290 144L300 146L310 147L320 147'/%3E%3Cpath d='M0 387L10 386L20 385L30 383L40 382L50 381L60 382L70 383L80 385L90 388L100 390L110 392L120 394L130 396L140 398L150 399L160 401L170 402L180 403L190 402L200 401L210 398L220 395L230 391L240 387L250 384L260 383L270 382L280 383L290 384L300 386L310 387L320 387'/%3E%3Cpath d='M0 -64L10 -65L20 -66L30 -67L40 -67L50 -65L60 -62L70 -58L80 -54L90 -51L100 -49L110 -48L120 -47L130 -48L140 -50L150 -51L160 -53L170 -54L180 -56L190 -58L200 -61L210 -63L220 -66L230 -68L240 -69L250 -69L260 -68L270 -67L280 -65L290 -64L300 -63L310 -63L320 -64'/%3E%3Cpath d='M0 176L10 175L20 174L30 173L40 173L50 175L60 178L70 182L80 186L90 189L100 191L110 192L120 193L130 192L140 190L150 189L160 187L170 186L180 184L190 182L200 179L210 177L220 174L230 172L240 171L250 171L260 172L270 173L280 175L290 176L300 177L310 177L320 176'/%3E%3Cpath d='M0 416L10 415L20 414L30 413L40 413L50 415L60 418L70 422L80 426L90 429L100 431L110 432L120 433L130 432L140 430L150 429L160 427L170 426L180 424L190 422L200 419L210 417L220 414L230 412L240 411L250 411L260 412L270 413L280 415L290 416L300 417L310 417L320 416'/%3E%3Cpath d='M0 -33L10 -33L20 -32L30 -30L40 -27L50 -24L60 -20L70 -17L80 -16L90 -15L100 -17L110 -19L120 -23L130 -26L140 -30L150 -33L160 -34L170 -35L180 -36L190 -36L200 -37L210 -37L220 -37L230 -38L240 -37L250 -37L260 -36L270 -35L280 -33L290 -33L300 -32L310 -33L320 -33'/%3E%3Cpath d='M0 207L10 207L20 208L30 210L40 213L50 216L60 220L70 223L80 224L90 225L100 223L110 221L120 217L130 214L140 210L150 207L160 206L170 205L180 204L190 204L200 203L210 203L220 203L230 202L240 203L250 203L260 204L270 205L280 207L290 207L300 208L310 207L320 207'/%3E%3Cpath d='M0 447L10 447L20 448L30 450L40 453L50 456L60 460L70 463L80 464L90 465L100 463L110 461L120 457L130 454L140 450L150 447L160 446L170 445L180 444L190 444L200 443L210 443L220 443L230 442L240 443L250 443L260 444L270 445L280 447L290 447L300 448L310 447L320 447'/%3E%3C/svg%3E");
+  --pattern-size: 320px 240px; --pattern-ink: #163e38; --pattern-alpha: .07;
+  --falling-alpha: .26;
+  --falling-back: var(--hero-bg); --falling-edge: var(--hero-bg); --falling-paper: var(--paper);
+}
+:root[data-theme="dark"], :root[data-theme="dark"] [data-palette-preview="forest"] {
+  --glow-a: #2f7a6036; --glow-b: #e7bf7814; --glow-c: #9bd3bd0d;
+  --pattern-ink: #9bd3bd; --pattern-alpha: .06;
+  --falling-alpha: .5;
+  --falling-back: var(--surface-hover); --falling-edge: var(--control-border); --falling-paper: var(--surface-muted);
+}
+:root[data-palette="ocean"], [data-palette-preview="ocean"] {
+  --glow-a: #86b8e059; --glow-b: #9ed8d44d; --glow-c: #ffffff80;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='96' fill='none' stroke='%23000'%3E%3Cpath d='M0 -23L12 -21L24 -20L36 -20L48 -19L60 -19L72 -19L84 -18L96 -17L108 -17L120 -17L132 -17L144 -19L156 -21L168 -23L180 -25L192 -27L204 -28L216 -28L228 -29L240 -29L252 -29L264 -30L276 -31L288 -31L300 -31L312 -31L324 -29L336 -27L348 -25L360 -23'/%3E%3Cpath d='M0 25L12 27L24 28L36 28L48 29L60 29L72 29L84 30L96 31L108 31L120 31L132 31L144 29L156 27L168 25L180 23L192 21L204 20L216 20L228 19L240 19L252 19L264 18L276 17L288 17L300 17L312 17L324 19L336 21L348 23L360 25'/%3E%3Cpath d='M0 73L12 75L24 76L36 76L48 77L60 77L72 77L84 78L96 79L108 79L120 79L132 79L144 77L156 75L168 73L180 71L192 69L204 68L216 68L228 67L240 67L252 67L264 66L276 65L288 65L300 65L312 65L324 67L336 69L348 71L360 73'/%3E%3Cpath d='M0 121L12 123L24 124L36 124L48 125L60 125L72 125L84 126L96 127L108 127L120 127L132 127L144 125L156 123L168 121L180 119L192 117L204 116L216 116L228 115L240 115L252 115L264 114L276 113L288 113L300 113L312 113L324 115L336 117L348 119L360 121'/%3E%3C/svg%3E");
+  --pattern-size: 360px 96px; --pattern-ink: #214f79; --pattern-alpha: .08;
+}
+:root[data-palette="ocean"][data-theme="dark"], :root[data-theme="dark"] [data-palette-preview="ocean"] {
+  --glow-a: #2f66a840; --glow-b: #3aa0aa1c; --glow-c: #96c9fa0d;
+  --pattern-ink: #96c9fa; --pattern-alpha: .06;
+}
+:root[data-palette="amethyst"], [data-palette-preview="amethyst"] {
+  --glow-a: #c2a0e859; --glow-b: #f2b8d447; --glow-c: #ffffff80;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='111' fill='none' stroke='%23000'%3E%3Cpath d='M0 0H64M0 55.5H64M0 111H64M0 0L64 111M64 0L0 111M-32 0L32 111M32 0L96 111M32 0L-32 111M96 0L32 111'/%3E%3C/svg%3E");
+  --pattern-size: 64px 111px; --pattern-ink: #5b3981; --pattern-alpha: .06;
+}
+:root[data-palette="amethyst"][data-theme="dark"], :root[data-theme="dark"] [data-palette-preview="amethyst"] {
+  --glow-a: #7e4cc045; --glow-b: #c0609e1f; --glow-c: #cfb0f00d;
+  --pattern-ink: #cfb0f0; --pattern-alpha: .05;
+}
+:root[data-palette="ember"], [data-palette-preview="ember"] {
+  --glow-a: #f4a8704d; --glow-b: #f4cc8a59; --glow-c: #ffffff80;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='168' height='300' fill='none' stroke='%23000'%3E%3Cpath d='M-168 0L-165 12L-162 24L-160 36L-159 48L-159 60L-160 72L-161 84L-163 96L-165 108L-166 120L-167 132L-168 144L-168 156L-169 168L-170 180L-171 192L-173 204L-175 216L-176 228L-177 240L-177 252L-176 264L-174 276L-171 288L-168 300'/%3E%3Cpath d='M0 0L3 12L6 24L8 36L9 48L9 60L8 72L7 84L5 96L3 108L2 120L1 132L0 144L-0 156L-1 168L-2 180L-3 192L-5 204L-7 216L-8 228L-9 240L-9 252L-8 264L-6 276L-3 288L-0 300'/%3E%3Cpath d='M168 0L171 12L174 24L176 36L177 48L177 60L176 72L175 84L173 96L171 108L170 120L169 132L168 144L168 156L167 168L166 180L165 192L163 204L161 216L160 228L159 240L159 252L160 264L162 276L165 288L168 300'/%3E%3Cpath d='M-117 0L-117 12L-118 24L-119 36L-121 48L-123 60L-124 72L-125 84L-126 96L-126 108L-127 120L-128 132L-129 144L-131 156L-133 168L-134 180L-135 192L-135 204L-135 216L-132 228L-130 240L-126 252L-123 264L-120 276L-118 288L-117 300'/%3E%3Cpath d='M51 0L51 12L50 24L49 36L47 48L45 60L44 72L43 84L42 96L42 108L41 120L40 132L39 144L37 156L35 168L34 180L33 192L33 204L33 216L36 228L38 240L42 252L45 264L48 276L50 288L51 300'/%3E%3Cpath d='M219 0L219 12L218 24L217 36L215 48L213 60L212 72L211 84L210 96L210 108L209 120L208 132L207 144L205 156L203 168L202 180L201 192L201 204L201 216L204 228L206 240L210 252L213 264L216 276L218 288L219 300'/%3E%3Cpath d='M-79 0L-81 12L-82 24L-83 36L-84 48L-84 60L-85 72L-86 84L-87 96L-89 108L-91 120L-92 132L-93 144L-93 156L-93 168L-90 180L-88 192L-84 204L-81 216L-78 228L-76 240L-75 252L-75 264L-76 276L-77 288L-79 300'/%3E%3Cpath d='M89 0L87 12L86 24L85 36L84 48L84 60L83 72L82 84L81 96L79 108L77 120L76 132L75 144L75 156L75 168L78 180L80 192L84 204L87 216L90 228L92 240L93 252L93 264L92 276L91 288L89 300'/%3E%3Cpath d='M257 0L255 12L254 24L253 36L252 48L252 60L251 72L250 84L249 96L247 108L245 120L244 132L243 144L243 156L243 168L246 180L248 192L252 204L255 216L258 228L260 240L261 252L261 264L260 276L259 288L257 300'/%3E%3Cpath d='M-42 0L-42 12L-43 24L-44 36L-45 48L-47 60L-49 72L-50 84L-51 96L-51 108L-51 120L-49 132L-46 144L-42 156L-39 168L-36 180L-34 192L-33 204L-33 216L-34 228L-35 240L-37 252L-39 264L-40 276L-41 288L-42 300'/%3E%3Cpath d='M126 0L126 12L125 24L124 36L123 48L121 60L119 72L118 84L117 96L117 108L117 120L119 132L122 144L126 156L129 168L132 180L134 192L135 204L135 216L134 228L133 240L131 252L129 264L128 276L127 288L126 300'/%3E%3Cpath d='M294 0L294 12L293 24L292 36L291 48L289 60L287 72L286 84L285 96L285 108L285 120L287 132L290 144L294 156L297 168L300 180L302 192L303 204L303 216L302 228L301 240L299 252L297 264L296 276L295 288L294 300'/%3E%3C/svg%3E");
+  --pattern-size: 168px 300px; --pattern-ink: #883f26; --pattern-alpha: .06;
+}
+:root[data-palette="ember"][data-theme="dark"], :root[data-theme="dark"] [data-palette-preview="ember"] {
+  --glow-a: #d8642c33; --glow-b: #f4ce9414; --glow-c: #f4b48e0a;
+  --pattern-ink: #f4b48e; --pattern-alpha: .05;
+}
+:root[data-palette="slate"], [data-palette-preview="slate"] {
+  --glow-a: #a4b2c84d; --glow-b: #d9dde480; --glow-c: #ffffff99;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none' stroke='%23000'%3E%3Cpath d='M0 .5H120M.5 0V120'/%3E%3Cpath stroke-opacity='.45' d='M0 30.5H120M30.5 0V120M0 60.5H120M60.5 0V120M0 90.5H120M90.5 0V120'/%3E%3C/svg%3E");
+  --pattern-size: 120px 120px; --pattern-ink: #3a4456; --pattern-alpha: .07;
+}
+:root[data-palette="slate"][data-theme="dark"], :root[data-theme="dark"] [data-palette-preview="slate"] {
+  --glow-a: #6c82a82e; --glow-b: #d6deec0d; --glow-c: #d6deec08;
+  --pattern-ink: #d6deec; --pattern-alpha: .045;
+}
+
+/* Soft light from two corners over the theme color, then a fine line pattern
+   that fades toward the middle of the screen. Fixed layers so iOS doesn't
+   repaint them on scroll; they run under the notch and home indicator. */
+html::before, body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  pointer-events: none;
+}
+html::before {
+  background:
+    radial-gradient(90% 60% at 0% 0%, var(--glow-a), transparent 70%),
+    radial-gradient(80% 55% at 100% 100%, var(--glow-b), transparent 70%),
+    radial-gradient(60% 40% at 70% 15%, var(--glow-c), transparent 75%);
+}
+body::before {
+  background: var(--pattern-ink);
+  opacity: var(--pattern-alpha);
+  -webkit-mask: var(--pattern), linear-gradient(170deg, #000 0%, #0000 45%, #0000 65%, #0006 100%);
+  -webkit-mask-size: var(--pattern-size), 100% 100%;
+  -webkit-mask-composite: source-in;
+  mask: var(--pattern), linear-gradient(170deg, #000 0%, #0000 45%, #0000 65%, #0006 100%);
+  mask-size: var(--pattern-size), 100% 100%;
+  mask-composite: intersect;
+}
+.palette-preview {
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--glow-a), transparent 70%),
+    radial-gradient(110% 80% at 100% 100%, var(--glow-b), transparent 70%),
+    var(--canvas);
+}
+
+/* PakTrak's own card backs and faces, drifting down and turning over slowly. */
+.falling-cards {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--falling-alpha, .26);
+  animation: falling-cards-in 2.4s ease-out both;
+  --falling-scale: 1;
+}
+.falling-card {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  width: calc(var(--size) * var(--falling-scale));
+  aspect-ratio: 5 / 7;
+  opacity: var(--depth, 1);
+  perspective: 700px;
+  will-change: transform;
+  animation: falling-card-fall var(--fall) linear var(--delay) infinite;
+}
+.falling-card > b {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+  animation: falling-card-turn var(--turn) linear var(--delay) infinite;
+}
+.falling-card > b > span {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6% / 4.3%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* Back: deep theme color, a thin gold frame and the PakTrak mark. */
+.falling-card-back {
+  background: radial-gradient(130% 90% at 25% 10%, #ffffff1f, transparent 60%), var(--falling-back);
+  box-shadow: inset 0 0 0 1px #ffffff14;
+}
+.falling-card-back::before, .falling-card-back::after { content: ""; position: absolute; }
+.falling-card-back::before { inset: 7% 8%; border: 1px solid var(--gold); border-radius: 4% / 3%; opacity: .45; }
+.falling-card-back::after {
+  inset: 33% 30%;
+  background: var(--gold);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='18 13 30 37' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M28 43V24a5 5 0 0 1 5-5h4a7 7 0 0 1 0 14h-9'/%3E%3Ccircle cx='28' cy='43' r='3' fill='%23000' stroke='none'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='18 13 30 37' fill='none' stroke='%23000' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M28 43V24a5 5 0 0 1 5-5h4a7 7 0 0 1 0 14h-9'/%3E%3Ccircle cx='28' cy='43' r='3' fill='%23000' stroke='none'/%3E%3C/svg%3E") center / contain no-repeat;
+  opacity: .8;
+}
+/* Face: a plain card with an art window and a few lines of rules text. */
+.falling-card-face {
+  transform: rotateY(180deg);
+  background: var(--falling-paper);
+  border: calc(var(--size) * var(--falling-scale) * .055) solid var(--falling-edge);
+}
+.falling-card-face::before, .falling-card-face::after { content: ""; position: absolute; left: 7%; right: 7%; }
+.falling-card-face::before { top: 13%; height: 44%; border-radius: 2px; background: linear-gradient(160deg, var(--decorative-bg), var(--decorative-secondary)); }
+.falling-card-face::after { top: 64%; bottom: 10%; background: repeating-linear-gradient(to bottom, var(--decorative-border) 0 1px, transparent 1px 22%); opacity: .7; }
+
+.falling-card:nth-child(1) { --x: 4%; --size: 54px; --fall: 34s; --turn: 14s; --delay: -6s; --axis: 1, .35, .15; --sway: 26px; }
+.falling-card:nth-child(2) { --x: 23%; --size: 40px; --fall: 44s; --turn: 19s; --delay: -27s; --axis: .3, 1, .2; --sway: -18px; --depth: .6; }
+.falling-card:nth-child(3) { --x: 41%; --size: 66px; --fall: 30s; --turn: 13s; --delay: -15s; --axis: .8, .7, -.2; --sway: 30px; }
+.falling-card:nth-child(4) { --x: 60%; --size: 44px; --fall: 40s; --turn: 17s; --delay: -36s; --axis: -.4, 1, .1; --sway: -22px; --depth: .7; }
+.falling-card:nth-child(5) { --x: 76%; --size: 60px; --fall: 32s; --turn: 15s; --delay: -2s; --axis: 1, -.5, .2; --sway: 20px; }
+.falling-card:nth-child(6) { --x: 90%; --size: 38px; --fall: 48s; --turn: 21s; --delay: -20s; --axis: .5, .9, -.3; --sway: -14px; --depth: .55; }
+.falling-card:nth-child(7) { --x: 14%; --size: 46px; --fall: 42s; --turn: 18s; --delay: -40s; --axis: .9, .2, .4; --sway: 18px; --depth: .7; }
+.falling-card:nth-child(8) { --x: 68%; --size: 50px; --fall: 38s; --turn: 16s; --delay: -11s; --axis: .2, 1, -.4; --sway: -24px; --depth: .8; }
+@media (max-width: 520px) { .falling-card:nth-child(n+7) { display: none; } }
+@media (min-width: 900px) { .falling-cards { --falling-scale: 1.45; } }
+
+@keyframes falling-cards-in { from { opacity: 0; } }
+@keyframes falling-card-fall {
+  from { transform: translate3d(0, -130%, 0); }
+  50% { transform: translate3d(var(--sway), 50vh, 0); }
+  to { transform: translate3d(0, calc(100vh + 30%), 0); }
+}
+@keyframes falling-card-turn {
+  from { transform: rotate3d(var(--axis), 0turn); }
+  to { transform: rotate3d(var(--axis), 1turn); }
+}
+@media (prefers-reduced-motion: reduce) { .falling-cards { display: none; } }
+@media (forced-colors: active) { html::before, body::before, .falling-cards { display: none; } }
