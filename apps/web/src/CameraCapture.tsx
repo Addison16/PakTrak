@@ -46,7 +46,7 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
   const [adjusting, setAdjusting] = useState(false);
   const [hasStillCamera, setHasStillCamera] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [guides, setGuides] = useState(true);
+  const [guides, setGuides] = useState(false);
   const [taking, setTaking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attemptedUpload, setAttemptedUpload] = useState(false);
