@@ -165,7 +165,7 @@ test("stored appearance and color theme are applied before the application bundl
   await page.emulateMedia({ colorScheme: "light" }); await page.goto("/");
   await theme(page, "dark");
   await paletteMatches(page, "amethyst");
-  expect(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(29, 22, 43)");
+  expect(await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(29, 22, 43)");
   expect(await page.locator("#root").innerHTML()).toBe("");
 });
 
@@ -183,7 +183,7 @@ for (const palette of palettes) for (const mode of ["light", "dark"] as const) f
     const previewColors = [];
     for (const preview of await appearance.locator(".palette-preview").all()) previewColors.push(await preview.evaluate((element) => getComputedStyle(element).backgroundColor));
     expect(new Set(previewColors).size).toBe(palettes.length);
-    expect(await appearance.locator(`[data-palette-preview="${palette}"]`).evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundColor));
+    expect(await appearance.locator(`[data-palette-preview="${palette}"]`).evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor));
     expect(await appearance.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     await appearance.getByRole("button", { name: mode === "dark" ? "Dark" : "Light", exact: true }).click();
     await appearance.locator(".palette-picker").screenshot({ path: `../../artifacts/appearance/picker-${palette}-${mode}-${width}-${test.info().project.name}.png` });
