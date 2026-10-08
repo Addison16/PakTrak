@@ -85,6 +85,11 @@ test("Home stays clear when nothing moved and settings save from My account", as
   const form = page.getByRole("form", { name: "Price alerts", exact: true });
   await expect(form.getByLabel("Percent change")).toHaveValue("20");
   await expect(form.getByLabel("Dollar change")).toHaveValue("1.00");
+  for (const [name, unit] of [["Percent change", "%"], ["Dollar change", "$"]]) {
+    const box = await form.getByLabel(name).boundingBox();
+    const symbol = await form.locator(".price-alert-input > span", { hasText: unit }).boundingBox();
+    expect(box && symbol && symbol.x > box.x && symbol.x + symbol.width < box.x + box.width).toBe(true);
+  }
   await form.getByLabel("Percent change").fill("");
   await form.getByLabel("Dollar change").fill("");
   await expect(form.getByText("Enter a percent, a dollar amount or both.", { exact: true })).toBeVisible();
