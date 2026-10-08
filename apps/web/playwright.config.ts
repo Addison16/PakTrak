@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+// Lets context.route see the service worker's own requests (offline.spec.ts).
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = "1";
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 180000,
