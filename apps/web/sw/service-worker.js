@@ -13,10 +13,19 @@ self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
 });
 
+// A page that was already open keeps running the previous build until it
+// reloads, and its screens load on demand from that build's files. So the
+// previous shell cache stays until the build after this one; only older ones go.
+const META = "paktrak-meta";
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys()
-    .then((names) => Promise.all(names.filter((name) => name.startsWith("paktrak-shell-") && name !== SHELL).map((name) => caches.delete(name))))
-    .then(() => self.clients.claim()));
+  event.waitUntil((async () => {
+    const meta = await caches.open(META);
+    const previous = await meta.match("/current").then((saved) => saved ? saved.text() : "", () => "");
+    const names = await caches.keys();
+    await Promise.all(names.filter((name) => name.startsWith("paktrak-shell-") && name !== SHELL && name !== previous).map((name) => caches.delete(name)));
+    await meta.put("/current", new Response(SHELL));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (event) => {
@@ -55,7 +64,16 @@ async function asset(request, url) {
     return response;
   });
   if (saved) { if (!url.pathname.startsWith("/assets/")) network.catch(() => {}); return saved; }
+  if (url.pathname.startsWith("/assets/")) return network.then((response) => response.status === 404 ? reloadStalePage(response) : response);
   return network;
+}
+
+// A built file that neither the cache nor the server has belongs to a build
+// this page no longer matches: a fresh page gets the current build.
+async function reloadStalePage(response) {
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const client of clients) { if ("navigate" in client) client.navigate(client.url).catch(() => {}); }
+  return response;
 }
 
 let added = 0;

@@ -9,12 +9,24 @@ import httpx
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 
 from scanner import storage
 from scanner.auth import DB, Identity
 from scanner.db import session_factory
-from scanner.models import Deck, DeckCard, InventoryLot, Observation, Printing, Scan
+from scanner.models import (
+    Deck,
+    DeckCard,
+    Friendship,
+    InventoryLot,
+    Observation,
+    Printing,
+    Scan,
+    TradeOffer,
+    TradeOfferCard,
+    User,
+    WishlistItem,
+)
 
 router = APIRouter(prefix="/api/v1/card-images", tags=["card images"])
 
@@ -93,6 +105,46 @@ def related_token_image(
     )
 
 
+def shared_by_friend(db, owner_id, printing_id):
+    """A card a connected friend shows this account: in their collection or on
+    their wishlist, only while they share that part and are not suspended."""
+    friends = (
+        select(User.id, User.share_collection, User.share_wishlist)
+        .join(
+            Friendship,
+            or_(
+                (Friendship.user_a == owner_id) & (Friendship.user_b == User.id),
+                (Friendship.user_b == owner_id) & (Friendship.user_a == User.id),
+            ),
+        )
+        .where(Friendship.state == "accepted", User.suspended.is_(False))
+        .subquery()
+    )
+    return db.scalar(
+        select(friends.c.id)
+        .where(
+            or_(
+                friends.c.share_collection
+                & select(InventoryLot.id)
+                .where(
+                    InventoryLot.owner_id == friends.c.id,
+                    InventoryLot.printing_id == printing_id,
+                    InventoryLot.quantity_remaining > 0,
+                )
+                .exists(),
+                friends.c.share_wishlist
+                & select(WishlistItem.id)
+                .where(
+                    WishlistItem.owner_id == friends.c.id,
+                    WishlistItem.printing_id == printing_id,
+                )
+                .exists(),
+            )
+        )
+        .limit(1)
+    )
+
+
 @router.get("/{printing_id}/{face}/{size}")
 def card_image(
     printing_id: uuid.UUID,
@@ -131,6 +183,27 @@ def card_image(
             )
             .limit(1)
         )
+        or db.scalar(
+            select(WishlistItem.id)
+            .where(
+                WishlistItem.owner_id == identity.owner_id,
+                WishlistItem.printing_id == printing_id,
+            )
+            .limit(1)
+        )
+        or db.scalar(
+            select(TradeOfferCard.offer_id)
+            .join(TradeOffer)
+            .where(
+                or_(
+                    TradeOffer.sender_id == identity.owner_id,
+                    TradeOffer.recipient_id == identity.owner_id,
+                ),
+                TradeOfferCard.printing_id == printing_id,
+            )
+            .limit(1)
+        )
+        or shared_by_friend(db, identity.owner_id, printing_id)
     )
     if face not in {0, 1} or not owned:
         raise HTTPException(404, "Card image not found.")

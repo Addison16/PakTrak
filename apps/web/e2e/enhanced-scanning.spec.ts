@@ -21,6 +21,7 @@ async function fixture(page: Page) {
     if (path === "/api/v1/capabilities") return reply({ max_upload_bytes: 104857600 });
     if (path === "/api/v1/scans" || path === "/api/auth/accounts") return reply({ items: [], next_offset: null });
     if (path === "/api/v1/data/status") return reply({ feeds: [] });
+    if (path === "/api/v1/backups") return reply({ available: true, settings: { enabled: true, keep: 7 }, running: false, requested: false, last_success_at: null, last_error: null, last_error_at: null, next_at: null, restore_requested: null, last_restore: null, backups: [] });
     if (path === "/api/auth/settings") {
       if (req.method() === "GET") return state.failRead ? reply({ detail: "The server is temporarily unavailable." }, 503) : reply(state.settings);
       expect(req.headers()["x-csrf-token"]).toBe("scan-policy-token");

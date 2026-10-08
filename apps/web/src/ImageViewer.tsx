@@ -18,9 +18,11 @@ export default function ImageViewer({ images, initialIndex = 0, onClose }: { ima
   useEffect(() => {
     const element = dialog.current!;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const overflow = document.body.style.overflow;
+    const overflow = document.body.style.overflow, gutter = document.documentElement.style.scrollbarGutter;
     element.showModal(); heading.current?.focus(); document.body.style.overflow = "hidden";
-    return () => { element.close(); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+    // The viewer fills the screen, so give it the scrollbar space too.
+    document.documentElement.style.scrollbarGutter = "auto";
+    return () => { element.close(); document.body.style.overflow = overflow; document.documentElement.style.scrollbarGutter = gutter; if (previous?.isConnected) previous.focus({ preventScroll: true }); };
   }, []);
   useEffect(() => { setFailed(false); setUsingFallback(false); setZoom(1); viewport.current?.scrollTo(0, 0); }, [index]);
   return <dialog ref={dialog} className="scan-image-viewer" aria-labelledby={title} onCancel={(event) => { event.preventDefault(); onClose(); }}>

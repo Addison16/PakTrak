@@ -494,3 +494,41 @@ def test_offers_recheck_the_sender_and_emptied_collections_chart_zero(clients, c
         )
     points = alice.get("/api/v1/collection/value-history").json()["points"]
     assert [point["amount"] for point in points] == ["10.00", "0.00"]
+
+
+def test_card_art_shows_for_wishlist_offers_and_shared_friends(clients, cards, monkeypatch):
+    """Pictures for cards you want, cards on a trade offer and a friend's shared
+    cards load like your own; a friend who stops sharing hides them again."""
+    from scanner import card_images
+
+    monkeypatch.setattr(
+        card_images, "load_image", lambda card, face, size: (b"png", "image/png", "digest")
+    )
+    alice, alice_id = clients()
+    bob, bob_id = clients()
+    art = {identifier: f"/api/v1/card-images/{identifier}/0/grid" for identifier in cards[:4]}
+    assert alice.get(art[cards[0]]).status_code == 404
+    alice.post("/api/v1/wishlist", json={"items": [{"printing_id": cards[0]}]})
+    assert alice.get(art[cards[0]]).status_code == 200
+    assert bob.get(art[cards[0]]).status_code == 404
+
+    own(bob, cards[1], 1)
+    bob.post("/api/v1/wishlist", json={"items": [{"printing_id": cards[2]}]})
+    befriend(alice, bob)
+    assert alice.get(art[cards[1]]).status_code == 200  # Bob's shared collection.
+    assert alice.get(art[cards[2]]).status_code == 200  # Bob's shared wishlist.
+    assert alice.get(art[cards[3]]).status_code == 404
+    bob.post("/api/v1/friends/settings", json={"share_collection": False, "share_wishlist": False})
+    assert alice.get(art[cards[1]]).status_code == 404
+    assert alice.get(art[cards[2]]).status_code == 404
+
+    own(alice, cards[3], 1)
+    bob.post("/api/v1/friends/settings", json={"share_collection": True, "share_wishlist": False})
+    offer = {
+        "friend_id": str(bob_id),
+        "give": [{"printing_id": cards[3], "finish": "nonfoil", "quantity": 1}],
+        "get": [{"printing_id": cards[1], "finish": "nonfoil", "quantity": 1}],
+    }
+    assert alice.post("/api/v1/trade-offers", json=offer, headers=key()).status_code == 201
+    assert bob.get(art[cards[3]]).status_code == 200  # Offered to Bob.
+    assert alice.get(art[cards[1]]).status_code == 200  # Asked from Bob.

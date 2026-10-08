@@ -71,7 +71,7 @@ export default function Backups({ session }: { session: Session }) {
           <button type="button" className="button secondary" disabled={busy || !!working} onClick={() => void act(() => post("/api/v1/backups/run", undefined, "Start backup"), "Backing up now. This page updates when it finishes.")}>{working ? "Backing up…" : "Back up now"}</button>
         </div>
       </form>
-      {status.last_error && <p className="fine">The last backup on {when(status.last_error_at || "")} failed: {status.last_error} PakTrak tries again within an hour.</p>}
+      {status.last_error && <p className="fine">The last backup{status.last_error_at ? ` on ${when(status.last_error_at)}` : ""} failed: {status.last_error} PakTrak tries again within an hour.</p>}
       {status.next_at && !working && <p className="fine">Next daily backup {new Date(status.next_at) <= new Date() ? "in a few moments" : when(status.next_at)}.</p>}
       {status.backups.length === 0 ? <p className="fine">No backups yet.</p> : <ul className="plain-list backup-list">{status.backups.map((item) => <li key={item.name}>
         <div className="holding-title"><strong>{when(item.created_at)}</strong><span className="badge">{kinds[item.kind]}</span></div>

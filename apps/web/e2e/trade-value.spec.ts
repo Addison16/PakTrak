@@ -35,7 +35,7 @@ async function fixture(page: Page) {
     else if (path === "/api/v1/imports/trade-import/confirm") { state.confirmed = body; json = { id: "trade-import", state: "COMMITTING", revision: 3, summary: null }; }
     else if (path === "/api/v1/catalog/search") {
       const q = (url.searchParams.get("q") || "").toLowerCase();
-      json = { items: [bolt, ring, unpriced].filter((card) => card.name.toLowerCase().includes(q)), next_offset: null, filters: { sets: [], rarities: [], languages: [] } };
+      json = { items: [dragon, bolt, ring, unpriced].filter((card) => card.name.toLowerCase().includes(q)), next_offset: null, filters: { sets: [], rarities: [], languages: [] } };
     } else if (path === "/api/v1/decks/value") {
       expect(req.headers()["x-csrf-token"]).toBe("trade-csrf");
       state.valueCalls.push(body);
@@ -175,6 +175,30 @@ test("accepting a trade removes the cards given and imports the cards received",
   expect(state.removals).toEqual([{ lot: "lot-1", quantity: 0 }, { lot: "lot-2", quantity: 0 }]);
   await expect(page.getByText("No cards yet. Add the cards you’re handing over.")).toBeVisible();
   await expect(page.getByText("No cards yet. Add the cards you’re receiving.")).toBeVisible();
+});
+
+test("a lot with no recorded finish that covers two trade lines is changed once", async ({ page }) => {
+  const state = await fixture(page);
+  state.lots[1].quantity = 2;
+  // Give 4 foil Shivan Dragons (3 from the foil lot, 1 from the unknown lot) and 1 nonfoil (the unknown lot again).
+  await page.getByRole("button", { name: "Add a card you give", exact: true }).click();
+  await page.getByLabel("Search your collection").fill("Shiv");
+  await page.getByRole("button", { name: /Shivan Dragon.*Foil.*3 in Trade binder/ }).click();
+  await page.getByRole("button", { name: "Done adding", exact: true }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "One more Shivan Dragon", exact: true }).click();
+  await page.getByRole("button", { name: "Add a card you give", exact: true }).click();
+  await page.getByRole("button", { name: "All cards", exact: true }).click();
+  await page.getByLabel("Find an exact printing").fill("Shivan");
+  await page.getByRole("list", { name: "Matching printings" }).getByRole("button", { name: /Shivan Dragon/ }).click();
+  await page.getByRole("button", { name: "Done adding", exact: true }).click();
+  await expect(total(page, "You give")).toHaveText("$130.00");
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Accept trade", exact: true }).click();
+  await expect(page.getByText("Trade accepted. Removed 5 copies from your collection.")).toBeVisible();
+  // One request per lot; a second request for the unknown lot would carry a stale version and fail.
+  expect(state.removals).toEqual([{ lot: "lot-1", quantity: 0 }, { lot: "lot-2", quantity: 0 }]);
+  await expect(page.getByText("No cards yet. Add the cards you’re handing over.")).toBeVisible();
 });
 
 test("declining the confirmation leaves the collection untouched", async ({ page }) => {

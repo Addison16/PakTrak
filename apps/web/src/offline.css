@@ -8,6 +8,8 @@
 @media (hover: hover) { .connection-status:hover { background: var(--surface-hover); } }
 @media (prefers-reduced-motion: reduce) { .connection-status { animation: none; } }
 @media (max-width: 480px) { .topbar-actions { gap: 4px; } .connection-status { padding: 0 4px; font-size: 12px; } }
+/* Narrow phones: the brand, the indicator and a worded Menu button don't all fit, so Menu shows its icon alone while the indicator is up (its accessible name stays "Menu"). */
+@media (max-width: 430px) { .topbar-actions:has(.connection-status) .menu-trigger-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .topbar-actions:has(.connection-status) .menu-trigger { padding: 9px 12px; } }
 @media (max-width: 360px) { .brand-wordmark small { display: none; } }
 .menu-count { margin-left: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .menu-links [aria-current=page] .menu-count { color: inherit; }

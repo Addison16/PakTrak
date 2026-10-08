@@ -84,7 +84,8 @@ export default function CardDetail({ card, origin, binder, locations, session, o
   const [error, setError] = useState("");
   useEffect(() => {
     const modal = dialog.current;
-    const launcher = origin?.source.closest<HTMLElement>("button") || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const captured = origin?.source.closest<HTMLElement>("button") || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const printingId = card.printing.id;
     modal?.showModal();
     // React keeps autoFocus off the DOM, so showModal would pick the first
     // button (Previous card). Start on Close like the other card viewers.
@@ -95,6 +96,9 @@ export default function CardDetail({ card, origin, binder, locations, session, o
       // Removing an open dialog during Back navigation leaves focus on body.
       // Only restore a visible launcher when another control has not taken it.
       let attempts = 0;
+      // After stepping with arrows or a swipe, return to the tile of the card
+      // that was showing, not the one first opened.
+      const launcher = document.querySelector<HTMLElement>(`.gallery-card[data-printing-id="${CSS.escape(printingId)}"]`) || captured;
       const restoreLauncher = () => {
         const focused = document.activeElement;
         if (!launcher?.isConnected || !launcher.getClientRects().length || (focused !== document.body && !modal?.contains(focused))) return;

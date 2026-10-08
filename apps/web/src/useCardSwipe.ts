@@ -4,7 +4,7 @@ type Step = (() => void) | null | undefined;
 type Side = "left" | "right";
 
 // Controls that need their own horizontal gestures or arrow keys.
-const ownGestures = "input, select, textarea, [contenteditable], .finish-tabs";
+const ownGestures = "input, select, textarea, [contenteditable], .finish-tabs, .value-chart";
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // The next viewer slides in from the side the user moved toward. A collection

@@ -87,7 +87,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
         {data.code ? <>
           <p className="social-code" aria-label="Your friend code">{data.code}</p>
           <div className="actions">
-            <button type="button" className="button secondary" onClick={() => { void navigator.clipboard?.writeText(data.code!).then(() => setNotice("Code copied."), () => setNotice("Select the code to copy it.")); }}>Copy code</button>
+            <button type="button" className="button secondary" onClick={() => { if (!navigator.clipboard) { setNotice("Select the code to copy it."); return; } void navigator.clipboard.writeText(data.code!).then(() => setNotice("Code copied."), () => setNotice("Select the code to copy it.")); }}>Copy code</button>
             <button type="button" className="text-button" disabled={busy} onClick={() => { if (window.confirm("Make a new code? The old one stops working. Current friends stay connected.")) void act(async () => { await post("/api/v1/friends/code", { action: "new" }); return "New code ready."; }); }}>Get a new code</button>
             <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => { await post("/api/v1/friends/code", { action: "off" }); return "Code turned off. No one can send you a request until you make a new one."; })}>Turn off code</button>
           </div>
