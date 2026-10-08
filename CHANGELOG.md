@@ -2,10 +2,9 @@
 
 ## Security review — October 8, 2026
 
-- A review of sign-in, sessions, friends, trade offers, imports, backups and the web app found no way for one account to read or change another account's cards. Five smaller hardening fixes shipped:
+- A review of sign-in, sessions, friends, trade offers, imports, backups and the web app found no way for one account to read or change another account's cards. Smaller hardening fixes shipped:
 - A card's price history chart now opens only for cards you own or want. Before, any signed-in account could check whether someone else on the server owned a card by asking for its history.
-- Card catalog search needs a signed-in account. Visitors without an account could run the server's heaviest search as often as they liked.
-- When a different account signs in on the same phone or computer, the previous account's saved offline copies, queued edits, card pictures and drafts are removed first. Signing out now also removes unfinished deck-import and trade drafts from the device.
+- When a different account signs in on the same phone or computer, the previous account's saved offline copies, queued edits, card pictures, unfinished scan photo and drafts are removed first. Signing out now also removes unfinished deck-import and trade drafts from the device.
 - Import column mappings are limited in size, so one account can't fill the database through the import preview.
 - Removing copies with a very long request key no longer fails with a server error.
 

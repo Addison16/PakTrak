@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 
-from scanner.auth import DB, Identity
+from scanner.auth import DB
 from scanner.card_search import card_display_name, card_name_matches, split_collector_search
 from scanner.db import session_factory
 from scanner.models import CatalogSnapshot, Printing, now
@@ -64,7 +64,7 @@ def printing_json(printing):
 
 
 @router.get("/status")
-def status(identity: Identity, db: DB):
+def status(db: DB):
     latest = db.scalar(select(CatalogSnapshot).order_by(CatalogSnapshot.created_at.desc()).limit(1))
     return {
         "printings": db.scalar(select(func.count()).select_from(Printing)),
@@ -74,7 +74,6 @@ def status(identity: Identity, db: DB):
 
 @router.get("/search")
 def search(
-    identity: Identity,
     db: DB,
     q: str = Query(min_length=2, max_length=255),
     offset: int = Query(0, ge=0),
@@ -86,8 +85,7 @@ def search(
     facets: bool = False,
 ):
     q, inline_number = split_collector_search(q)
-    # Treat wildcard input literally. The catalog is public card data, but the
-    # unindexed name search is costly, so only signed-in accounts may run it.
+    # Treat wildcard input literally. Search exposes only public card metadata.
     name_match = card_name_matches(q, exact=exact_name)
     condition = name_match
     try:
@@ -144,7 +142,7 @@ def search(
 
 
 @router.get("/printings/{printing_id}")
-def detail(printing_id: uuid.UUID, identity: Identity, db: DB):
+def detail(printing_id: uuid.UUID, db: DB):
     printing = db.get(Printing, printing_id)
     if printing is None:
         raise HTTPException(404, "Printing not found in this server's catalog.")
