@@ -7,6 +7,7 @@ import Gallery from "./Gallery";
 import DataUpdates, { ProgressView } from "./DataUpdates";
 import type { WorkProgress } from "./api";
 import "./collection-qol.css";
+import { usePullRefresh } from "./pullRefresh";
 
 type Counts = { rows: number; copies: number };
 type Import = {
@@ -140,6 +141,7 @@ function CollectionTransfers({ session }: { session: Session }) {
     document.addEventListener("visibilitychange", poll); window.addEventListener("online", poll);
     return () => { stopped = true; clearInterval(timer); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); };
   }, [binder, selectedId, revision, rowOffset, attentionOnly, focusRow, historyOffset, exportOffset]);
+  usePullRefresh(true, () => refresh());
   useEffect(() => { setOwned(false); setPartial(false); setUndoReady(false); }, [selectedId, revision]);
 
   async function act(operation: () => Promise<void>) {

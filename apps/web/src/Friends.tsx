@@ -5,6 +5,7 @@ import { navigation } from "./navigation";
 import { openTrade } from "./TradeValue";
 import "./trade-value.css";
 import "./social.css";
+import { usePullReload } from "./pullRefresh";
 
 type FriendsData = { code: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string }[]; outgoing: { id: string; created_at: string }[] };
 type Match = { printing: Printing; finish: Finish; finish_recorded: boolean; quantity: number; wanted: number; unit_amount: string | null };
@@ -17,12 +18,12 @@ export default function Friends({ session, active, friendId }: { session: Sessio
   const [notice, setNotice] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [reload, setReload] = useState(0);
+  const { reload, setReload, settle } = usePullReload(active);
 
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    request<FriendsData>("/api/v1/friends", { signal: controller.signal }).then(setData).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
+    request<FriendsData>("/api/v1/friends", { signal: controller.signal }).then((value) => { setData(value); settle(); }).catch((reason: Error) => { if (!controller.signal.aborted) { setError(reason); settle(reason); } });
     return () => controller.abort();
   }, [active, reload]);
 
@@ -37,7 +38,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
   const remove = (id: string) => request(`/api/v1/friends/${id}`, { method: "DELETE", headers: { "X-CSRF-Token": session.csrf_token }, action: "Remove friend" });
 
   const friend = friendId ? data?.friends.find((person) => person.user_id === friendId) : undefined;
-  if (friendId) return friend ? <FriendView key={friend.user_id} session={session} friend={friend} /> : <section className="panel social-page">
+  if (friendId) return friend ? <FriendView key={friend.user_id} session={session} friend={friend} reload={reload} /> : <section className="panel social-page">
     <button type="button" className="button secondary" onClick={() => navigation.go({ page: "friends" })}>← Back to friends</button>
     {error ? <ErrorNotice error={error} onDismiss={() => setError("")} /> : <p role="status">{data ? "This friend is no longer connected." : "Opening your friend…"}</p>}
   </section>;
@@ -115,7 +116,8 @@ function MatchList({ items, label }: { items: Match[]; label: string }) {
   </li>)}</ul>;
 }
 
-function FriendView({ session, friend }: { session: Session; friend: Friend }) {
+// reload changes when the screen is pulled down, so the open friend reloads too.
+function FriendView({ session, friend, reload }: { session: Session; friend: Friend; reload: number }) {
   const [matches, setMatches] = useState<Matches | null>(null);
   const [wishlist, setWishlist] = useState<Wishlist | null>(null);
   const [cards, setCards] = useState<{ items: CollectionCard[]; next_offset: number | null; copies: number } | null>(null);
@@ -129,14 +131,14 @@ function FriendView({ session, friend }: { session: Session; friend: Friend }) {
     request<Matches>(base + "/matches", { signal: controller.signal }).then(setMatches).catch(fail);
     if (friend.shares_wishlist) request<Wishlist>(base + "/wishlist", { signal: controller.signal }).then(setWishlist).catch(fail);
     return () => controller.abort();
-  }, [base]);
+  }, [base, reload]);
   useEffect(() => {
     if (!friend.shares_collection) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => request<{ items: CollectionCard[]; next_offset: number | null; copies: number }>(`${base}/collection?q=${encodeURIComponent(query.trim())}&offset=${offset}`, { signal: controller.signal })
       .then(setCards).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); }), 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [base, query, offset]);
+  }, [base, query, offset, reload]);
 
   const partner = { id: friend.user_id, name: friend.name };
   const line = (item: Match, take: number) => ({ key: crypto.randomUUID(), printing: item.printing, finish: item.finish, quantity: Math.max(1, Math.min(take, 999)) });

@@ -1,0 +1,15 @@
+/* Pull down to refresh: the page follows the finger and the spinner sits in the gap above it. */
+:root.pull-refresh-ready { overscroll-behavior-y: none; }
+.pull-refresh { position: relative; z-index: 6; height: 0; display: flex; justify-content: center; pointer-events: none; }
+.pull-refresh-spinner { position: absolute; top: 0; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--muted); box-shadow: 0 2px 8px #102a2518; opacity: var(--pull-progress); transform: translateY(calc(var(--pull) / 2 - 18px)) scale(calc(.7 + var(--pull-progress) * .3)); transition: color 160ms ease; }
+.pull-refresh-spinner[data-ready] { color: var(--forest); }
+.pull-refresh-spinner svg { width: 20px; height: 20px; }
+.pull-refresh[data-state="refreshing"] .pull-refresh-spinner { transition: transform 280ms cubic-bezier(.2, .8, .2, 1), color 160ms ease; }
+.pull-refresh[data-state="refreshing"] .pull-refresh-spinner svg { animation: pull-refresh-spin 800ms linear infinite; }
+.pull-refresh-message { position: absolute; top: 0; margin: 0; max-width: calc(100% - 32px); padding: 0 16px; font-size: 13px; font-weight: 600; line-height: 1.3; text-align: center; color: var(--muted); transform: translateY(calc(var(--pull) / 2 - 50%)); animation: pull-refresh-fade 200ms ease both; }
+@keyframes pull-refresh-spin { to { transform: rotate(360deg); } }
+@keyframes pull-refresh-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pull-refresh[data-state="refreshing"] .pull-refresh-spinner svg { animation-duration: 2400ms; }
+  .pull-refresh-message { animation: none; }
+}

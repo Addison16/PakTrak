@@ -5,6 +5,7 @@ import PrintingPicker from "./PrintingPicker";
 import StoreButtons, { ReferralNote } from "./StoreButtons";
 import "./trade-value.css";
 import "./social.css";
+import { usePullReload } from "./pullRefresh";
 
 const finishNames: Record<WantedFinish, string> = { any: "Any finish", nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 const finishOptions = (printing: Printing): WantedFinish[] => ["any", ...(["nonfoil", "foil", "etched"] as const).filter((finish) => printing.finishes.includes(finish))];
@@ -26,12 +27,12 @@ export default function Wishlist({ session, active }: { session: Session; active
   const [adding, setAdding] = useState<"search" | "paste" | null>(null);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
-  const [reload, setReload] = useState(0);
+  const { reload, setReload, settle } = usePullReload(active);
 
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    request<WishlistData>("/api/v1/wishlist", { signal: controller.signal }).then(setData).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); });
+    request<WishlistData>("/api/v1/wishlist", { signal: controller.signal }).then((value) => { setData(value); settle(); }).catch((reason: Error) => { if (!controller.signal.aborted) { setError(reason); settle(reason); } });
     return () => controller.abort();
   }, [active, reload]);
 
