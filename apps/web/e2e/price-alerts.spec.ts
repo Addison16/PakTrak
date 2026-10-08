@@ -105,6 +105,11 @@ test("Home stays clear when nothing moved and settings save from My account", as
   await expect(form.getByLabel("Dollar change")).toHaveValue("$5");
   await form.getByLabel("Dollar change").blur();
   await expect(form.getByLabel("Dollar change")).toHaveValue("$5.00");
+  await form.getByLabel("Dollar change").fill("1,50");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$1.50");
+  await form.getByLabel("Dollar change").fill("1,000");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$1000");
+  await form.getByLabel("Dollar change").fill("5");
   await form.getByRole("button", { name: "Save price alerts", exact: true }).click();
   await expect(form.getByText("Price alerts are saved.", { exact: true })).toBeVisible();
   await form.screenshot({ path: `../../artifacts/price-alerts/settings-${test.info().project.name}.png` });

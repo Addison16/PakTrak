@@ -103,6 +103,8 @@ function UnitInput({ unit, side, decimals, value, onChange, disabled }: { unit: 
   }
   useLayoutEffect(keepCaretOffUnit);
   function clean(text: string) {
+    // A comma before the last one or two digits is a decimal comma from the keyboard ("1,50"); other commas are thousands separators.
+    if (decimals && !text.includes(".")) text = text.replace(/,(\d{0,2})$/, ".$1");
     const digits = text.replace(decimals ? /[^\d.]/g : /\D/g, "");
     if (!decimals) return digits;
     const [whole, ...rest] = digits.split(".");
