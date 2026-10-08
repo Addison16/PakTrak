@@ -171,6 +171,21 @@ for (const cleanup of ["Escape", "Back", "resize"] as const) test(`${cleanup} du
   }
 });
 
+for (const area of ["deck", "collection"] as const) test(`${area} flight survives the desktop scrollbar disappearing`, async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 844 });
+  if (area === "deck") await openDeck(page); else await collectionFixture(page);
+  const source = area === "deck" ? page.getByRole("button", { name: /Preview Fixture Card 1/ }) : page.getByRole("button", { name: /Open Island/ });
+  await launch(source);
+  await expect(page.locator(".card-arrival-stage")).toBeVisible();
+  // Locking page scroll hides a classic scrollbar, which only resizes the
+  // visual viewport. Headless browsers draw no scrollbar, so send the event.
+  await page.evaluate(() => window.visualViewport!.dispatchEvent(new Event("resize")));
+  await page.waitForTimeout(200);
+  await expect(page.locator(".card-arrival-stage")).toBeVisible();
+  await expect(page.locator(".card-arrival-stage")).toHaveCount(0);
+  await expect(page.locator("[data-card-flight-hidden]")).toHaveCount(0);
+});
+
 test("deck Next and history Forward open viewers without replaying an origin flight", async ({ page }) => {
   await openDeck(page);
   await launch(page.getByRole("button", { name: /Preview Fixture Card 2/ }));

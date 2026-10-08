@@ -230,14 +230,22 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
     };
     frame = requestAnimationFrame(start);
     const preferenceChanged = () => { if (reduced.matches) finish(); };
+    // Opening the viewer locks page scrolling, which removes a desktop
+    // scrollbar and narrows the visual viewport. Only zoom or a real size
+    // change should end the flight.
+    const viewport = window.visualViewport;
+    const opened = { width: innerWidth, height: innerHeight, scale: viewport?.scale ?? 1, viewportHeight: viewport?.height ?? 0 };
+    const viewportChanged = () => {
+      if (!viewport || innerWidth !== opened.width || innerHeight !== opened.height || viewport.scale !== opened.scale || Math.abs(viewport.height - opened.viewportHeight) > 20) finish();
+    };
     window.addEventListener("resize", finish);
-    window.visualViewport?.addEventListener("resize", finish);
+    viewport?.addEventListener("resize", viewportChanged);
     reduced.addEventListener("change", preferenceChanged);
     return () => {
       disposed = true;
       restore();
       window.removeEventListener("resize", finish);
-      window.visualViewport?.removeEventListener("resize", finish);
+      viewport?.removeEventListener("resize", viewportChanged);
       reduced.removeEventListener("change", preferenceChanged);
     };
   }, [origin, cardKey, marker, targetRef, dialogRef, visible]);

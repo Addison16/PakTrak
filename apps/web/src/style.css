@@ -6,6 +6,8 @@
   line-height: 1.6;
   --radius: 10px;
   --card-corner-radius: 4.75% / 3.41%;
+  /* Keep the page from shifting sideways when a dialog locks scrolling. */
+  scrollbar-gutter: stable;
 }
 * { box-sizing: border-box; }
 body { margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--canvas); }
@@ -405,7 +407,9 @@ details p { font-size: 14px; }
 .card-dialog { width: min(860px, calc(100% - 32px)); max-height: calc(100dvh - 32px); max-height: calc(100vh - 32px); padding: 0 30px 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); box-shadow: 0 12px 40px #142e2840; overscroll-behavior-y: contain; }
 .card-dialog::backdrop { background: var(--backdrop, #1d252566); }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 1; background: var(--paper); padding: 10px 0; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
-.dialog-heading button { font-size: 13px; } .dialog-heading button span { font-size: 24px; margin-left: 5px; }
+.dialog-heading button { font-size: 13px; }
+.dialog-heading > .eyebrow { min-width: 0; }
+.dialog-heading > .text-button { flex-shrink: 0; }
 .card-detail-layout { display: grid; grid-template-columns: minmax(0, 270px) minmax(0, 1fr); gap: 26px; }
 .detail-art .button { margin-top: 12px; width: 100%; }
 .artist-credit { text-align: center; font-size: 11px; }
