@@ -70,12 +70,14 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
   useEffect(() => {
     const element = dialog.current!;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const bodyOverflow = document.body.style.overflow, rootOverflow = document.documentElement.style.overflow;
+    const bodyOverflow = document.body.style.overflow, rootOverflow = document.documentElement.style.overflow, rootGutter = document.documentElement.style.scrollbarGutter;
     element.showModal(); heading.current?.focus();
     document.body.style.overflow = "hidden"; document.documentElement.style.overflow = "hidden";
+    // The camera fills the screen, so give it the scrollbar space too.
+    document.documentElement.style.scrollbarGutter = "auto";
     return () => {
       element.close(); stop.current();
-      document.body.style.overflow = bodyOverflow; document.documentElement.style.overflow = rootOverflow;
+      document.body.style.overflow = bodyOverflow; document.documentElement.style.overflow = rootOverflow; document.documentElement.style.scrollbarGutter = rootGutter;
       if (previous?.isConnected) previous.focus({ preventScroll: true });
     };
   }, []);
