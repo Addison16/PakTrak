@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { clearPendingPhotos } from "./pendingPhoto";
 import { clearDrafts } from "./recovery";
 
 // Offline layer: saved copies of server reads, a queue of edits made while the
@@ -246,5 +247,6 @@ export async function clearOfflineData() {
   await run("responses", "readwrite", (store) => { store.clear(); });
   await run("queue", "readwrite", (store) => { store.clear(); });
   try { await globalThis.caches?.delete("paktrak-card-images"); } catch { /* Not available over plain HTTP. */ }
+  await clearPendingPhotos();
   await countQueue();
 }

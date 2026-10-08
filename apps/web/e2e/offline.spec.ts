@@ -121,6 +121,23 @@ test("another account signing in on the same device doesn’t get the previous a
     open.onerror = () => resolve(-1);
   }), owner);
   expect(await savedFor("offline-owner")).toBeGreaterThan(0);
+  // An unfinished photo of the first collector's is kept on the device too.
+  const pendingPhotos = () => page.evaluate(() => new Promise<number>((resolve) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("photos", { keyPath: "owner" });
+    open.onsuccess = () => { const count = open.result.transaction("photos").objectStore("photos").count(); count.onsuccess = () => resolve(count.result); };
+    open.onerror = () => resolve(-1);
+  }));
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("photos", { keyPath: "owner" });
+    open.onsuccess = () => {
+      const transaction = open.result.transaction("photos", "readwrite");
+      transaction.objectStore("photos").put({ owner: "offline-owner", file: new ArrayBuffer(8), mimeType: "image/jpeg", filename: "cards.jpg", savedAt: Date.now() });
+      transaction.oncomplete = () => resolve();
+    };
+  }));
+  expect(await pendingPhotos()).toBe(1);
   // A second person signs in on this phone with an empty collection: the first
   // collector's copies are removed before anything of theirs is shown or saved.
   state.owner = "second-owner";
@@ -128,6 +145,7 @@ test("another account signing in on the same device doesn’t get the previous a
   await page.reload();
   await expect(page.locator("main")).toContainText("0 copies");
   expect(await savedFor("offline-owner")).toBe(0);
+  expect(await pendingPhotos()).toBe(0);
   state.down = true;
   await page.reload();
   await expect(status(page)).toHaveText("Offline");
