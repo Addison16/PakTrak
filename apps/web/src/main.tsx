@@ -18,7 +18,8 @@ import { readPendingPhoto, savePendingPhoto, removePendingPhoto, type PendingPho
 import { navigation, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
 import ConnectionStatus from "./ConnectionStatus";
 import { useConnection } from "./offline";
-import { clearOfflineData, connection, forgetResponse, onReconnect, queuedActions, setOfflineOwner } from "./offline";
+import { adoptOfflineOwner, clearOfflineData, connection, forgetResponse, onReconnect, queuedActions, setOfflineOwner } from "./offline";
+import { clearDrafts } from "./recovery";
 import { flushQueue } from "./offlineSync";
 import { saveDaily } from "./offlineSave";
 import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
@@ -263,7 +264,7 @@ function App() {
       navigation.cleanQuery();
     }
     request<AccountStatus>("/api/auth/status").then(setAccountStatus).catch((e: Error) => { setError(e); setAccountStatus(null); });
-    request<Session>("/api/auth/session", { quiet: true }).then((value) => { setOfflineOwner(value.owner_id); setSession(value); }).catch((e: Error) => {
+    request<Session>("/api/auth/session", { quiet: true }).then(async (value) => { await adoptOfflineOwner(value.owner_id); setSession(value); }).catch((e: Error) => {
       if (!(e instanceof ApiError && e.status === 401)) setError(e);
       else void forgetResponse("/api/auth/session");
       setSession(null);
@@ -597,7 +598,7 @@ function App() {
     if (unsent && !window.confirm(`${unsent} queued ${unsent === 1 ? "change hasn’t" : "changes haven’t"} reached PakTrak yet.\n\nSigning out removes ${unsent === 1 ? "it" : "them"} from this device.`)) return;
     try {
       const result = await request<{ logout_url: string }>("/api/auth/logout", { method: "POST", headers: headers() });
-      clearDraft();
+      clearDraft(); clearDrafts();
       await clearOfflineData(); setOfflineOwner("");
       window.location.assign(result.logout_url);
     } catch (e) { setError(e as Error); }

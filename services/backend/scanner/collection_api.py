@@ -57,7 +57,7 @@ class ParseOptions(StrictModel):
 
 
 class Preview(Revision):
-    mapping: dict[str, str]
+    mapping: dict[str, Annotated[str, Field(max_length=255)]] = Field(max_length=64)
     options: ParseOptions
 
 
@@ -878,8 +878,12 @@ def edit_quantity(lot_id: uuid.UUID, data: LotEdit, key: Key, identity: Identity
         if batch.state in {"UNDOING", "UNDONE"}:
             raise HTTPException(409, "This import is being undone or was undone.")
     lot = owned(db, InventoryLot, lot_id, identity.owner_id, True)
+    # Keys are hashed so a long key fits the column; older receipts used the raw key.
+    operation_key = f"edit:{lot.id}:{hashlib.sha256(key.encode()).hexdigest()[:32]}"
     existing = db.scalar(
-        select(InventoryEvent).where(InventoryEvent.operation_key == f"edit:{lot.id}:{key}")
+        select(InventoryEvent).where(
+            InventoryEvent.operation_key.in_([operation_key, f"edit:{lot.id}:{key}"])
+        )
     )
     digest = fingerprint(data.model_dump())
     if existing:
@@ -894,7 +898,7 @@ def edit_quantity(lot_id: uuid.UUID, data: LotEdit, key: Key, identity: Identity
     db.add(
         InventoryEvent(
             lot_id=lot.id,
-            operation_key=f"edit:{lot.id}:{key}",
+            operation_key=operation_key,
             kind="REMOVE",
             delta=data.quantity - lot.quantity_remaining,
             detail={"request_hash": digest},

@@ -163,3 +163,20 @@ def test_owned_search_shortcut_filters_copies_without_exposing_other_collections
     assert filtered["copies"] == 2
     rules = client.get("/api/v1/collection/cards", params={"q": "fixture rules #0287"}).json()
     assert rules["copies"] == 5
+
+
+def test_catalog_search_requires_sign_in(numbered_cards):
+    from fastapi.testclient import TestClient
+
+    from scanner.api import app
+    from scanner.settings import get_settings
+
+    client, _, cards = numbered_cards
+    # The name search scans the whole catalog, so visitors without an account
+    # can't use it to load the server; signed-in accounts still can.
+    with TestClient(app, base_url=get_settings().app_url) as anonymous:
+        assert anonymous.get("/api/v1/catalog/search", params={"q": "Plains"}).status_code == 401
+        assert anonymous.get(f"/api/v1/catalog/printings/{cards[0].id}").status_code == 401
+        assert anonymous.get("/api/v1/catalog/status").status_code == 401
+    assert client.get("/api/v1/catalog/search", params={"q": "Plains"}).status_code == 200
+    assert client.get(f"/api/v1/catalog/printings/{cards[0].id}").status_code == 200

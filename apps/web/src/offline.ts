@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { clearDrafts } from "./recovery";
 
 // Offline layer: saved copies of server reads, a queue of edits made while the
 // server can't be reached, and the connection state shown in the header.
@@ -195,6 +196,16 @@ export function setOfflineOwner(owner: string) {
   if (owner === state.owner) return;
   set({ owner }); void countQueue();
 }
+const ownerKey = "paktrak.offline.owner";
+/** Records who last signed in on this device; a different account's sign-in
+    first removes everything the previous account kept here. */
+export async function adoptOfflineOwner(owner: string) {
+  let previous = "";
+  try { previous = localStorage.getItem(ownerKey) || ""; } catch { /* Nothing was remembered. */ }
+  if (previous && previous !== owner) { await clearOfflineData(); clearDrafts(); }
+  try { localStorage.setItem(ownerKey, owner); } catch { /* The copies are still cleared above. */ }
+  setOfflineOwner(owner);
+}
 export function markReachable(reachable: boolean, savedCopy = false) {
   set({ reachable: reachable && navigator.onLine, savedCopy: reachable ? false : savedCopy || state.savedCopy });
   if (!reachable) schedule();
@@ -230,6 +241,7 @@ if (typeof window !== "undefined") {
 
 /** Removes every saved copy and queued edit on this device, as on sign out. */
 export async function clearOfflineData() {
+  try { localStorage.removeItem(ownerKey); } catch { /* Nothing was remembered. */ }
   memory.responses.clear(); memory.queue.clear();
   await run("responses", "readwrite", (store) => { store.clear(); });
   await run("queue", "readwrite", (store) => { store.clear(); });

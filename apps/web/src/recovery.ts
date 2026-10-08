@@ -24,3 +24,11 @@ export function writeDraft(key: string, value: unknown): boolean {
 export function removeDraft(key: string): void {
   try { localStorage.removeItem(prefix + key); } catch { /* Blocked storage must not interrupt editing. */ }
 }
+
+/** Removes every saved draft on this device, as on sign out. */
+export function clearDrafts(): void {
+  try {
+    for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
+    for (const key of Object.keys(sessionStorage)) if (key.startsWith("paktrak:")) sessionStorage.removeItem(key);
+  } catch { /* Blocked storage holds no drafts to remove. */ }
+}

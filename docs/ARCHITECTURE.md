@@ -38,7 +38,7 @@ Guest-to-member approval persists a pending congratulations notice. Only a new v
 
 Provider endpoints inside Docker differ from the public browser-facing issuer. The nginx proxy derives forwarded scheme/host/port from the configured application origin, including behind an HTTPS reverse proxy. Plain HTTP setup is limited to local development.
 
-Private queries derive ownership from the session. Public catalog searches return printing metadata only. Photos/crops expire after seven days, unfinished photo uploads after 24 hours, raw CSV uploads seven days after terminal processing, and export downloads after 24 hours. Active jobs protect their inputs until completion/deadline. Collection records and provenance remain after file expiry.
+Private queries derive ownership from the session. Catalog searches need a signed-in account and return printing metadata only. Photos/crops expire after seven days, unfinished photo uploads after 24 hours, raw CSV uploads seven days after terminal processing, and export downloads after 24 hours. Active jobs protect their inputs until completion/deadline. Collection records and provenance remain after file expiry.
 
 ## Request diagnostics
 

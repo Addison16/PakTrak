@@ -19,6 +19,7 @@ from scanner.models import (
     CollectionValueHistory,
     InventoryLot,
     Printing,
+    WishlistItem,
 )
 
 router = APIRouter(prefix="/api/v1/collection", tags=["collection insights"])
@@ -115,6 +116,23 @@ def price_history(
     printing = db.get(Printing, printing_id)
     if printing is None:
         raise HTTPException(404, "This card isn’t in the catalog.")
+    # History exists only for cards someone on this server owns or wants, so
+    # showing it for any printing would reveal other accounts' collections.
+    owned = db.scalar(
+        select(InventoryLot.id)
+        .where(
+            InventoryLot.owner_id == identity.owner_id,
+            InventoryLot.printing_id == printing_id,
+            InventoryLot.quantity_remaining > 0,
+        )
+        .limit(1)
+    ) or db.scalar(
+        select(WishlistItem.id)
+        .where(WishlistItem.owner_id == identity.owner_id, WishlistItem.printing_id == printing_id)
+        .limit(1)
+    )
+    if not owned:
+        raise HTTPException(404, "This card isn’t in your collection or wishlist.")
     provider = provider or preferred_provider(db, identity.owner_id)
     today = date.today()
     finishes = {
