@@ -31,7 +31,8 @@ test("captures the whole source frame without guides and uploads only on confirm
   await openCamera(page);
   await expect(page.getByRole("button", { name: "Light off", exact: true })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Camera zoom" })).toHaveCount(0);
-  await expect(page.locator(".camera-guides")).toBeVisible();
+  await expect(page.locator(".camera-guides")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Guides", exact: true })).toHaveAttribute("aria-pressed", "false");
   expect((await cameraStats(page)).requests).toEqual([{ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 4096 }, height: { ideal: 3072 }, frameRate: { ideal: 24, max: 30 } } }]);
   await takePhoto(page);
   expect(mock.creates).toHaveLength(0);
@@ -84,6 +85,8 @@ test("supports available camera controls and reports a rejected setting without 
   await expect(page.locator(".camera-feedback")).toContainText("isn't available");
   await expect(page.getByRole("button", { name: "Zoom 2×", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Zoom 3×", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Guides", exact: true }).click();
+  await expect(page.locator(".camera-guides")).toBeVisible();
   await page.getByRole("button", { name: "Guides", exact: true }).click();
   await expect(page.locator(".camera-guides")).toHaveCount(0);
   await page.getByRole("button", { name: "Close camera", exact: true }).click();
