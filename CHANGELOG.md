@@ -12,6 +12,7 @@
 - Removing copies, editing a copy's finish, condition or notes, moving copies, new storage locations and deck saves made offline wait in a queue and are sent in order when PakTrak is reachable again. Changes the server turns down stay in the list with the reason.
 - The header shows **Offline** and how many changes are waiting. **Menu → Queued actions** lists every waiting change so it can be tracked, retried or removed.
 - On an HTTPS address PakTrak also opens with no connection and keeps up to 1,000 card pictures. When the server's address is HTTPS, a plain http:// visit moves to it automatically. See [using PakTrak offline](docs/OFFLINE.md).
+- Offline mode also starts when Cloudflare or another proxy in front of PakTrak shows an error page such as Bad gateway, for example while the server restarts after an update. The app opens from its saved copy, shows saved lists and queues edits instead of showing the error page (October 8, 2026).
 
 ## Wishlist, friends, trade offers and price history — October 7, 2026
 

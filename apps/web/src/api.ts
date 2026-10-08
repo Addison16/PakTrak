@@ -78,9 +78,16 @@ function fieldMessage(details: { loc?: (string | number)[]; msg?: string }[]) {
   }).join(" ") || "Some request fields were invalid. Review your entries and try again.";
 }
 
-// The web server answering for an API that isn't running (502) or not answering (504).
-// A 503 is the API's own answer and shows as an error rather than a saved copy.
-const unavailable = (status: number) => status === 502 || status === 504;
+// Answers that mean PakTrak's server itself can't be reached, for example
+// while the container restarts after an update: nginx with no API behind it
+// (502, 504), or Cloudflare with no server behind it (502, 503, 504, 520-527,
+// 530). The API's own 503s are JSON with an X-Request-ID and show as errors instead.
+export function serverUnreachable(response: Response) {
+  const status = response.status;
+  if (status === 503) return !response.headers.has("X-Request-ID") && !response.headers.get("Content-Type")?.includes("json");
+  return status === 502 || status === 504 || status >= 520 && status <= 527 || status === 530;
+}
+const unreachableMessage = "PakTrak’s server isn’t answering right now. It may be restarting; try again in a minute.";
 const savedCopyWait = 8000;
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -110,13 +117,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw reportError(new ApiError(cacheable ? "You’re offline, and this hasn’t been saved on this device yet. Open it once while connected to keep a copy for offline use."
       : navigator.onLine ? "The server could not be reached. Check your connection and try again." : "You’re offline. Reconnect and try again.", {}, undefined, { action, code: "network_error" }), quiet);
   }
-  if (unavailable(response.status)) {
+  const rawId = response.headers.get("X-Request-ID");
+  const requestId = rawId && /^[a-f0-9-]{36}$/i.test(rawId) ? rawId : undefined;
+  if (serverUnreachable(response)) {
     markReachable(false);
     const copy = await saved?.();
     if (copy) { markReachable(false, true); return copy.data; }
-  } else markReachable(true);
-  const rawId = response.headers.get("X-Request-ID");
-  const requestId = rawId && /^[a-f0-9-]{36}$/i.test(rawId) ? rawId : undefined;
+    throw reportError(new ApiError(cacheable ? "PakTrak’s server isn’t answering, and this hasn’t been saved on this device yet. Open it once while connected to keep a copy for offline use." : unreachableMessage,
+      {}, response.status, { action, code: "server_unreachable" }), quiet);
+  }
+  markReachable(true);
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     const data = payload && typeof payload === "object" ? payload : {};
@@ -152,7 +162,7 @@ function withSavedCopyTimeout(pending: Promise<Response>, saved?: () => Promise<
       if (settled || !copy) return;
       settled = true; reject(new SavedCopy(copy.data));
     }), savedCopyWait);
-    pending.then((value) => { window.clearTimeout(timer); if (!settled) { settled = true; resolve(value); } else if (!unavailable(value.status)) markReachable(true); },
+    pending.then((value) => { window.clearTimeout(timer); if (!settled) { settled = true; resolve(value); } else if (!serverUnreachable(value)) markReachable(true); },
       (error) => { window.clearTimeout(timer); if (!settled) { settled = true; reject(error); } });
   });
 }
@@ -183,7 +193,7 @@ export async function send<T>(session: Session, path: string, init: RequestInit 
   try { return await request<T>(path, { ...init, signal: controller.signal }); }
   catch (e) {
     if (controller.signal.aborted) { markReachable(false); return queue(); }
-    if (e instanceof ApiError && (e.code === "network_error" || e.status !== undefined && unavailable(e.status))) return queue();
+    if (e instanceof ApiError && (e.code === "network_error" || e.code === "server_unreachable")) return queue();
     throw e;
   }
   finally { window.clearTimeout(timer); }

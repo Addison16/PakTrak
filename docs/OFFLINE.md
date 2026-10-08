@@ -13,7 +13,7 @@ When something is different from normal, the header shows it next to **Menu**:
 
 Tap it, or choose **Menu → Queued actions**, to see every waiting change. Each one shows what it does, when you made it and its state. **Remove** drops a change without sending it; **Try again** resends one the server turned down. While offline, **Check connection** tries the server right away instead of waiting for the next automatic check.
 
-PakTrak checks the server itself rather than only the phone's internet connection, so a home server that's out of reach from mobile data counts as offline.
+PakTrak checks the server itself rather than only the phone's internet connection, so a home server that's out of reach from mobile data counts as offline. So does an error page from Cloudflare or another proxy in front of PakTrak (such as Bad gateway) while the server is down or restarting after an update: the app opens from its saved copy and edits are queued.
 
 ## What works offline
 

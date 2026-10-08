@@ -4,12 +4,15 @@ import { navigate } from "./navigation";
 const dragon = { id: "offline-dragon", name: "Shivan Dragon", set_code: "off", collector_number: "1", set_name: "Offline fixtures", language: "en", rarity: "rare", type_line: "Creature — Dragon", finishes: ["nonfoil", "foil"], image_url: "/brand/paktrak-mark.svg" };
 
 // A server that can be switched off. While "down" every API request fails the
-// way an unreachable home server does from mobile data.
+// way an unreachable home server does from mobile data; "gateway" answers the
+// way Cloudflare does while the server behind it restarts.
+const gatewayPage = (status: number) => ({ status, contentType: "text/html", body: "<!doctype html><title>Bad gateway</title><h1>Error " + status + "</h1>" });
 async function fixture(page: Page, options: { reject?: boolean } = {}) {
-  const state = { down: false, lot: { id: "lot-1", printing: dragon, quantity: 3, finish: "foil", condition: "NM", binder: "Red binder", binder_id: "red", binder_kind: "binder", notes: "", version: 1 },
+  const state = { down: false as boolean | "gateway", gatewayStatus: 502, lot: { id: "lot-1", printing: dragon, quantity: 3, finish: "foil", condition: "NM", binder: "Red binder", binder_id: "red", binder_kind: "binder", notes: "", version: 1 },
     edits: [] as { path: string; body: any; csrf: string; key: string }[] };
   const card = () => ({ printing: dragon, quantity: state.lot.quantity, location_count: 1, locations: [{ id: "red", name: "Red binder", quantity: state.lot.quantity }], value: "9.00", price_min: "3.00", price_max: "3.00", priced_copies: state.lot.quantity });
   await page.route("**/api/**", async (route) => {
+    if (state.down === "gateway") { await route.fulfill(gatewayPage(state.gatewayStatus)); return; }
     if (state.down) { await route.abort("addressunreachable"); return; }
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
     let json: any = {}, status = 200;
@@ -139,6 +142,47 @@ test("saving for offline lets any card's copies open later without a connection"
   await expect(status(page)).toHaveText("Offline");
 });
 
+test("a Bad gateway page from Cloudflare counts as offline: saved copies show and edits are queued", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto("/#/collection");
+  const dialog = await openCopies(page);
+  state.down = "gateway"; state.gatewayStatus = 521;
+  page.on("dialog", (prompt) => void prompt.accept());
+  await dialog.getByRole("button", { name: "Remove 1 copy" }).click();
+  await expect(dialog.getByText(/Saved on this device/)).toBeVisible();
+  await expect(status(page)).toHaveText("Offline · 1");
+  expect(state.edits).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Close card details" }).click();
+  await expect(dialog).toBeHidden();
+
+  // Its other "server is down" answers work the same way when the app opens.
+  for (const code of [502, 503, 530]) {
+    state.gatewayStatus = code;
+    await page.goto("/#/collection");
+    await expect(status(page)).toHaveText("Offline · 1");
+    await expect(page.getByRole("button", { name: /^Open Shivan Dragon/ })).toBeVisible();
+  }
+
+  await navigate(page, "Queued actions");
+  state.down = false;
+  await page.getByRole("button", { name: "Check connection" }).click();
+  await expect(page.getByText("Nothing is waiting.")).toBeVisible();
+  expect(state.edits.map((edit) => edit.body)).toEqual([{ quantity: 2, expected_version: 1 }]);
+});
+
+test("the server's own 503 answer is shown as an error, not as offline", async ({ page }) => {
+  const state = await fixture(page);
+  await page.route("**/api/v1/collection/lot-1/quantity", (route) => route.fulfill({ status: 503, headers: { "X-Request-ID": "6f1c1a52-1111-4222-8333-944455556666" },
+    json: { detail: "Photo storage is temporarily unavailable. Retry the same action.", error_code: "storage_unavailable" } }));
+  await page.goto("/#/collection");
+  const dialog = await openCopies(page);
+  page.on("dialog", (prompt) => void prompt.accept());
+  await dialog.getByRole("button", { name: "Remove 1 copy" }).click();
+  await expect(dialog.getByText(/Photo storage is temporarily unavailable/).first()).toBeVisible();
+  await expect(status(page)).toHaveCount(0);
+  expect(state.down).toBe(false);
+});
+
 test.describe("installed app", () => {
   test.use({ serviceWorkers: "allow" });
   test("opens with no connection at all once it has been loaded over HTTPS or localhost", async ({ page, context }) => {
@@ -156,5 +200,29 @@ test.describe("installed app", () => {
     await expect(page.getByRole("button", { name: /^Open Shivan Dragon/ })).toBeVisible();
     await expect(status(page)).toHaveText("Offline");
     await context.setOffline(false);
+  });
+
+  test("opens from its saved copy when Cloudflare answers Bad gateway for the page", async ({ page, context }) => {
+    const state = await fixture(page);
+    await page.goto("/#/collection");
+    await expect(page.getByRole("button", { name: /^Open Shivan Dragon/ })).toBeVisible();
+    const controlled = await page.evaluate(() => Promise.race([
+      navigator.serviceWorker?.ready.then(async () => { for (let i = 0; i < 50 && !navigator.serviceWorker.controller; i++) await new Promise((resolve) => setTimeout(resolve, 100)); return !!navigator.serviceWorker.controller; }),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+    ]));
+    test.skip(!controlled, "The service worker only runs in production builds.");
+    state.down = "gateway";
+    // Cloudflare answers every request with its error page now, including the
+    // ones the service worker makes for the page itself.
+    let pages = 0;
+    await context.route((url) => !url.pathname.startsWith("/api/"), async (route) => {
+      if (!route.request().serviceWorker()) { await route.fallback(); return; }
+      if (new URL(route.request().url()).pathname === "/") pages++;
+      await route.fulfill(gatewayPage(502));
+    });
+    await page.reload();
+    await expect(page.getByRole("button", { name: /^Open Shivan Dragon/ })).toBeVisible();
+    await expect(status(page)).toHaveText("Offline");
+    expect(pages).toBeGreaterThan(0);
   });
 });

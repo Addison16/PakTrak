@@ -31,7 +31,9 @@ self.addEventListener("fetch", (event) => {
 });
 
 // Pages: the server first so updates show right away; the saved app when the
-// server doesn't answer within a few seconds.
+// server doesn't answer within a few seconds, or when something in front of it
+// answers that it's down (a 5xx page from Cloudflare or another proxy while
+// the server restarts). The app then shows its saved copies and queues edits.
 async function page(request) {
   const cache = await caches.open(SHELL);
   const network = fetch(request).then((response) => {
@@ -40,7 +42,8 @@ async function page(request) {
   });
   const saved = await cache.match("/");
   if (!saved) return network;
-  return Promise.race([network.catch(() => saved), new Promise((resolve) => setTimeout(() => resolve(saved), PAGE_WAIT))]);
+  const answer = network.then((response) => response.status >= 500 ? saved : response, () => saved);
+  return Promise.race([answer, new Promise((resolve) => setTimeout(() => resolve(saved), PAGE_WAIT))]);
 }
 
 // Built files have content hashes in their names, so a saved copy never goes

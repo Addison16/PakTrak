@@ -9,7 +9,7 @@ export function flushQueue() {
   return running;
 }
 
-const stillOffline = (error: unknown) => error instanceof ApiError && (error.code === "network_error" || [502, 503, 504].includes(error.status || 0));
+const stillOffline = (error: unknown) => error instanceof ApiError && (error.code === "network_error" || error.code === "server_unreachable" || [502, 503, 504].includes(error.status || 0));
 
 async function flush() {
   const { owner, reachable } = connection();
