@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { money, mutation, providers, request, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
@@ -88,6 +88,36 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
   </>;
 }
 
+
+// Shows the unit as part of the value ("20%", "$1.00") the way a spreadsheet cell does, while the state keeps only the number.
+function UnitInput({ unit, side, decimals, value, onChange, disabled }: { unit: string; side: "start" | "end"; decimals: number; value: string; onChange: (value: string) => void; disabled: boolean }) {
+  const input = useRef<HTMLInputElement>(null);
+  const shown = value ? (side === "start" ? unit + value : value + unit) : "";
+  function keepCaretOffUnit() {
+    const el = input.current;
+    if (!el || !value || document.activeElement !== el) return;
+    const low = side === "start" ? unit.length : 0, high = side === "start" ? shown.length : value.length;
+    const clamp = (at: number | null) => Math.min(Math.max(at ?? high, low), high);
+    const start = clamp(el.selectionStart), end = clamp(el.selectionEnd);
+    if (start !== el.selectionStart || end !== el.selectionEnd) el.setSelectionRange(start, end);
+  }
+  useLayoutEffect(keepCaretOffUnit);
+  function clean(text: string) {
+    // A comma before the last one or two digits is a decimal comma from the keyboard ("1,50"); other commas are thousands separators.
+    if (decimals && !text.includes(".")) text = text.replace(/,(\d{0,2})$/, ".$1");
+    const digits = text.replace(decimals ? /[^\d.]/g : /\D/g, "");
+    if (!decimals) return digits;
+    const [whole, ...rest] = digits.split(".");
+    return rest.length ? `${whole}.${rest.join("").slice(0, decimals)}` : whole;
+  }
+  function tidy() {
+    if (!value || !Number.isFinite(Number(value))) return;
+    const tidied = decimals ? Number(value).toFixed(decimals) : String(Number(value));
+    if (tidied !== value) onChange(tidied);
+  }
+  return <input ref={input} type="text" inputMode={decimals ? "decimal" : "numeric"} autoComplete="off" placeholder="Any" disabled={disabled} value={shown} onSelect={keepCaretOffUnit} onChange={(e) => onChange(clean(e.target.value))} onBlur={tidy} />;
+}
+
 export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Session; onDirtyChange: (dirty: boolean) => void }) {
   const form = useRef<HTMLFormElement>(null);
   const [saved, setSaved] = useState<PriceAlertSettings | null>(null);
@@ -112,6 +142,8 @@ export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Se
   useEffect(() => { onDirtyChange(dirty); }, [dirty]);
   useEffect(() => () => onDirtyChange(false), []);
   const missing = enabled && !percent.trim() && !amount.trim();
+  const badPercent = enabled && !!percent && !(Number(percent) >= 1 && Number(percent) <= 1000);
+  const badAmount = enabled && !!amount && !(Number(amount) >= 0.01 && Number(amount) <= 100000);
   async function save() {
     setBusy(true); setError(""); setNotice("");
     try {
@@ -127,12 +159,14 @@ export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Se
     {!saved && !error ? <p role="status">Loading price alerts…</p> : saved && <>
       <label className="checkbox"><input type="checkbox" checked={enabled} disabled={busy} onChange={(e) => setEnabled(e.target.checked)} />Show my cards’ price changes on Home</label>
       <div className="price-alert-fields">
-        <label>Percent change<span className="price-alert-input unit-end"><input type="number" inputMode="numeric" min={1} max={1000} step={1} placeholder="Any" disabled={busy || !enabled} value={percent} onChange={(e) => setPercent(e.target.value)} /><span aria-hidden="true">%</span></span></label>
-        <label>Dollar change<span className="price-alert-input unit-start"><span aria-hidden="true">$</span><input type="number" inputMode="decimal" min={0.01} max={100000} step={0.01} placeholder="Any" disabled={busy || !enabled} value={amount} onChange={(e) => setAmount(e.target.value)} /></span></label>
+        <label>Percent change<UnitInput unit="%" side="end" decimals={0} value={percent} onChange={setPercent} disabled={busy || !enabled} /></label>
+        <label>Dollar change<UnitInput unit="$" side="start" decimals={2} value={amount} onChange={setAmount} disabled={busy || !enabled} /></label>
       </div>
       <p className="fine">A card shows when its price rises or drops by at least {percent.trim() && amount.trim() ? "both amounts" : "this amount"} since you last dismissed it. Leave one empty to use only the other. Prices come from your chosen price source.</p>
       {missing && <p className="fine" role="status">Enter a percent, a dollar amount or both.</p>}
-      <button className="button primary" disabled={busy || !dirty || missing}>Save price alerts</button>
+      {badPercent && <p className="fine" role="status">Use a percent from 1% to 1000%.</p>}
+      {badAmount && <p className="fine" role="status">Use a dollar amount from $0.01 to $100,000.</p>}
+      <button className="button primary" disabled={busy || !dirty || missing || badPercent || badAmount}>Save price alerts</button>
     </>}
   </form>;
 }

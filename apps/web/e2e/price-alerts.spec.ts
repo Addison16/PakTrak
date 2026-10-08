@@ -83,17 +83,32 @@ test("Home stays clear when nothing moved and settings save from My account", as
   await expect(page.locator(".price-alert-banner")).toHaveCount(0);
   await page.goto("/#account");
   const form = page.getByRole("form", { name: "Price alerts", exact: true });
-  await expect(form.getByLabel("Percent change")).toHaveValue("20");
-  await expect(form.getByLabel("Dollar change")).toHaveValue("1.00");
-  for (const [name, unit] of [["Percent change", "%"], ["Dollar change", "$"]]) {
-    const box = await form.getByLabel(name).boundingBox();
-    const symbol = await form.locator(".price-alert-input > span", { hasText: unit }).boundingBox();
-    expect(box && symbol && symbol.x > box.x && symbol.x + symbol.width < box.x + box.width).toBe(true);
-  }
+  await expect(form.getByLabel("Percent change")).toHaveValue("20%");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$1.00");
+  const percent = form.getByLabel("Percent change");
+  await percent.click();
+  await percent.press("End");
+  await percent.press("Backspace");
+  await percent.pressSequentially("5");
+  await expect(percent).toHaveValue("25%");
+  await percent.pressSequentially("00");
+  await expect(form.getByText("Use a percent from 1% to 1000%.", { exact: true })).toBeVisible();
+  await expect(form.getByRole("button", { name: "Save price alerts", exact: true })).toBeDisabled();
+  await percent.fill("");
+  await percent.pressSequentially("15a");
+  await expect(percent).toHaveValue("15%");
   await form.getByLabel("Percent change").fill("");
   await form.getByLabel("Dollar change").fill("");
   await expect(form.getByText("Enter a percent, a dollar amount or both.", { exact: true })).toBeVisible();
   await expect(form.getByRole("button", { name: "Save price alerts", exact: true })).toBeDisabled();
+  await form.getByLabel("Dollar change").pressSequentially("5");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$5");
+  await form.getByLabel("Dollar change").blur();
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$5.00");
+  await form.getByLabel("Dollar change").fill("1,50");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$1.50");
+  await form.getByLabel("Dollar change").fill("1,000");
+  await expect(form.getByLabel("Dollar change")).toHaveValue("$1000");
   await form.getByLabel("Dollar change").fill("5");
   await form.getByRole("button", { name: "Save price alerts", exact: true }).click();
   await expect(form.getByText("Price alerts are saved.", { exact: true })).toBeVisible();
@@ -121,5 +136,5 @@ test("leaving My account asks before discarding unsaved price alert changes", as
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("dialog", { name: "Menu", exact: true }).getByRole("button", { name: "Upload photo", exact: true }).click();
   await expect.poll(() => asked).toBe("Discard your unsaved price alert changes?");
-  await expect(form.getByLabel("Percent change")).toHaveValue("35");
+  await expect(form.getByLabel("Percent change")).toHaveValue("35%");
 });
