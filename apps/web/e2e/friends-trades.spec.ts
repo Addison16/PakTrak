@@ -130,7 +130,7 @@ test("the friends list opens a friend, and removing them happens on their page",
   await expect(list.getByRole("listitem")).toHaveCount(1);
   await page.getByLabel("Find a friend").fill("zz");
   await expect(page.getByText("No friends match “zz”.")).toBeVisible();
-  await page.getByLabel("Find a friend").fill("");
+  await page.getByLabel("Find a friend").fill("ri");
 
   await list.getByRole("button", { name: /^Riley/ }).click();
   await expect(page.getByRole("heading", { name: "Riley", exact: true })).toBeVisible();
@@ -139,7 +139,11 @@ test("the friends list opens a friend, and removing them happens on their page",
   await page.getByRole("button", { name: "Remove Riley as a friend", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Friends", exact: true })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Removed Riley." })).toBeVisible();
+  // Eight friends left would normally hide the search, but it stays while it still filters the list.
+  await expect(page.getByText("No friends match “ri”.")).toBeVisible();
+  await page.getByLabel("Find a friend").fill("");
   await expect(list.getByRole("listitem")).toHaveCount(8);
+  await expect(page.getByLabel("Find a friend")).toHaveCount(0);
   expect(state.calls).toEqual(["DELETE /api/v1/friends/f-1"]);
 });
 

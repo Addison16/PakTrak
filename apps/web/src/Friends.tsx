@@ -83,7 +83,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
 
       <div className="social-block">
         <h3 className="friends-heading">Your friends{data.friends.length > 0 && <span>{data.friends.length}</span>}</h3>
-        {data.friends.length > 8 && <label className="friends-find">Find a friend<input type="search" value={find} maxLength={80} autoComplete="off" onChange={(event) => setFind(event.target.value)} placeholder="Name" /></label>}
+        {(data.friends.length > 8 || find) && <label className="friends-find">Find a friend<input type="search" value={find} maxLength={80} autoComplete="off" onChange={(event) => setFind(event.target.value)} placeholder="Name" /></label>}
         {data.friends.length === 0 ? <p className="fine">No friends yet. Swap codes with someone below and they’ll show up here.</p>
           : shown.length === 0 ? <p className="fine">No friends match “{find.trim()}”.</p>
           : <ul className="plain-list friend-list" aria-label="Your friends">{shown.map((person, index) => <li key={person.id} style={{ "--row": Math.min(index, 8) } as CSSProperties}>
