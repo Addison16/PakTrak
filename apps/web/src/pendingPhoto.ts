@@ -77,3 +77,18 @@ export async function removePendingPhoto(owner: string, expectedSavedAt?: number
   } catch { /* A storage failure must not imply that server acceptance failed. */ }
   finally { db?.close(); }
 }
+
+/** Removes every account's unfinished photo from this device, as on sign out. */
+export async function clearPendingPhotos(): Promise<void> {
+  let db: IDBDatabase | undefined;
+  try {
+    db = await database();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction("photos", "readwrite");
+      transaction.objectStore("photos").clear();
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = transaction.onerror = () => reject(transaction.error);
+    });
+  } catch { /* Blocked storage holds no photo to remove. */ }
+  finally { db?.close(); }
+}

@@ -8,7 +8,7 @@ const dragon = { id: "offline-dragon", name: "Shivan Dragon", set_code: "off", c
 // way Cloudflare does while the server behind it restarts.
 const gatewayPage = (status: number) => ({ status, contentType: "text/html", body: "<!doctype html><title>Bad gateway</title><h1>Error " + status + "</h1>" });
 async function fixture(page: Page, options: { reject?: boolean } = {}) {
-  const state = { down: false as boolean | "gateway", gatewayStatus: 502, lot: { id: "lot-1", printing: dragon, quantity: 3, finish: "foil", condition: "NM", binder: "Red binder", binder_id: "red", binder_kind: "binder", notes: "", version: 1 },
+  const state = { down: false as boolean | "gateway", gatewayStatus: 502, owner: "offline-owner", lot: { id: "lot-1", printing: dragon, quantity: 3, finish: "foil", condition: "NM", binder: "Red binder", binder_id: "red", binder_kind: "binder", notes: "", version: 1 },
     edits: [] as { path: string; body: any; csrf: string; key: string }[] };
   const card = () => ({ printing: dragon, quantity: state.lot.quantity, location_count: 1, locations: [{ id: "red", name: "Red binder", quantity: state.lot.quantity }], value: "9.00", price_min: "3.00", price_max: "3.00", priced_copies: state.lot.quantity });
   await page.route("**/api/**", async (route) => {
@@ -17,10 +17,10 @@ async function fixture(page: Page, options: { reject?: boolean } = {}) {
     const req = route.request(), url = new URL(req.url()), path = url.pathname;
     let json: any = {}, status = 200;
     if (path === "/api/health/live") json = { status: "ok" };
-    else if (path === "/api/auth/session") json = { owner_id: "offline-owner", display_name: "Collector", role: "member", csrf_token: "csrf-" + state.edits.length, tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
+    else if (path === "/api/auth/session") json = { owner_id: state.owner, display_name: "Collector", role: "member", csrf_token: "csrf-" + state.edits.length, tour_dismissed: true, preferred_price_source: "tcgplayer", scan_cards_used: 0, scan_card_limit: null, scan_cards_remaining: null };
     else if (path === "/api/auth/status") json = { setup_required: false, guest_signup_enabled: true };
     else if (path === "/api/v1/capabilities") json = { max_upload_bytes: 104857600 };
-    else if (path === "/api/v1/collection/cards") json = { copies: state.lot.quantity, cards: 1, items: [card()], next_offset: null, valuation: { provider: "tcgplayer", amount: "9.00", priced_copies: 3, unpriced_copies: 0, feed: null } };
+    else if (path === "/api/v1/collection/cards") json = { copies: state.lot.quantity, cards: state.lot.quantity ? 1 : 0, items: state.lot.quantity ? [card()] : [], next_offset: null, valuation: { provider: "tcgplayer", amount: "9.00", priced_copies: 3, unpriced_copies: 0, feed: null } };
     else if (path === "/api/v1/collection/cards/" + dragon.id) json = card();
     else if (path === "/api/v1/collection/printings/" + dragon.id) json = { printing: dragon, faces: [{ name: dragon.name, image_url: dragon.image_url }], legalities: {}, prices: [], released_at: null, scryfall_url: null };
     else if (path === "/api/v1/collection") json = { copies: state.lot.quantity, items: [state.lot], next_offset: null };
@@ -106,6 +106,51 @@ test("the collection opens from saved copies when the server can't be reached", 
   // Something never opened while connected says so instead of failing silently.
   await navigate(page, "Queued actions");
   await expect(page.locator(".queue-connection")).toContainText("you’re seeing copies saved on this device");
+});
+
+test("another account signing in on the same device doesn’t get the previous account’s saved copies", async ({ page }) => {
+  const state = await fixture(page);
+  await page.goto("/#/collection");
+  await openCopies(page);
+  const savedFor = (owner: string) => page.evaluate((prefix) => new Promise<number>((resolve) => {
+    const open = indexedDB.open("paktrak-offline");
+    open.onsuccess = () => {
+      const request = open.result.transaction("responses").objectStore("responses").getAllKeys();
+      request.onsuccess = () => resolve((request.result as string[]).filter((key) => key.startsWith(prefix + " ")).length);
+    };
+    open.onerror = () => resolve(-1);
+  }), owner);
+  expect(await savedFor("offline-owner")).toBeGreaterThan(0);
+  // An unfinished photo of the first collector's is kept on the device too.
+  const pendingPhotos = () => page.evaluate(() => new Promise<number>((resolve) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("photos", { keyPath: "owner" });
+    open.onsuccess = () => { const count = open.result.transaction("photos").objectStore("photos").count(); count.onsuccess = () => resolve(count.result); };
+    open.onerror = () => resolve(-1);
+  }));
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const open = indexedDB.open("paktrak-pending-photos", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("photos", { keyPath: "owner" });
+    open.onsuccess = () => {
+      const transaction = open.result.transaction("photos", "readwrite");
+      transaction.objectStore("photos").put({ owner: "offline-owner", file: new ArrayBuffer(8), mimeType: "image/jpeg", filename: "cards.jpg", savedAt: Date.now() });
+      transaction.oncomplete = () => resolve();
+    };
+  }));
+  expect(await pendingPhotos()).toBe(1);
+  // A second person signs in on this phone with an empty collection: the first
+  // collector's copies are removed before anything of theirs is shown or saved.
+  state.owner = "second-owner";
+  state.lot = { ...state.lot, quantity: 0 };
+  await page.reload();
+  await expect(page.locator("main")).toContainText("0 copies");
+  expect(await savedFor("offline-owner")).toBe(0);
+  expect(await pendingPhotos()).toBe(0);
+  state.down = true;
+  await page.reload();
+  await expect(status(page)).toHaveText("Offline");
+  await expect(page.locator("main")).toContainText("0 copies");
+  await expect(page.getByRole("button", { name: /^Open Shivan Dragon/ })).toHaveCount(0);
 });
 
 test("an edit the server turns down stays in the list with the reason until removed", async ({ page }) => {

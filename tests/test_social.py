@@ -381,6 +381,11 @@ def test_value_and_price_history_record_owned_cards(clients, cards):
     prices = client.get(f"/api/v1/collection/printings/{cards[1]}/price-history").json()
     assert [p["amount"] for p in prices["finishes"]["nonfoil"]["points"]] == ["8.00", "10.00"]
     assert prices["finishes"]["foil"]["points"] == []
+    # Wanted cards have history too; an unrelated printing's history stays private
+    # (it would reveal that another account owns the card).
+    assert client.get(f"/api/v1/collection/printings/{cards[3]}/price-history").status_code == 200
+    stranger, _ = clients()
+    assert stranger.get(f"/api/v1/collection/printings/{cards[1]}/price-history").status_code == 404
     with session_factory()() as db, db.begin():
         db.execute(
             delete(CardPriceHistory).where(
