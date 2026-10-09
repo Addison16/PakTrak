@@ -99,7 +99,14 @@ docker run -d --name paktrak --restart unless-stopped --stop-timeout 120 \
   -v paktrak-data:/data ghcr.io/addison16/paktrak:latest
 ```
 
-The first start takes a few minutes. When `docker logs paktrak` shows **PakTrak is running**, open the address and choose **Create administrator account**. Everything PakTrak keeps is in the `paktrak-data` volume. To update, pull the image again and recreate the container with the same command.
+The first start takes a few minutes. When `docker logs paktrak` shows **PakTrak is running**, open the address and choose **Create administrator account**. Everything PakTrak keeps is in the `paktrak-data` volume, so you can replace the container to update:
+
+```sh
+docker pull ghcr.io/addison16/paktrak:latest
+docker stop paktrak && docker rm paktrak
+```
+
+Then run the `docker run` command above again.
 
 ### Unraid or a single container
 
