@@ -1,4 +1,4 @@
-// A few of PakTrak's own cards drift down behind sign-in and Home. Styles live in
+// A few of PakTrak's own cards drift down behind every page. Styles live in
 // public/backdrop-v1.css, shared with the identity pages' copy of this markup.
 export default function FallingCards() {
   return <div className="falling-cards" aria-hidden="true">
