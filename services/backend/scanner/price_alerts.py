@@ -87,11 +87,11 @@ def moved(old, new, user):
     return user.price_alert_amount is not None or user.price_alert_percent is not None
 
 
-def collection_change(db, owner_id, provider, quotes):
-    """How today's prices moved the owner's whole collection since the update before.
+def collection_change(db, owner_id, provider):
+    """How prices moved the owner's collection since the price update before today's.
 
-    Only price moves count: a copy added or removed since then doesn't change the
-    figure, and a card with no earlier price is left out of both sides.
+    Only price moves count: copies are those owned on both days, so a copy added
+    since then doesn't bring in movement from before it was owned.
     """
     # The owner's own daily totals are a small table, so the days come from there.
     days = db.scalars(
@@ -106,37 +106,54 @@ def collection_change(db, owner_id, provider, quotes):
     if len(days) < 2:
         return None
     before = days[1]
-    owned = (
-        select(InventoryLot.printing_id, InventoryLot.finish)
-        .where(InventoryLot.owner_id == owner_id, InventoryLot.quantity_remaining > 0)
-        .distinct()
+    held = (
+        select(
+            InventoryLot.printing_id,
+            InventoryLot.finish,
+            func.sum(InventoryLot.quantity_remaining).label("quantity"),
+        )
+        .where(
+            InventoryLot.owner_id == owner_id,
+            InventoryLot.quantity_remaining > 0,
+            InventoryLot.finish.in_(PRICED_FINISHES),
+            InventoryLot.misprint.is_not(True),
+            InventoryLot.altered.is_not(True),
+            # Same calendar as the history's CURRENT_DATE.
+            func.date(InventoryLot.created_at) <= before,
+        )
+        .group_by(InventoryLot.printing_id, InventoryLot.finish)
         .subquery()
     )
-    earlier = {
-        (row.printing_id, row.finish): Decimal(row.amount)
-        for row in db.execute(
-            select(CardPriceHistory.printing_id, CardPriceHistory.finish, CardPriceHistory.amount)
-            .join(
-                owned,
-                and_(
-                    owned.c.printing_id == CardPriceHistory.printing_id,
-                    owned.c.finish == CardPriceHistory.finish,
-                ),
-            )
-            .where(CardPriceHistory.provider == provider, CardPriceHistory.day == before)
+    then, current = db.execute(
+        select(
+            func.sum(held.c.quantity * CardPriceHistory.amount),
+            func.sum(held.c.quantity * CardPrice.amount),
         )
-    }
-    then = change = Decimal(0)
-    for printing_id, finish, quantity, amount, _ in quotes:
-        old = earlier.get((printing_id, finish))
-        if old is not None:
-            then += old * quantity
-            change += (Decimal(amount) - old) * quantity
+        .select_from(held)
+        .join(
+            CardPriceHistory,
+            and_(
+                CardPriceHistory.printing_id == held.c.printing_id,
+                CardPriceHistory.finish == held.c.finish,
+                CardPriceHistory.provider == provider,
+                CardPriceHistory.day == before,
+            ),
+        )
+        .join(
+            CardPrice,
+            and_(
+                CardPrice.printing_id == held.c.printing_id,
+                CardPrice.finish == held.c.finish,
+                CardPrice.provider == provider,
+            ),
+        )
+    ).one()
     if not then:
         return None
+    change = Decimal(current) - Decimal(then)
     return {
         "change": f"{change:.2f}",
-        "percent": round(float(change / then * 100), 1),
+        "percent": round(float(change / Decimal(then) * 100), 1),
         "since": before.isoformat(),
     }
 
@@ -248,7 +265,7 @@ def price_alerts(identity: Identity, db: DB):
         result[key[:-1] + "_count"] = len(items)
         result[key[:-1] + "_total"] = f"{sum((held for held, _ in items), Decimal(0)):.2f}"
     if rises or drops:
-        result["collection"] = collection_change(db, user.id, provider, quotes)
+        result["collection"] = collection_change(db, user.id, provider)
     return result
 
 

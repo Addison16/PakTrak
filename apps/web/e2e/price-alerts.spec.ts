@@ -149,7 +149,16 @@ test("A drop on its own is named on the banner and the list leaves out an unknow
   await page.goto("/");
   const banner = page.getByRole("button", { name: /Price alerts/ });
   await expect(banner).toContainText("Fable of the Mirror-Breaker −34%");
+  await expect(banner).not.toContainText("·");
   await banner.click();
   const notice = page.getByRole("dialog", { name: "Some cards lost value", exact: true });
   await expect(notice.locator(".price-alert-totals > div")).toHaveText(["This card$6.25 down−$6.25"]);
+});
+
+test("The banner leads with whichever card moved the most across its copies", async ({ page }) => {
+  const small = mover("00000000-0000-4000-8000-000000000301", "Llanowar Elves", "1.00", "2.50");
+  const big = mover("00000000-0000-4000-8000-000000000302", "Force of Will", "90.00", "70.00", { quantity: 2 });
+  await collector(page, { rises: [small], drops: [big, drops[0]] });
+  await page.goto("/");
+  await expect(page.locator(".price-alert-banner")).toContainText("Force of Will −22.2% · 1 more down · 1 up");
 });

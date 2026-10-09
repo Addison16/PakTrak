@@ -22,9 +22,13 @@ const shortDate = (day: string) => new Date(day + "T12:00:00").toLocaleDateStrin
 
 // The banner names the cards that moved, so no figure on it reads like the whole collection's.
 function moverSummary({ rises, drops, rise_count, drop_count }: Alerts) {
-  const top = rises[0] ?? drops[0];
-  const more = rises.length ? [rise_count > 1 && `${(rise_count - 1).toLocaleString()} more up`, drop_count && `${drop_count.toLocaleString()} down`] : [drop_count > 1 && `${(drop_count - 1).toLocaleString()} more down`];
-  return [`${top.name} ${signedPercent(top.percent)}`, ...more].filter(Boolean).join(" · ");
+  // Each list is sorted by the change across every copy held; the bigger of the two leads.
+  const held = (item?: Mover) => item ? Math.abs(Number(item.change)) * item.quantity : -1;
+  const up = held(rises[0]) >= held(drops[0]);
+  const top = up ? rises[0] : drops[0];
+  const ups = rise_count - (up ? 1 : 0), downs = drop_count - (up ? 0 : 1);
+  const rest = [ups && `${ups.toLocaleString()} ${up ? "more " : ""}up`, downs && `${downs.toLocaleString()} ${up ? "" : "more "}down`];
+  return [`${top.name} ${signedPercent(top.percent)}`, ...(up ? rest : rest.reverse())].filter(Boolean).join(" · ");
 }
 
 function MoverList({ title, items, total, direction }: { title: string; items: Mover[]; total: number; direction: "up" | "down" }) {

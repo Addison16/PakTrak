@@ -315,7 +315,7 @@ def test_totals_count_every_copy_and_collection_change_ignores_new_copies(client
                     copies=6,
                 )
             )
-        for name, amount in (("Riser", "10"), ("Faller", "20"), ("Steady", "4")):
+        for name, amount in (("Riser", "10"), ("Faller", "20"), ("Steady", "4"), ("Penny", "0.05")):
             db.add(
                 CardPriceHistory(
                     printing_id=ids[name],
@@ -325,8 +325,15 @@ def test_totals_count_every_copy_and_collection_change_ignores_new_copies(client
                     amount=Decimal(amount),
                 )
             )
-    # A copy added since yesterday changes the value but is not a price move.
+        # The copies so far were owned yesterday too.
+        db.execute(
+            update(InventoryLot)
+            .where(InventoryLot.owner_id == owner_id)
+            .values(created_at=InventoryLot.created_at - timedelta(days=1))
+        )
+    # Copies added since yesterday change the value, but their earlier moves aren't the owner's.
     own(owner_id, "Penny", quantity=4)
+    own(owner_id, "Riser", quantity=5)
     collection = alerts(client)["collection"]
     # Then: 3 x $10 + $20 + 2 x $4 = $58. Now: 3 x $14 + $15 + 2 x $5 = $67.
     assert collection == {
