@@ -18,7 +18,7 @@ async function fixture(page: Page, signedIn: boolean) {
   });
 }
 
-test("cards fall behind sign-in and Home only, and never take taps", async ({ page }) => {
+test("cards fall behind every page, stay put while moving between pages, and never take taps", async ({ page }) => {
   await fixture(page, false);
   await page.goto("/");
   await expect(page.getByText("Your next favorite is already here.")).toBeVisible();
@@ -32,9 +32,15 @@ test("cards fall behind sign-in and Home only, and never take taps", async ({ pa
   await page.goto("/");
   await expect(page.getByText("Start with a clear photo.")).toBeVisible();
   await expect(cards).toHaveCount(1);
+  // The same layer keeps falling across pages instead of starting over on each one.
+  await cards.evaluate((element) => { element.dataset.marker = "home"; });
   await navigate(page, "Collection");
   await expect(page.locator("main.collection-view")).toBeVisible();
-  await expect(cards).toHaveCount(0);
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveAttribute("data-marker", "home");
+  await navigate(page, "Decks");
+  await expect(page.locator("main.decks-view")).toBeVisible();
+  await expect(cards).toHaveAttribute("data-marker", "home");
 });
 
 test("each color theme has its own backdrop", async ({ page }) => {

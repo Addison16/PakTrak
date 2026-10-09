@@ -630,7 +630,8 @@ function App() {
   // Not over open batches, the camera or the menu, where touches belong to the work on screen.
   const pullEnabled = !!session && !selected && !route.batch && !route.overlay;
   const showTabs = !!session && !selected && !route.batch && ["scan", "batches", "collection", "decks"].includes(page) && !(page === "decks" && route.deck);
-  const fallingCards = session === null || !!session && page === "scan" && !selected && !route.targetDeck && !route.batch && !cameraOpen;
+  // Behind every page; the live camera fills the screen, so it goes away there.
+  const fallingCards = !cameraOpen;
   return <div className="app">
     {fallingCards && <FallingCards />}
     <header className="topbar">
