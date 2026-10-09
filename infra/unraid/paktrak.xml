@@ -8,7 +8,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/Addison16/PakTrak/issues</Support>
   <Project>https://github.com/Addison16/PakTrak</Project>
-  <Overview>Self-hosted Magic: The Gathering collection tracker. Scan cards from photos, manage your collection and build decks. Everything runs in this one container; your data is kept in the Data folder.</Overview>
+  <Overview>Self-hosted Magic: The Gathering collection app for your phone's browser. Photograph a whole page of cards at once and PakTrak finds each card, suggests the printing and adds the strong matches for you. Track every copy by binder, build decks that show what you own and where it is, follow prices from three stores with alerts and history, and trade with friends using private friend codes. Works offline. Everything runs in this one container; your data is kept in the Data folder.</Overview>
   <Category>Tools: Productivity:</Category>
   <WebUI>http://[IP]:[PORT:8095]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Addison16/PakTrak/main/infra/unraid/paktrak.xml</TemplateURL>

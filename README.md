@@ -2,6 +2,10 @@
 
 **Every card. In reach.**
 
+[![Latest release](https://img.shields.io/github/v/release/Addison16/PakTrak)](https://github.com/Addison16/PakTrak/releases/latest)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Container image](https://img.shields.io/badge/image-ghcr.io%2Faddison16%2Fpaktrak-2496ED?logo=docker&logoColor=white)](https://github.com/Addison16/PakTrak/pkgs/container/paktrak)
+
 PakTrak is a self-hosted Magic: The Gathering collection app for your phone's browser. Lay out a page of cards and take one photo. PakTrak outlines the cards it finds, suggests a printing for each, and adds the strongest matches to your collection on its own; anything it isn't sure about waits for a quick check, and you can add a card it missed. It runs on your own server, keeps your data there, and is free and open source under the [GNU AGPL v3](LICENSE).
 
 <table>
@@ -84,6 +88,18 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 ## Install
 
 PakTrak runs in Docker on any Linux x86-64 (amd64) server. There is no default password; the first person to open it creates the administrator account.
+
+### Try it with one command
+
+On any server with Docker, replace `192.168.1.50` with your server's address and run:
+
+```sh
+docker run -d --name paktrak --restart unless-stopped --stop-timeout 120 \
+  -p 8095:8095 -e APP_URL=http://192.168.1.50:8095 \
+  -v paktrak-data:/data ghcr.io/addison16/paktrak:latest
+```
+
+The first start takes a few minutes. When `docker logs paktrak` shows **PakTrak is running**, open the address and choose **Create administrator account**. Everything PakTrak keeps is in the `paktrak-data` volume. To update, pull the image again and recreate the container with the same command.
 
 ### Unraid or a single container
 
