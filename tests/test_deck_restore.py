@@ -55,6 +55,12 @@ def test_all_decks_download_restores_every_deck_on_another_account(clients, deck
         "Sleeved in red",
     )
 
+    text = client.get("/api/v1/decks/download-all?format=text").text
+    assert text.startswith("# =Formula deck\nFormat: commander\nNotes: Sleeved in red\n")
+    assert "\nCommander\n1 Deck Fixture Ember (TST) 1\n" in text
+    assert "\nSideboard\n2 Deck Fixture Water (TST) 3\n" in text
+    assert "# Empty idea\nFormat: casual\n\nNo cards yet.\n" in text
+
     again = other.post("/api/v1/decks/restore", headers=key(), json={"content": content}).json()
     assert again["restored"] == []
     assert sorted(again["skipped"]) == ["=Formula deck", "Empty idea"]

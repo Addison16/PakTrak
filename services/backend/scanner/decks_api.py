@@ -433,8 +433,9 @@ ALL_DECKS_CSV = [
 
 
 @router.get("/download-all")
-def download_all_decks(identity: Identity, db: DB):
-    """Every saved deck in one file that the restore below reads back."""
+def download_all_decks(identity: Identity, db: DB, format: Literal["csv", "text"] = "csv"):
+    """Every saved deck in one file. The CSV is what the restore below reads back; the text
+    version is a readable list to share or hand to another tool."""
     decks = db.scalars(
         select(Deck)
         .where(Deck.owner_id == identity.owner_id, Deck.archived.is_(False))
@@ -450,6 +451,34 @@ def download_all_decks(identity: Identity, db: DB):
         ):
             cards[card.deck_id].append((card, printing))
     output = io.StringIO(newline="")
+    if format == "text":
+        for deck in decks:
+            output.write(f"# {safe_name(deck.name)}\nFormat: {deck.format}\n")
+            if deck.notes.strip():
+                output.write(f"Notes: {safe_name(deck.notes)}\n")
+            for section, label in [
+                ("commander", "Commander"),
+                ("main", "Mainboard"),
+                ("sideboard", "Sideboard"),
+            ]:
+                rows = [
+                    (card, printing) for card, printing in cards[deck.id] if card.section == section
+                ]
+                if rows:
+                    output.write(f"\n{label}\n")
+                    for card, printing in rows:
+                        output.write(
+                            f"{card.quantity} {safe_name(printing.name)} "
+                            f"({printing.set_code.upper()}) {printing.collector_number}\n"
+                        )
+            if not cards[deck.id]:
+                output.write("\nNo cards yet.\n")
+            output.write("\n")
+        return Response(
+            output.getvalue().encode("utf-8"),
+            media_type="text/plain",
+            headers={"Content-Disposition": 'attachment; filename="paktrak-decks.txt"'},
+        )
     writer = csv.writer(output)
     writer.writerow(ALL_DECKS_CSV)
     for deck in decks:
