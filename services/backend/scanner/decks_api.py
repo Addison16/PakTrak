@@ -4,7 +4,7 @@ import csv
 import io
 import uuid
 from collections import Counter, defaultdict
-from typing import Literal
+from typing import Literal, get_args
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
@@ -15,14 +15,18 @@ from scanner.auth import DB, Identity
 from scanner.card_images import source_image
 from scanner.catalog import printing_json
 from scanner.collection_api import Key, StrictModel, fingerprint, owned
-from scanner.csv_formats import safe_cell, text_line
+from scanner.csv_formats import read_csv, safe_cell, text_line
 from scanner.deck_legality import DeckFormat, legality_report
 from scanner.deck_lists import (
     MAX_DECK_BYTES,
+    MAX_DECK_ROWS,
+    SECTIONS,
     collection_versions,
     compare_cards,
+    deck_name_index,
     deck_usage,
     preview_list,
+    resolve_deck_card,
 )
 from scanner.deck_tokens import token_report
 from scanner.deck_values import FinishPreference, value_report
@@ -66,6 +70,10 @@ class DeckPreview(StrictModel):
     match_mode: Literal["any", "exact"] = "any"
     deck_format: DeckFormat = "casual"
     section_mode: Literal["auto", "two_commanders", "listed"] = "auto"
+
+
+class DeckRestore(StrictModel):
+    content: str = Field(min_length=1, max_length=5 * 1024 * 1024)
 
 
 class DeckCheck(StrictModel):
@@ -407,6 +415,178 @@ def create_deck(data: DeckCreate, key: Key, identity: Identity, db: DB):
         db.add(DeckCard(deck_id=deck.id, **card.model_dump()))
     db.commit()
     return deck_detail(db, deck)
+
+
+ALL_DECKS_CSV = [
+    "Deck",
+    "Format",
+    "Match Mode",
+    "Deck Notes",
+    "Section",
+    "Quantity",
+    "Name",
+    "Set Code",
+    "Collector Number",
+    "Language",
+    "Scryfall ID",
+]
+
+
+@router.get("/download-all")
+def download_all_decks(identity: Identity, db: DB):
+    """Every saved deck in one file that the restore below reads back."""
+    decks = db.scalars(
+        select(Deck)
+        .where(Deck.owner_id == identity.owner_id, Deck.archived.is_(False))
+        .order_by(Deck.name, Deck.id)
+    ).all()
+    cards = defaultdict(list)
+    if decks:
+        for card, printing in db.execute(
+            select(DeckCard, Printing)
+            .join(Printing)
+            .where(DeckCard.deck_id.in_([deck.id for deck in decks]))
+            .order_by(DeckCard.section, Printing.name, Printing.id)
+        ):
+            cards[card.deck_id].append((card, printing))
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(ALL_DECKS_CSV)
+    for deck in decks:
+        info = [deck.name, deck.format, deck.match_mode, deck.notes]
+        rows = [
+            [
+                card.section,
+                card.quantity,
+                printing.name,
+                printing.set_code,
+                printing.collector_number,
+                printing.language,
+                str(printing.id),
+            ]
+            for card, printing in cards[deck.id]
+        ] or [[""] * 7]  # An empty deck still comes back by name.
+        for row in rows:
+            writer.writerow([safe_cell(value) for value in info + row])
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="paktrak-decks.csv"'},
+    )
+
+
+@router.post("/restore")
+def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
+    """Recreate decks from an all-decks file. Decks whose name is already saved are skipped,
+    so restoring the same file twice adds nothing."""
+    try:
+        headers, source, _ = read_csv(data.content.encode("utf-8"), {})
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    lower = {header.strip().casefold(): header for header in headers}
+    if "deck" not in lower or "section" not in lower:
+        raise HTTPException(
+            422, "Choose a file made with Download all decks. It needs Deck and Section columns."
+        )
+
+    def cell(raw, column):
+        # Every cell was written through safe_cell, which adds exactly one apostrophe.
+        value = raw.get(lower.get(column.casefold(), ""), "")
+        return value[1:] if value.startswith("'") else value
+
+    grouped = {}
+    for index, raw in enumerate(source, start=2):
+        name = cell(raw, "Deck").strip()
+        if name:
+            grouped.setdefault(name[:255], []).append((index, raw))
+    if not grouped:
+        raise HTTPException(422, "The file has no deck names in its Deck column.")
+    db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
+    existing = set(
+        db.scalars(
+            select(Deck.name).where(Deck.owner_id == identity.owner_id, Deck.archived.is_(False))
+        )
+    )
+    active = len(existing)
+    name_index = deck_name_index(
+        db,
+        (
+            cell(raw, "Name").strip()
+            for rows in grouped.values()
+            for _, raw in rows
+            if not cell(raw, "Scryfall ID").strip()
+        ),
+    )
+    restored, skipped, problems = [], [], []
+    for name, rows in grouped.items():
+        if name in existing:
+            skipped.append(name)
+            continue
+        if active >= 1000:
+            problems.append({"deck": name, "line": rows[0][0], "error": "Deck limit reached."})
+            continue
+        first = rows[0][1]
+        deck_format = cell(first, "Format").strip().casefold()
+        match_mode = cell(first, "Match Mode").strip().casefold()
+        quantities = Counter()
+        for line, raw in rows:
+            values = {
+                "name": cell(raw, "Name").strip(),
+                "scryfall_id": cell(raw, "Scryfall ID").strip(),
+                "set_code": cell(raw, "Set Code").strip().lower(),
+                "collector_number": cell(raw, "Collector Number").strip(),
+                "language": cell(raw, "Language").strip().lower(),
+            }
+            if not any(values.values()):
+                continue
+            quantity = cell(raw, "Quantity").strip() or "1"
+            section = SECTIONS.get((cell(raw, "Section").strip() or "main").casefold())
+            if not (quantity.isascii() and quantity.isdigit() and 1 <= int(quantity) <= 100_000):
+                error = "Quantity must be a whole number from 1 to 100,000."
+                printing = None
+            elif section is None:
+                error, printing = "Section must be Mainboard, Sideboard or Commander.", None
+            elif any(len(value) > 255 for value in values.values()):
+                error, printing = "Card identifiers are too long.", None
+            else:
+                printing, error = resolve_deck_card(db, values, name_index)
+            if printing is None:
+                problems.append(
+                    {"deck": name, "line": line, "card": values["name"], "error": error}
+                )
+                continue
+            quantities[(printing.id, section)] += int(quantity)
+        if len(quantities) > MAX_DECK_ROWS or any(q > 100_000 for q in quantities.values()):
+            problems.append(
+                {
+                    "deck": name,
+                    "line": rows[0][0],
+                    "error": "Deck is larger than a saved deck allows.",
+                }
+            )
+            continue
+        deck = Deck(
+            owner_id=identity.owner_id,
+            request_key=f"restore:{uuid.uuid4()}",
+            request_hash=fingerprint({"restore": key, "deck": name}),
+            name=name,
+            format=deck_format if deck_format in get_args(DeckFormat) else "casual",
+            match_mode=match_mode if match_mode in {"any", "exact"} else "any",
+            notes=cell(first, "Deck Notes")[:4096],
+        )
+        db.add(deck)
+        db.flush()
+        for (printing_id, section), quantity in quantities.items():
+            db.add(
+                DeckCard(
+                    deck_id=deck.id, printing_id=printing_id, section=section, quantity=quantity
+                )
+            )
+        existing.add(name)
+        active += 1
+        restored.append({"id": str(deck.id), "name": name, "copies": sum(quantities.values())})
+    db.commit()
+    return {"restored": restored, "skipped": skipped, "problems": problems[:200]}
 
 
 @router.get("/{deck_id}")
