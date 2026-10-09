@@ -20,6 +20,8 @@ from scanner.data_sync import PROVIDERS
 from scanner.gallery import feed_json, image_url
 from scanner.models import (
     CardPrice,
+    CardPriceHistory,
+    CollectionValueHistory,
     DataFeed,
     InventoryLot,
     PriceAlertBaseline,
@@ -85,6 +87,77 @@ def moved(old, new, user):
     return user.price_alert_amount is not None or user.price_alert_percent is not None
 
 
+def collection_change(db, owner_id, provider):
+    """How prices moved the owner's collection since the price update before today's.
+
+    Only price moves count: copies are those owned on both days, so a copy added
+    since then doesn't bring in movement from before it was owned.
+    """
+    # The owner's own daily totals are a small table, so the days come from there.
+    days = db.scalars(
+        select(CollectionValueHistory.day)
+        .where(
+            CollectionValueHistory.owner_id == owner_id,
+            CollectionValueHistory.provider == provider,
+        )
+        .order_by(CollectionValueHistory.day.desc())
+        .limit(2)
+    ).all()
+    if len(days) < 2:
+        return None
+    before = days[1]
+    held = (
+        select(
+            InventoryLot.printing_id,
+            InventoryLot.finish,
+            func.sum(InventoryLot.quantity_remaining).label("quantity"),
+        )
+        .where(
+            InventoryLot.owner_id == owner_id,
+            InventoryLot.quantity_remaining > 0,
+            InventoryLot.finish.in_(PRICED_FINISHES),
+            InventoryLot.misprint.is_not(True),
+            InventoryLot.altered.is_not(True),
+            # Same calendar as the history's CURRENT_DATE.
+            func.date(InventoryLot.created_at) <= before,
+        )
+        .group_by(InventoryLot.printing_id, InventoryLot.finish)
+        .subquery()
+    )
+    then, current = db.execute(
+        select(
+            func.sum(held.c.quantity * CardPriceHistory.amount),
+            func.sum(held.c.quantity * CardPrice.amount),
+        )
+        .select_from(held)
+        .join(
+            CardPriceHistory,
+            and_(
+                CardPriceHistory.printing_id == held.c.printing_id,
+                CardPriceHistory.finish == held.c.finish,
+                CardPriceHistory.provider == provider,
+                CardPriceHistory.day == before,
+            ),
+        )
+        .join(
+            CardPrice,
+            and_(
+                CardPrice.printing_id == held.c.printing_id,
+                CardPrice.finish == held.c.finish,
+                CardPrice.provider == provider,
+            ),
+        )
+    ).one()
+    if not then:
+        return None
+    change = Decimal(current) - Decimal(then)
+    return {
+        "change": f"{change:.2f}",
+        "percent": round(float(change / Decimal(then) * 100), 1),
+        "since": before.isoformat(),
+    }
+
+
 @router.get("")
 def price_alerts(identity: Identity, db: DB):
     user = db.get(User, identity.owner_id)
@@ -99,6 +172,10 @@ def price_alerts(identity: Identity, db: DB):
         "drops": [],
         "rise_count": 0,
         "drop_count": 0,
+        # Every alerting copy counted, not just the listed ones.
+        "rise_total": "0.00",
+        "drop_total": "0.00",
+        "collection": None,
     }
     if not user.price_alerts_enabled:
         db.commit()
@@ -186,6 +263,9 @@ def price_alerts(identity: Identity, db: DB):
         items.sort(key=lambda entry: (-entry[0], entry[1]["name"].casefold()))
         result[key] = [item for _, item in items[:LIMIT]]
         result[key[:-1] + "_count"] = len(items)
+        result[key[:-1] + "_total"] = f"{sum((held for held, _ in items), Decimal(0)):.2f}"
+    if rises or drops:
+        result["collection"] = collection_change(db, user.id, provider)
     return result
 
 

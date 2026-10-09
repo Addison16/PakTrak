@@ -7,14 +7,29 @@ import { usePullReload } from "./pullRefresh";
 
 export type PriceAlertSettings = { enabled: boolean; percent: number | null; amount: string | null };
 type Mover = { printing_id: string; name: string; set_code: string; collector_number: string; finish: "nonfoil" | "foil" | "etched"; quantity: number; image_url: string | null; old_amount: string; new_amount: string; change: string; percent: number; since: string };
-type Alerts = { settings: PriceAlertSettings; provider: string; rises: Mover[]; drops: Mover[]; rise_count: number; drop_count: number };
+type CollectionChange = { change: string; percent: number; since: string };
+type Alerts = { settings: PriceAlertSettings; provider: string; rises: Mover[]; drops: Mover[]; rise_count: number; drop_count: number; rise_total?: string; drop_total?: string; collection?: CollectionChange | null };
 
 const PREVIEW = 3;
 // Set when Home's notice opens My account, so the settings scroll into view once loaded.
 let revealSettings = false;
 const finishLabel = { nonfoil: "", foil: "Foil", etched: "Etched" };
 
-function signed(value: string) { const amount = Number(value); return (amount > 0 ? "+" : "−") + money(Math.abs(amount)); }
+function signed(value: string | number) { const amount = Number(value); return (amount > 0 ? "+" : amount < 0 ? "−" : "") + money(Math.abs(amount)); }
+const signedPercent = (percent: number) => (percent > 0 ? "+" : percent < 0 ? "−" : "") + Math.abs(percent) + "%";
+const plural = (count: number) => `${count.toLocaleString()} ${count === 1 ? "card" : "cards"}`;
+const shortDate = (day: string) => new Date(day + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+// The banner names the cards that moved, so no figure on it reads like the whole collection's.
+function moverSummary({ rises, drops, rise_count, drop_count }: Alerts) {
+  // Each list is sorted by the change across every copy held; the bigger of the two leads.
+  const held = (item?: Mover) => item ? Math.abs(Number(item.change)) * item.quantity : -1;
+  const up = held(rises[0]) >= held(drops[0]);
+  const top = up ? rises[0] : drops[0];
+  const ups = rise_count - (up ? 1 : 0), downs = drop_count - (up ? 0 : 1);
+  const rest = [ups && `${ups.toLocaleString()} ${up ? "more " : ""}up`, downs && `${downs.toLocaleString()} ${up ? "" : "more "}down`];
+  return [`${top.name} ${signedPercent(top.percent)}`, ...(up ? rest : rest.reverse())].filter(Boolean).join(" · ");
+}
 
 function MoverList({ title, items, total, direction }: { title: string; items: Mover[]; total: number; direction: "up" | "down" }) {
   const [all, setAll] = useState(false);
@@ -71,14 +86,16 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
       else setLeaving(true);
     } catch (e) { setError(e as Error); }
   }
-  const rose = alerts.rises.reduce((sum, item) => sum + Number(item.change) * item.quantity, 0);
-  const fell = alerts.drops.reduce((sum, item) => sum + Number(item.change) * item.quantity, 0);
-  const counts = [alerts.rise_count && `${alerts.rise_count} ${alerts.rise_count === 1 ? "card" : "cards"} went up`, alerts.drop_count && `${alerts.drop_count}${alerts.rise_count ? "" : alerts.drop_count === 1 ? " card" : " cards"} went down`].filter(Boolean).join(" · ");
+  const listed = (items: Mover[]) => items.reduce((sum, item) => sum + Math.abs(Number(item.change)) * item.quantity, 0);
+  const rose = Number(alerts.rise_total ?? listed(alerts.rises));
+  const fell = Number(alerts.drop_total ?? listed(alerts.drops));
+  const moverCount = alerts.rise_count + alerts.drop_count;
+  const collection = alerts.collection;
   return <>
     <button ref={banner} type="button" className={"price-alert-banner" + (alerts.rises.length ? " up" : " down") + (leaving ? " leaving" : "")} disabled={leaving} aria-haspopup="dialog"
       onClick={() => setOpen(true)} onAnimationEnd={(event) => { if (leaving && event.target === event.currentTarget) setAlerts(null); }}>
       <span className="price-alert-banner-icon" aria-hidden="true"><Icon name="spark" /></span>
-      <span className="price-alert-banner-copy"><strong>{alerts.rises.length ? "Your cards are on the move!" : "Price alerts"}</strong><small>{counts}{rose ? ` · ${money(rose)} up` : ""}</small></span>
+      <span className="price-alert-banner-copy"><strong>{alerts.rises.length ? "Your cards are on the move!" : "Price alerts"}</strong><small>{moverSummary(alerts)}</small></span>
       <Icon name="arrow" />
     </button>
     {open && <dialog ref={sheet} className="price-alert-sheet" aria-labelledby="price-alerts-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClick={(event) => {
@@ -91,7 +108,11 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
         <div><div className="eyebrow">PRICE ALERTS</div><h2 id="price-alerts-title">{alerts.rises.length && alerts.drops.length ? "Some of your cards moved" : alerts.rises.length ? "Your cards went up" : "Some cards lost value"}</h2></div>
         <button type="button" className="price-alert-close" aria-label="Close" onClick={() => setOpen(false)}><Icon name="close" /></button>
       </div>
-      <p className="fine">Since you last checked · {providers[alerts.provider] ?? alerts.provider} prices{rose ? ` · ${money(rose)} up` : ""}{fell ? ` · ${money(-fell)} down` : ""}</p>
+      <p className="fine">Since you last checked · {providers[alerts.provider] ?? alerts.provider} prices</p>
+      <dl className="price-alert-totals">
+        <div><dt>{moverCount === 1 ? "This card" : `These ${plural(moverCount)}`}<small>{[rose && `${money(rose)} up`, fell && `${money(fell)} down`].filter(Boolean).join(" · ")}{[...alerts.rises, ...alerts.drops].some((item) => item.quantity > 1) ? ", all copies counted" : ""}</small></dt><dd>{signed((rose - fell).toFixed(2))}</dd></div>
+        {collection && <div><dt>Whole collection<small>Price changes since {shortDate(collection.since)}</small></dt><dd>{signed(collection.change)}<small>{signedPercent(collection.percent)}</small></dd></div>}
+      </dl>
       <MoverList title="Went up" items={alerts.rises} total={alerts.rise_count} direction="up" />
       <MoverList title="Went down" items={alerts.drops} total={alerts.drop_count} direction="down" />
       {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}

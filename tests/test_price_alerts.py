@@ -1,6 +1,7 @@
 """Home price alerts compare each owner's cards with the price that owner last saw."""
 
 import uuid
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -10,7 +11,9 @@ from scanner.db import session_factory
 from scanner.models import (
     Binder,
     CardPrice,
+    CardPriceHistory,
     CatalogSnapshot,
+    CollectionValueHistory,
     InventoryLot,
     PriceAlertBaseline,
     Printing,
@@ -282,3 +285,59 @@ def test_a_re_added_card_starts_fresh_even_before_the_next_visit(clients, market
     assert result["rises"] == result["drops"] == []
     price("Riser", "40")
     assert alerts(client)["rises"][0]["old_amount"] == "30.00"
+
+
+def test_totals_count_every_copy_and_collection_change_ignores_new_copies(clients, market):
+    ids, own, price = market
+    client, owner_id = clients()
+    own(owner_id, "Riser", quantity=3)
+    own(owner_id, "Faller")
+    own(owner_id, "Steady", quantity=2)
+    alerts(client)
+    assert alerts(client)["collection"] is None  # Nothing moved, so nothing to explain.
+    price("Riser", "14")
+    price("Faller", "15")
+    # Only one day of prices so far: no earlier collection value to compare with.
+    result = alerts(client)
+    assert (result["rise_total"], result["drop_total"]) == ("12.00", "5.00")
+    assert result["collection"] is None
+
+    today = date.today()
+    with session_factory()() as db, db.begin():
+        for days_ago, amount in ((1, "45"), (0, "77")):
+            db.add(
+                CollectionValueHistory(
+                    owner_id=owner_id,
+                    provider="tcgplayer",
+                    day=today - timedelta(days=days_ago),
+                    amount=Decimal(amount),
+                    priced_copies=6,
+                    copies=6,
+                )
+            )
+        for name, amount in (("Riser", "10"), ("Faller", "20"), ("Steady", "4"), ("Penny", "0.05")):
+            db.add(
+                CardPriceHistory(
+                    printing_id=ids[name],
+                    provider="tcgplayer",
+                    finish="nonfoil",
+                    day=today - timedelta(days=1),
+                    amount=Decimal(amount),
+                )
+            )
+        # The copies so far were owned yesterday too.
+        db.execute(
+            update(InventoryLot)
+            .where(InventoryLot.owner_id == owner_id)
+            .values(created_at=InventoryLot.created_at - timedelta(days=1))
+        )
+    # Copies added since yesterday change the value, but their earlier moves aren't the owner's.
+    own(owner_id, "Penny", quantity=4)
+    own(owner_id, "Riser", quantity=5)
+    collection = alerts(client)["collection"]
+    # Then: 3 x $10 + $20 + 2 x $4 = $58. Now: 3 x $14 + $15 + 2 x $5 = $67.
+    assert collection == {
+        "change": "9.00",
+        "percent": 15.5,
+        "since": (today - timedelta(days=1)).isoformat(),
+    }
