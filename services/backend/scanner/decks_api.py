@@ -72,8 +72,13 @@ class DeckPreview(StrictModel):
     section_mode: Literal["auto", "two_commanders", "listed"] = "auto"
 
 
+# A full account (1,000 decks of 300 printings) fits; the collection CSV limits are smaller.
+MAX_RESTORE_BYTES = 64 * 1024 * 1024
+MAX_RESTORE_ROWS = 300_000
+
+
 class DeckRestore(StrictModel):
-    content: str = Field(min_length=1, max_length=5 * 1024 * 1024)
+    content: str = Field(min_length=1, max_length=MAX_RESTORE_BYTES)
 
 
 class DeckCheck(StrictModel):
@@ -419,6 +424,7 @@ def create_deck(data: DeckCreate, key: Key, identity: Identity, db: DB):
 
 ALL_DECKS_CSV = [
     "Deck",
+    "Deck ID",
     "Format",
     "Match Mode",
     "Deck Notes",
@@ -482,7 +488,7 @@ def download_all_decks(identity: Identity, db: DB, format: Literal["csv", "text"
     writer = csv.writer(output)
     writer.writerow(ALL_DECKS_CSV)
     for deck in decks:
-        info = [deck.name, deck.format, deck.match_mode, deck.notes]
+        info = [deck.name, str(deck.id), deck.format, deck.match_mode, deck.notes]
         rows = [
             [
                 card.section,
@@ -509,7 +515,9 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
     """Recreate decks from an all-decks file. Decks whose name is already saved are skipped,
     so restoring the same file twice adds nothing."""
     try:
-        headers, source, _ = read_csv(data.content.encode("utf-8"), {})
+        headers, source, _ = read_csv(
+            data.content.encode("utf-8"), {}, MAX_RESTORE_BYTES, MAX_RESTORE_ROWS
+        )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     lower = {header.strip().casefold(): header for header in headers}
@@ -523,11 +531,13 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
         value = raw.get(lower.get(column.casefold(), ""), "")
         return value[1:] if value.startswith("'") else value
 
+    # Two saved decks can share a name, so the exported Deck ID keeps them apart.
     grouped = {}
     for index, raw in enumerate(source, start=2):
-        name = cell(raw, "Deck").strip()
+        name = cell(raw, "Deck").strip()[:255]
         if name:
-            grouped.setdefault(name[:255], []).append((index, raw))
+            group = (name, cell(raw, "Deck ID").strip() or name)
+            grouped.setdefault(group, []).append((index, raw))
     if not grouped:
         raise HTTPException(422, "The file has no deck names in its Deck column.")
     db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
@@ -536,7 +546,11 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
             select(Deck.name).where(Deck.owner_id == identity.owner_id, Deck.archived.is_(False))
         )
     )
-    active = len(existing)
+    active = db.scalar(
+        select(func.count())
+        .select_from(Deck)
+        .where(Deck.owner_id == identity.owner_id, Deck.archived.is_(False))
+    )
     name_index = deck_name_index(
         db,
         (
@@ -547,7 +561,7 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
         ),
     )
     restored, skipped, problems = [], [], []
-    for name, rows in grouped.items():
+    for (name, _), rows in grouped.items():
         if name in existing:
             skipped.append(name)
             continue
@@ -611,11 +625,15 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
                     deck_id=deck.id, printing_id=printing_id, section=section, quantity=quantity
                 )
             )
-        existing.add(name)
         active += 1
         restored.append({"id": str(deck.id), "name": name, "copies": sum(quantities.values())})
     db.commit()
-    return {"restored": restored, "skipped": skipped, "problems": problems[:200]}
+    return {
+        "restored": restored,
+        "skipped": skipped,
+        "problems": problems[:200],
+        "problem_count": len(problems),
+    }
 
 
 @router.get("/{deck_id}")
