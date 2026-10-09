@@ -31,6 +31,7 @@
 - Choose the size of change that counts in My account: a percent, a dollar amount or both (both must be met). New accounts start at 20% and $1.00, so cheap cards don't alert over cents. Alerts can be turned off.
 - Each account keeps its own settings and the prices it last saw. A card only takes its new price as the starting point once you dismiss its alert, so slow changes still add up to an alert. Switching price source starts fresh, so prices from different stores are never compared.
 - Misprints, altered cards and cards with an unknown finish are left out, because their value isn't the market price.
+- The banner names the biggest mover and how many others went up or down, with no dollar total, so it can't be mistaken for the whole collection. The list opens with two rows: what the cards on it add up to (every copy), and the whole collection's price change since the previous price update. Copies added or removed don't count toward that change (October 9, 2026).
 
 ## Store buttons and referral links — October 7, 2026
 

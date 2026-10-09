@@ -20,6 +20,8 @@ from scanner.data_sync import PROVIDERS
 from scanner.gallery import feed_json, image_url
 from scanner.models import (
     CardPrice,
+    CardPriceHistory,
+    CollectionValueHistory,
     DataFeed,
     InventoryLot,
     PriceAlertBaseline,
@@ -85,6 +87,60 @@ def moved(old, new, user):
     return user.price_alert_amount is not None or user.price_alert_percent is not None
 
 
+def collection_change(db, owner_id, provider, quotes):
+    """How today's prices moved the owner's whole collection since the update before.
+
+    Only price moves count: a copy added or removed since then doesn't change the
+    figure, and a card with no earlier price is left out of both sides.
+    """
+    # The owner's own daily totals are a small table, so the days come from there.
+    days = db.scalars(
+        select(CollectionValueHistory.day)
+        .where(
+            CollectionValueHistory.owner_id == owner_id,
+            CollectionValueHistory.provider == provider,
+        )
+        .order_by(CollectionValueHistory.day.desc())
+        .limit(2)
+    ).all()
+    if len(days) < 2:
+        return None
+    before = days[1]
+    owned = (
+        select(InventoryLot.printing_id, InventoryLot.finish)
+        .where(InventoryLot.owner_id == owner_id, InventoryLot.quantity_remaining > 0)
+        .distinct()
+        .subquery()
+    )
+    earlier = {
+        (row.printing_id, row.finish): Decimal(row.amount)
+        for row in db.execute(
+            select(CardPriceHistory.printing_id, CardPriceHistory.finish, CardPriceHistory.amount)
+            .join(
+                owned,
+                and_(
+                    owned.c.printing_id == CardPriceHistory.printing_id,
+                    owned.c.finish == CardPriceHistory.finish,
+                ),
+            )
+            .where(CardPriceHistory.provider == provider, CardPriceHistory.day == before)
+        )
+    }
+    then = change = Decimal(0)
+    for printing_id, finish, quantity, amount, _ in quotes:
+        old = earlier.get((printing_id, finish))
+        if old is not None:
+            then += old * quantity
+            change += (Decimal(amount) - old) * quantity
+    if not then:
+        return None
+    return {
+        "change": f"{change:.2f}",
+        "percent": round(float(change / then * 100), 1),
+        "since": before.isoformat(),
+    }
+
+
 @router.get("")
 def price_alerts(identity: Identity, db: DB):
     user = db.get(User, identity.owner_id)
@@ -99,6 +155,10 @@ def price_alerts(identity: Identity, db: DB):
         "drops": [],
         "rise_count": 0,
         "drop_count": 0,
+        # Every alerting copy counted, not just the listed ones.
+        "rise_total": "0.00",
+        "drop_total": "0.00",
+        "collection": None,
     }
     if not user.price_alerts_enabled:
         db.commit()
@@ -186,6 +246,9 @@ def price_alerts(identity: Identity, db: DB):
         items.sort(key=lambda entry: (-entry[0], entry[1]["name"].casefold()))
         result[key] = [item for _, item in items[:LIMIT]]
         result[key[:-1] + "_count"] = len(items)
+        result[key[:-1] + "_total"] = f"{sum((held for held, _ in items), Decimal(0)):.2f}"
+    if rises or drops:
+        result["collection"] = collection_change(db, user.id, provider, quotes)
     return result
 
 

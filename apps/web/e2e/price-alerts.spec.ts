@@ -23,7 +23,7 @@ async function collector(page: Page, alerts = { rises, drops }) {
     if (path === "/api/v1/capabilities") return json({ max_upload_bytes: 104857600 });
     if (path === "/api/v1/scans") return json({ items: [], next_offset: null });
     if (path === "/api/auth/me") return json({ id: "alert-collector", display_name: "Alert collector", role: "member", created_at: "2026-01-01T00:00:00Z", approved_at: "2026-01-01T00:00:00Z", scan_cards_used: 0, scan_card_limit: null, scan_card_limit_override: null, scan_cards_remaining: null, scans_paused: false, suspended: false, account_version: 1, collection_copies: 40, saved_decks: 1, saved_batches: 0, active_sessions: 1, activity: [] });
-    if (path === "/api/v1/price-alerts" && req.method() === "GET") return json({ settings: state.current, provider: "tcgplayer", currency: "USD", feed: null, rises: alerts.rises, drops: alerts.drops, rise_count: alerts.rises.length, drop_count: alerts.drops.length });
+    if (path === "/api/v1/price-alerts" && req.method() === "GET") return json({ settings: state.current, provider: "tcgplayer", currency: "USD", feed: null, rises: alerts.rises, drops: alerts.drops, rise_count: alerts.rises.length, drop_count: alerts.drops.length, rise_total: alerts.rises.length ? "71.00" : "0.00", drop_total: alerts.drops.length ? "6.25" : "0.00", collection: alerts.rises.length ? { change: "112.40", percent: 3.2, since: "2026-10-08" } : null });
     if (path === "/api/v1/price-alerts/seen" && req.method() === "POST") {
       expect(req.headers()["x-csrf-token"]).toBe("alert-csrf");
       state.seen.push(req.postDataJSON()); alerts = { rises: [], drops: [] };
@@ -46,11 +46,16 @@ for (const width of [320, 390, 1280]) {
     const state = await collector(page);
     await page.goto("/");
     const banner = page.getByRole("button", { name: /Your cards are on the move!/ });
-    await expect(banner).toContainText("4 cards went up · 1 went down · $71.00 up");
+    // The banner is about the cards that moved; dollar totals wait in the list.
+    await expect(banner).toContainText("Ragavan, Nimble Pilferer +39.5% · 3 more up · 1 down");
+    await expect(banner).not.toContainText("$");
     await banner.screenshot({ path: `../../artifacts/price-alerts/banner-${width}-${test.info().project.name}.png` });
     await banner.click();
     const notice = page.getByRole("dialog", { name: "Some of your cards moved", exact: true });
     await expect(notice).toBeVisible();
+    const totals = notice.locator(".price-alert-totals");
+    await expect(totals.locator("div").first()).toHaveText("These 5 cards$71.00 up · $6.25 down, all copies counted+$64.75");
+    await expect(totals.locator("div").nth(1)).toHaveText("Whole collectionPrice changes since Oct 8+$112.40+3.2%");
     await expect(notice.getByText("Ragavan, Nimble Pilferer", { exact: true })).toBeVisible();
     await expect(notice.getByText("+$16.65", { exact: true })).toBeVisible();
     await expect(notice.getByText(/MH3 · #102 · Foil/)).toBeVisible();
@@ -137,4 +142,14 @@ test("leaving My account asks before discarding unsaved price alert changes", as
   await page.getByRole("dialog", { name: "Menu", exact: true }).getByRole("button", { name: "Upload photo", exact: true }).click();
   await expect.poll(() => asked).toBe("Discard your unsaved price alert changes?");
   await expect(form.getByLabel("Percent change")).toHaveValue("35%");
+});
+
+test("A drop on its own is named on the banner and the list leaves out an unknown collection change", async ({ page }) => {
+  await collector(page, { rises: [], drops });
+  await page.goto("/");
+  const banner = page.getByRole("button", { name: /Price alerts/ });
+  await expect(banner).toContainText("Fable of the Mirror-Breaker −34%");
+  await banner.click();
+  const notice = page.getByRole("dialog", { name: "Some cards lost value", exact: true });
+  await expect(notice.locator(".price-alert-totals > div")).toHaveText(["This card$6.25 down−$6.25"]);
 });
