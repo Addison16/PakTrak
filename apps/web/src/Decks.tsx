@@ -355,6 +355,15 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
         fill(value); navigation.go({ page: "decks", deck: value.id, view: "edit" }, { force: true });
         setNewName(""); setCreating(false); setOffset(0); focusTitle(); await list(0);
       })}
+      onRestore={(file) => void act(async () => {
+        if (file.size > 64 * 1024 * 1024) throw new Error("Deck files can be up to 64 MB.");
+        const result = await request<{ restored: { name: string }[]; skipped: string[]; problems: { deck: string; card?: string; line: number; error: string }[]; problem_count: number }>("/api/v1/decks/restore", mutation(session, { content: await file.text() }));
+        const parts = [`Restored ${result.restored.length} ${result.restored.length === 1 ? "deck" : "decks"}.`];
+        if (result.skipped.length) parts.push(`Skipped ${result.skipped.length} already saved here.`);
+        if (result.problem_count) parts.push(`${result.problem_count} ${result.problem_count === 1 ? "row" : "rows"} couldn't be added: ${result.problems.slice(0, 3).map((item) => `${item.deck}${item.card ? ", " + item.card : ""}: ${item.error.replace(/\.$/, "")}`).join("; ")}${result.problem_count > 3 ? "…" : ""}.`);
+        setNotice(parts.join(" ")); setOffset(0); await list(0);
+        window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      })}
       onOpen={(item, box) => {
         if (opening) return;
         const { left, top, width, height } = box.getBoundingClientRect();

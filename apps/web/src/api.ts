@@ -52,7 +52,7 @@ export function requestAction(path: string, method = "GET") {
   if (endpoint.endsWith("/upload")) return "Upload photo";
   if (endpoint.endsWith("/identify")) return "Recheck photo";
   if (endpoint.startsWith("/api/v1/scans")) return method === "GET" ? endpoint === "/api/v1/scans" ? "Refresh batches" : "Refresh batch" : method === "DELETE" ? "Delete batch" : "Save photo batch";
-  if (endpoint.startsWith("/api/v1/decks")) return endpoint.endsWith("/legality") ? "Check deck legality" : endpoint.endsWith("/import-preview") ? "Preview deck list" : method === "GET" ? "Load decks" : "Save deck";
+  if (endpoint.startsWith("/api/v1/decks")) return endpoint.endsWith("/legality") ? "Check deck legality" : endpoint.endsWith("/import-preview") ? "Preview deck list" : endpoint.endsWith("/restore") ? "Restore decks" : method === "GET" ? "Load decks" : "Save deck";
   if (endpoint.startsWith("/api/v1/catalog")) return "Find cards";
   if (endpoint.startsWith("/api/v1/wishlist")) return method === "GET" ? "Load wishlist" : "Save wishlist";
   if (endpoint.startsWith("/api/v1/friends")) return method === "GET" ? "Load friends" : "Save friend settings";

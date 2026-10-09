@@ -105,9 +105,9 @@ def safe_cell(value):
     return "'" + value if risky else value
 
 
-def read_csv(data, options):
-    if len(data) > MAX_BYTES:
-        raise ValueError("CSV exceeds the 5 MiB limit.")
+def read_csv(data, options, max_bytes=MAX_BYTES, max_rows=MAX_ROWS):
+    if len(data) > max_bytes:
+        raise ValueError(f"CSV exceeds the {max_bytes // (1024 * 1024)} MiB limit.")
     encoding = options.get("encoding", "utf-8-sig")
     try:
         decoded = data.decode(encoding)
@@ -137,9 +137,9 @@ def read_csv(data, options):
         for values in reader:
             if not values or all(not value for value in values):
                 continue
-            if len(rows) >= MAX_ROWS:
+            if len(rows) >= max_rows:
                 raise ValueError(
-                    "CSV exceeds 10,000 rows. Split the collection into smaller files."
+                    f"CSV exceeds {max_rows:,} rows. Split the collection into smaller files."
                 )
             if len(values) != len(headers):
                 raise ValueError(
