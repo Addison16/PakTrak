@@ -30,6 +30,7 @@ async function fixture(page: Page, role = "member") {
     }
     if (path === "/api/auth/accounts") return reply({ items: [], next_offset: null });
     if (path === "/api/v1/backups") return reply({ available: true, settings: { enabled: true, keep: 7 }, running: false, requested: false, last_success_at: null, last_error: null, last_error_at: null, next_at: null, restore_requested: null, last_restore: null, backups: [] });
+    if (path === "/api/v1/servers") return reply({ enabled: false, address: "https://paktrak.example", secure: true, servers: [] });
     if (path === "/api/auth/settings") return reply({ guest_signup_enabled: true, version: 1 });
     if (path === "/api/v1/data/status") return reply({ feeds: [] });
     if (path === "/api/v1/diagnostics/errors") {

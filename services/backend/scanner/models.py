@@ -664,3 +664,80 @@ class TradeOfferCard(Base):
     )
     finish: Mapped[str] = mapped_column(String(16), primary_key=True)
     quantity: Mapped[int] = mapped_column(Integer)
+
+
+class ServerFederation(Base):
+    """This server's signing key and whether other PakTrak servers may connect."""
+
+    __tablename__ = "server_federation"
+    __table_args__ = (CheckConstraint("id = 1", name="server_federation_singleton"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    private_key: Mapped[str] = mapped_column(String(64))
+    public_key: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class FederationPeer(Base):
+    """Another PakTrak server. Nothing flows until the admins on both sides approve."""
+
+    __tablename__ = "federation_peers"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('requested','pending','connected')", name="federation_peer_state_valid"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    url: Mapped[str] = mapped_column(String(255), unique=True)
+    public_key: Mapped[str] = mapped_column(String(64))
+    # requested: we asked them; pending: they asked us; connected: both admins approved.
+    state: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    misses: Mapped[int] = mapped_column(Integer, default=0)
+    misses_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class FederationNonce(Base):
+    """Signed requests seen recently, so a captured request can't be replayed."""
+
+    __tablename__ = "federation_nonces"
+    nonce: Mapped[str] = mapped_column(String(64), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
+class RemoteFriendship(Base):
+    """A friend on another server. Each server keeps its own row for the same link."""
+
+    __tablename__ = "remote_friendships"
+    __table_args__ = (
+        UniqueConstraint("peer_id", "link_id"),
+        CheckConstraint("state IN ('pending','accepted')", name="remote_friendship_state_valid"),
+        Index(
+            "remote_friendship_person",
+            "owner_id",
+            "peer_id",
+            "remote_user",
+            unique=True,
+            postgresql_where=text("remote_user IS NOT NULL"),
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    peer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("federation_peers.id", ondelete="CASCADE")
+    )
+    # Shared by both servers; the server of the person who sent the request chose it.
+    link_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    # The other person's account ID on their server, unknown until they accept a sent request.
+    remote_user: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    remote_name: Mapped[str | None] = mapped_column(String(255))
+    sent_by_owner: Mapped[bool] = mapped_column(Boolean)
+    state: Mapped[str] = mapped_column(String(16), default="pending")
+    shares_collection: Mapped[bool] = mapped_column(Boolean, default=False)
+    shares_wishlist: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

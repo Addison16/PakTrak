@@ -15,9 +15,17 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import Field
 from sqlalchemy import case, func, or_, select, update
 
+from scanner import federation
 from scanner.account_access import account_name
 from scanner.auth import DB, Identity
-from scanner.card_values import finish_prices, money, owned_copies, preferred_provider
+from scanner.card_values import (
+    finish_prices,
+    money,
+    owned_by_name,
+    owned_copies,
+    preferred_provider,
+    unit_price,
+)
 from scanner.catalog import printing_json
 from scanner.collection_api import Key, StrictModel
 from scanner.gallery import collection_cards
@@ -90,7 +98,8 @@ class SharingSettings(StrictModel):
 
 
 class FriendRequest(StrictModel):
-    code: str = Field(min_length=4, max_length=32)
+    # A code, or code@server for someone on a connected PakTrak server.
+    code: str = Field(min_length=4, max_length=300)
 
 
 @router.get("")
@@ -107,6 +116,8 @@ def friends(identity: Identity, db: DB):
     }
     result = {
         "code": shown_code(me.friend_code),
+        # Set when this server connects to others, so a code can be given as code@address.
+        "address": federation.host_of(federation.own_url()) if federation.enabled(db) else None,
         "share_collection": me.share_collection,
         "share_wishlist": me.share_wishlist,
         "friends": [],
@@ -126,14 +137,50 @@ def friends(identity: Identity, db: DB):
                     "since": link.accepted_at,
                     "shares_collection": person.share_collection,
                     "shares_wishlist": person.share_wishlist,
+                    "server": None,
                 }
             )
         elif link.requested_by == me.id:
             # Who a code belongs to stays private until they accept.
-            result["outgoing"].append({"id": str(link.id), "created_at": link.created_at})
+            result["outgoing"].append(
+                {"id": str(link.id), "created_at": link.created_at, "server": None}
+            )
         else:
             result["incoming"].append(
-                {"id": str(link.id), "name": account_name(person), "created_at": link.created_at}
+                {
+                    "id": str(link.id),
+                    "name": account_name(person),
+                    "created_at": link.created_at,
+                    "server": None,
+                }
+            )
+    for link, peer in federation.remote_links(db, me.id):
+        server = federation.host_of(peer.url)
+        if link.state == "accepted":
+            # The ID is this server's own for the link, so pages and actions find it.
+            result["friends"].append(
+                {
+                    "id": str(link.id),
+                    "user_id": str(link.id),
+                    "name": link.remote_name or "Friend",
+                    "since": link.accepted_at,
+                    "shares_collection": link.shares_collection,
+                    "shares_wishlist": link.shares_wishlist,
+                    "server": server,
+                }
+            )
+        elif link.sent_by_owner:
+            result["outgoing"].append(
+                {"id": str(link.id), "created_at": link.created_at, "server": server}
+            )
+        else:
+            result["incoming"].append(
+                {
+                    "id": str(link.id),
+                    "name": link.remote_name or "Someone",
+                    "created_at": link.created_at,
+                    "server": server,
+                }
             )
     result["friends"].sort(key=lambda item: item["name"].casefold())
     return result
@@ -159,12 +206,14 @@ def change_sharing(data: SharingSettings, identity: Identity, db: DB):
     me = db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
     me.share_collection, me.share_wishlist = data.share_collection, data.share_wishlist
     db.commit()
+    federation.share_changed(db, me)
     return data.model_dump()
 
 
 @router.post("/requests")
 def send_request(data: FriendRequest, identity: Identity, db: DB):
     me = db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
+    raw_code, server = federation.split_code(data.code)
     misses = db.scalar(
         select(func.count())
         .select_from(AccountEvent)
@@ -176,7 +225,18 @@ def send_request(data: FriendRequest, identity: Identity, db: DB):
     )
     if misses >= MISSES_PER_HOUR:
         raise HTTPException(429, "Too many codes didn’t match. Wait an hour, then try again.")
-    code = clean_code(data.code)
+    code = clean_code(raw_code)
+    if server and federation.host_of(federation.clean_url(server)) != federation.host_of(
+        federation.own_url()
+    ):
+        if not 4 <= len(code) <= 16:
+            raise HTTPException(422, "Enter the friend code before the @.")
+        answer = federation.request_remote_friend(db, me, code, server)
+        if answer is None:
+            db.add(AccountEvent(owner_id=me.id, actor_id=me.id, kind="friend_code_miss", detail={}))
+            db.commit()
+            raise HTTPException(404, NOT_FOUND)
+        return answer
     person = db.scalar(select(User).where(User.friend_code == code)) if code else None
     if person is None or person.suspended:
         db.add(AccountEvent(owner_id=me.id, actor_id=me.id, kind="friend_code_miss", detail={}))
@@ -213,6 +273,11 @@ def incoming_request(db, request_id, owner_id):
 
 @router.post("/requests/{request_id}/accept")
 def accept_request(request_id: uuid.UUID, identity: Identity, db: DB):
+    if remote := federation.remote_link(db, identity.owner_id, request_id, "pending", lock=True):
+        if remote[0].sent_by_owner:
+            raise HTTPException(404, "This friend request is no longer waiting.")
+        federation.accept_remote(db, db.get(User, identity.owner_id), *remote)
+        return {"state": "accepted"}
     link = incoming_request(db, request_id, identity.owner_id)
     link.state, link.accepted_at = "accepted", now()
     db.commit()
@@ -221,6 +286,11 @@ def accept_request(request_id: uuid.UUID, identity: Identity, db: DB):
 
 @router.post("/requests/{request_id}/decline")
 def decline_request(request_id: uuid.UUID, identity: Identity, db: DB):
+    if remote := federation.remote_link(db, identity.owner_id, request_id, "pending", lock=True):
+        if remote[0].sent_by_owner:
+            raise HTTPException(404, "This friend request is no longer waiting.")
+        federation.drop_remote(db, *remote)
+        return {"state": "declined"}
     db.delete(incoming_request(db, request_id, identity.owner_id))
     db.commit()
     return {"state": "declined"}
@@ -229,6 +299,9 @@ def decline_request(request_id: uuid.UUID, identity: Identity, db: DB):
 @router.delete("/{friendship_id}")
 def remove_friend(friendship_id: uuid.UUID, identity: Identity, db: DB):
     """Removing a friend or withdrawing a request also cancels offers still waiting."""
+    if remote := federation.remote_link(db, identity.owner_id, friendship_id, lock=True):
+        federation.drop_remote(db, *remote)
+        return {"removed": True}
     link = db.scalar(select(Friendship).where(Friendship.id == friendship_id).with_for_update())
     if link is None or identity.owner_id not in (link.user_a, link.user_b):
         raise HTTPException(404, "This friend is no longer connected.")
@@ -265,6 +338,8 @@ def friend_collection(
     q: str = Query("", max_length=255),
     sort: Literal["name", "price_desc", "price_asc", "newest"] = "name",
 ):
+    if remote := federation.remote_link(db, identity.owner_id, user_id, "accepted"):
+        return remote_collection(db, identity.owner_id, remote, offset, q, sort)
     person = friend(db, identity.owner_id, user_id)
     if not person.share_collection:
         raise HTTPException(403, f"{account_name(person)} isn’t sharing their collection.")
@@ -292,6 +367,8 @@ def friend_collection(
 
 @router.get("/{user_id}/wishlist")
 def friend_wishlist(user_id: uuid.UUID, identity: Identity, db: DB):
+    if remote := federation.remote_link(db, identity.owner_id, user_id, "accepted"):
+        return remote_wishlist(db, identity.owner_id, remote)
     person = friend(db, identity.owner_id, user_id)
     if not person.share_wishlist:
         raise HTTPException(403, f"{account_name(person)} isn’t sharing their wishlist.")
@@ -303,9 +380,9 @@ def friend_wishlist(user_id: uuid.UUID, identity: Identity, db: DB):
     return {"name": account_name(person), **result}
 
 
-def wanted_matches(db, holder_id, wanter_id, provider):
-    """Copies the holder owns of card names on the wanter's wishlist."""
-    wanted = dict(
+def wanted_names(db, wanter_id):
+    """Copies wanted of each card name (lowercase) on someone's wishlist."""
+    return dict(
         db.execute(
             select(func.lower(Printing.name), func.sum(WishlistItem.quantity))
             .join(Printing)
@@ -313,19 +390,35 @@ def wanted_matches(db, holder_id, wanter_id, provider):
             .group_by(func.lower(Printing.name))
         ).all()
     )
-    if not wanted:
+
+
+def holdings_named(db, holder_id, names):
+    """(printing, finish, copies) the holder owns of the given lowercase card names."""
+    if not names:
         return []
-    rows = db.execute(
-        select(Printing, InventoryLot.finish, func.sum(InventoryLot.quantity_remaining))
-        .join(InventoryLot, InventoryLot.printing_id == Printing.id)
-        .where(
-            InventoryLot.owner_id == holder_id,
-            InventoryLot.quantity_remaining > 0,
-            func.lower(Printing.name).in_(wanted.keys()),
-        )
-        .group_by(Printing.id, InventoryLot.finish)
-        .order_by(Printing.name, Printing.set_code, Printing.collector_number)
-    ).all()
+    return [
+        (printing, finish, int(quantity))
+        for printing, finish, quantity in db.execute(
+            select(Printing, InventoryLot.finish, func.sum(InventoryLot.quantity_remaining))
+            .join(InventoryLot, InventoryLot.printing_id == Printing.id)
+            .where(
+                InventoryLot.owner_id == holder_id,
+                InventoryLot.quantity_remaining > 0,
+                func.lower(Printing.name).in_(names),
+            )
+            .group_by(Printing.id, InventoryLot.finish)
+            .order_by(Printing.name, Printing.set_code, Printing.collector_number)
+        ).all()
+    ]
+
+
+def wanted_matches(db, holder_id, wanter_id, provider):
+    """Copies the holder owns of card names on the wanter's wishlist."""
+    wanted = wanted_names(db, wanter_id)
+    return match_items(db, holdings_named(db, holder_id, set(wanted)), wanted, provider)
+
+
+def match_items(db, rows, wanted, provider):
     prices = finish_prices(db, provider, {printing.id for printing, _, _ in rows})
     items = []
     for printing, finish, quantity in rows:
@@ -336,7 +429,7 @@ def wanted_matches(db, holder_id, wanter_id, provider):
                 "finish": priced,
                 "finish_recorded": finish != "unknown",
                 "quantity": int(quantity),
-                "wanted": int(wanted[printing.name.lower()]),
+                "wanted": int(wanted.get(printing.name.lower(), 0)),
                 "unit_amount": money(prices.get((printing.id, priced))),
             }
         )
@@ -346,6 +439,8 @@ def wanted_matches(db, holder_id, wanter_id, provider):
 @router.get("/{user_id}/matches")
 def friend_matches(user_id: uuid.UUID, identity: Identity, db: DB):
     """What could trade hands: their cards you want, and your cards they want."""
+    if remote := federation.remote_link(db, identity.owner_id, user_id, "accepted"):
+        return remote_matches(db, identity.owner_id, remote)
     person = friend(db, identity.owner_id, user_id)
     provider = preferred_provider(db, identity.owner_id)
     return {
@@ -359,6 +454,206 @@ def friend_matches(user_id: uuid.UUID, identity: Identity, db: DB):
         else [],
         "shares_collection": person.share_collection,
         "shares_wishlist": person.share_wishlist,
+    }
+
+
+# Friends on other servers. Their server sends card IDs and counts; this server shows them
+# with its own catalog and the viewer's own prices, so pictures and prices work as usual.
+
+FINISH_VALUES = {"nonfoil", "foil", "etched", "unknown"}
+
+
+def count(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def amount_text(value):
+    if not isinstance(value, str) or len(value) > 32:
+        return None
+    try:
+        amount = Decimal(value)
+    except ArithmeticError:
+        return None
+    return str(amount) if amount.is_finite() and amount >= 0 else None
+
+
+def local_printings(db, values):
+    ids = set()
+    for value in values:
+        try:
+            ids.add(uuid.UUID(str(value)))
+        except ValueError:
+            continue
+    if not ids:
+        return {}
+    return {
+        printing.id: printing
+        for printing in db.scalars(select(Printing).where(Printing.id.in_(ids)))
+    }
+
+
+def printing_of(printings, value):
+    try:
+        return printings.get(uuid.UUID(str(value)))
+    except ValueError:
+        return None
+
+
+def remote_items(answer):
+    items = answer.get("items")
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
+
+
+def remote_collection(db, owner_id, remote, offset, q, sort):
+    provider = preferred_provider(db, owner_id)
+    answer = federation.ask(
+        db,
+        *remote,
+        "/friends/collection",
+        {"offset": offset, "q": q, "sort": sort, "provider": provider},
+    )
+    rows = remote_items(answer)[:40]
+    printings = local_printings(
+        db,
+        [
+            (item.get("printing") or {}).get("id")
+            for item in rows
+            if isinstance(item.get("printing"), dict)
+        ],
+    )
+    items = []
+    for item in rows:
+        printing = printing_of(printings, (item.get("printing") or {}).get("id"))
+        if printing is None:
+            continue  # Not in this server's catalog yet.
+        finishes = item.get("finish_counts") if isinstance(item.get("finish_counts"), dict) else {}
+        issues = item.get("pricing_issues") if isinstance(item.get("pricing_issues"), dict) else {}
+        items.append(
+            {
+                "printing": printing_json(printing),
+                "quantity": count(item.get("quantity")),
+                "location_count": 0,
+                "locations": [],
+                "value": amount_text(item.get("value")),
+                "priced_copies": count(item.get("priced_copies")),
+                "price_min": amount_text(item.get("price_min")),
+                "price_max": amount_text(item.get("price_max")),
+                "finish_counts": {finish: count(finishes.get(finish)) for finish in FINISH_VALUES},
+                "pricing_issues": {
+                    name: count(issues.get(name))
+                    for name in ("unknown_finish", "custom_value", "missing_price")
+                },
+            }
+        )
+    next_offset = answer.get("next_offset")
+    valuation = answer.get("valuation") if isinstance(answer.get("valuation"), dict) else {}
+    return {
+        "name": remote[0].remote_name or "Friend",
+        "copies": count(answer.get("copies")),
+        "cards": count(answer.get("cards")),
+        "items": items,
+        "next_offset": next_offset if count(next_offset) and next_offset > offset else None,
+        "valuation": {
+            "provider": provider,
+            "amount": amount_text(valuation.get("amount")),
+            "priced_copies": count(valuation.get("priced_copies")),
+            "unpriced_copies": count(valuation.get("unpriced_copies")),
+            "feed": None,
+        },
+    }
+
+
+def remote_wanted(db, answer):
+    """Their wishlist rows as (item, printing), for cards in this server's catalog."""
+    rows = remote_items(answer)
+    printings = local_printings(db, [item.get("printing_id") for item in rows])
+    found = []
+    for item in rows:
+        printing = printing_of(printings, item.get("printing_id"))
+        finish = item.get("finish")
+        if printing is None or finish not in {"any", "nonfoil", "foil", "etched"}:
+            continue
+        found.append((item, printing))
+    return found
+
+
+def remote_wishlist(db, owner_id, remote):
+    provider = preferred_provider(db, owner_id)
+    answer = federation.ask(db, *remote, "/friends/wishlist", {})
+    rows = remote_wanted(db, answer)
+    prices = finish_prices(db, provider, {printing.id for _, printing in rows})
+    have = owned_by_name(db, owner_id, {printing.name for _, printing in rows})
+    items, total, priced, copies = [], Decimal(0), 0, 0
+    for item, printing in sorted(
+        rows, key=lambda row: (row[1].name.casefold(), row[1].set_code, row[0]["finish"])
+    ):
+        finish, amount = unit_price(prices, printing, item["finish"])
+        quantity = max(1, min(count(item.get("quantity")), 9999))
+        copies += quantity
+        if amount is not None:
+            total += amount * quantity
+            priced += quantity
+        items.append(
+            {
+                "id": str(item.get("id"))[:64],
+                "printing": printing_json(printing),
+                "finish": item["finish"],
+                "quantity": quantity,
+                "notes": "",
+                "price_finish": finish,
+                "unit_amount": money(amount),
+                "owned": have[printing.name.lower()],
+                "created_at": item.get("created_at")
+                if isinstance(item.get("created_at"), str)
+                else None,
+            }
+        )
+    return {
+        "name": remote[0].remote_name or "Friend",
+        "provider": provider,
+        "items": items,
+        "copies": copies,
+        "priced_copies": priced,
+        "amount": money(total) if priced or not copies else None,
+    }
+
+
+def remote_matches(db, owner_id, remote):
+    provider = preferred_provider(db, owner_id)
+    link = remote[0]
+    wanted = wanted_names(db, owner_id)
+    # Your wishlist's card names go to their server only while they share their collection.
+    answer = federation.ask(
+        db, *remote, "/friends/matches", {"names": sorted(wanted) if link.shares_collection else []}
+    )
+    rows = remote_items(answer)
+    printings = local_printings(db, [item.get("printing_id") for item in rows])
+    they_have = []
+    for item in rows:
+        printing = printing_of(printings, item.get("printing_id"))
+        if (
+            printing is not None
+            and item.get("finish") in FINISH_VALUES
+            and count(item.get("quantity"))
+        ):
+            they_have.append((printing, item["finish"], count(item["quantity"])))
+    shares_collection = answer.get("share_collection") is True
+    shares_wishlist = answer.get("share_wishlist") is True
+    you_have = []
+    if shares_wishlist:
+        theirs = defaultdict(int)
+        for item, printing in remote_wanted(
+            db, federation.ask(db, *remote, "/friends/wishlist", {})
+        ):
+            theirs[printing.name.lower()] += max(1, min(count(item.get("quantity")), 9999))
+        you_have = match_items(db, holdings_named(db, owner_id, set(theirs)), theirs, provider)
+    return {
+        "name": link.remote_name or "Friend",
+        "provider": provider,
+        "they_have": match_items(db, they_have, wanted, provider) if shares_collection else [],
+        "you_have": you_have,
+        "shares_collection": shares_collection,
+        "shares_wishlist": shares_wishlist,
     }
 
 

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
 
     app_url: str = "http://localhost:8095"
     allow_insecure_http: bool = False
+    # Lets this server connect to other PakTrak servers on a home or private network.
+    federation_allow_private_addresses: bool = False
     database_url: SecretStr
     broker_url: SecretStr
     session_secret: SecretStr
