@@ -90,7 +90,13 @@ export default function TradeValue({ session, active }: { session: Session; acti
   useEffect(() => {
     if (!active) return;
     let stopped = false;
-    request<{ friends: Friend[] }>("/api/v1/friends", { quiet: true }).then((data) => { if (!stopped) setFriends(data.friends.filter((item) => !item.server)); }).catch(() => { /* Trading with a friend is optional. Offers stay on one server for now. */ });
+    request<{ friends: Friend[] }>("/api/v1/friends", { quiet: true }).then((data) => {
+      if (stopped) return;
+      setFriends(data.friends.filter((item) => !item.server));
+      // A partner kept from earlier who turns out to be on another server can't get an offer.
+      const remote = new Set(data.friends.filter((item) => item.server).map((item) => item.user_id));
+      setTrade((current) => current.friend && remote.has(current.friend.id) ? { ...current, friend: null } : current);
+    }).catch(() => { /* Trading with a friend is optional. Offers stay on one server for now. */ });
     return () => { stopped = true; };
   }, [active]);
 
