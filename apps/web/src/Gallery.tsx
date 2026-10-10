@@ -2,7 +2,7 @@ import ErrorNotice from "./ErrorNotice";
 import usePriceSource from "./usePriceSource";
 import useBackgroundError from "./useBackgroundError";
 import { useEffect, useRef, useState } from "react";
-import { navigation, restoreScroll, useRoute } from "./navigation";
+import { linkedCollectionQuery, navigation, restoreScroll, useRoute } from "./navigation";
 import ValueChart, { changeText } from "./ValueChart";
 import "./social.css";
 import { ApiError, isPriceSource, money, providers, request, type HistoryChange, type HistoryPoint, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
@@ -68,7 +68,10 @@ function AccountGallery({ session }: { session: Session }) {
   useEffect(preloadCardBack, []);
   const active = route.page === "collection";
   const settingsKey = "paktrak.collection." + session.owner_id;
-  const [start] = useState(() => route.collectionQuery !== undefined ? decodeView(route.collectionQuery) : { ...decodeView(readSetting<string>(settingsKey, "")), query: "" });
+  const [start] = useState(() => {
+    const value = decodeView(route.collectionQuery ?? readSetting<string>(settingsKey, ""));
+    return route.collectionQuery !== undefined && route.collectionQuery === linkedCollectionQuery ? value : { ...value, query: "" };
+  });
   const [data, setData] = useState<Result | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [sets, setSets] = useState<{ code: string; name: string }[]>([]);

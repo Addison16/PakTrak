@@ -56,6 +56,9 @@ function isEntry(value: unknown): value is Entry {
 // session tokens or the temporary password shown after an administrator reset.
 const saved = isEntry(history.state) ? history.state : null;
 let current: Entry = { paktrak: 1, chain: saved?.chain || crypto.randomUUID(), index: saved?.index || 0, route: parse(), y: saved?.y || 0 };
+// A link or bookmark opens the collection with its search; a reload or Back starts it without the old one.
+const arrival = (performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined)?.type;
+export const linkedCollectionQuery = !arrival || arrival === "navigate" ? current.route.collectionQuery : undefined;
 const entries = new Map<number, Entry>([[current.index, current]]);
 const listeners = new Set<() => void>();
 const guards = new Set<Guard>();

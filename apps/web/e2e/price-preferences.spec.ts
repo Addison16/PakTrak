@@ -245,8 +245,12 @@ test("browser history closes card details, keeps sorting and scroll, and clears 
   await navigate(page, "Collection");
   await expect(search).toHaveValue("");
   await expect(page.locator(".gallery-card-title strong")).toHaveText(["Alpha", "Beta", "No quote"]);
+  await search.fill("Beta");
+  await expect(page.locator(".gallery-card-title strong")).toHaveText(["Beta"]);
+  await expect.poll(() => page.evaluate(() => location.hash)).toContain("q%3DBeta");
   await page.reload();
   await expect(search).toHaveValue("");
+  await expect(page.locator(".gallery-card-title strong")).toHaveText(["Alpha", "Beta", "No quote"]);
   await expect(page.getByRole("combobox", { name: "Sort by", exact: true })).toHaveValue("price_asc");
   await navigate(page, "Batches");
   await page.evaluate(() => history.back());
