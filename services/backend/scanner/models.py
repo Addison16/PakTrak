@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -313,6 +314,17 @@ class Printing(Base):
     finishes: Mapped[list] = mapped_column(JSONB)
     source_json: Mapped[dict] = mapped_column(JSONB)
     snapshot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("catalog_snapshots.id"))
+
+
+class CardRuling(Base):
+    """Official rulings, shared by every printing of a card (Scryfall's rulings file)."""
+
+    __tablename__ = "card_rulings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    oracle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+    source: Mapped[str] = mapped_column(String(16))
+    published_at: Mapped[date] = mapped_column(Date)
+    comment: Mapped[str] = mapped_column(Text)
 
 
 class Binder(Base):

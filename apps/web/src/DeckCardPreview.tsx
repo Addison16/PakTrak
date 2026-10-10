@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CardArt } from "./CardDetail";
+import CardRules from "./CardRules";
 import CardArrival, { type CardFlightOrigin } from "./CardArrival";
 import { sections, type DeckCard } from "./deckTypes";
 import { slideTo, useCardSwipe } from "./useCardSwipe";
@@ -24,6 +25,7 @@ export default function DeckCardPreview({ card, origin, position, total, onPrevi
     <p className="fine">{card.printing.set_name || card.printing.set_code.toUpperCase()} · #{card.printing.collector_number} · {card.printing.language.toUpperCase()}</p>
     <p className={card.missing ? "row-error" : "deck-card-owned"}>Need {card.quantity} · Have {card.available} · Missing {card.missing}</p>
     <p className="card-location"><strong>Find it:</strong> {card.locations.length ? card.locations.map((location) => `${location.name} (${location.quantity})`).join(" · ") : "No matching copies in your collection"}</p>
+    <CardRules printingId={card.printing.id} />
     <div className="deck-preview-navigation"><button className="button secondary" disabled={!previous} onClick={() => slideTo("left", previous)}>← Previous</button><button className="button secondary" disabled={!next} onClick={() => slideTo("right", next)}>Next →</button></div>
   </dialog>;
 }

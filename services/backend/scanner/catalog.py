@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import insert
 from scanner.auth import DB
 from scanner.card_search import card_display_name, card_name_matches, split_collector_search
 from scanner.db import session_factory
-from scanner.models import CatalogSnapshot, Printing, now
+from scanner.models import CardRuling, CatalogSnapshot, Printing, now
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["public catalog"])
 
@@ -147,6 +147,40 @@ def detail(printing_id: uuid.UUID, db: DB):
     if printing is None:
         raise HTTPException(404, "Printing not found in this server's catalog.")
     return printing_json(printing)
+
+
+@router.get("/printings/{printing_id}/rulings")
+def rulings(printing_id: uuid.UUID, db: DB):
+    """Format legality and official rulings, shared by every printing of the card."""
+    printing = db.get(Printing, printing_id)
+    if printing is None:
+        raise HTTPException(404, "Printing not found in this server's catalog.")
+    found = (
+        db.scalars(
+            select(CardRuling)
+            .where(CardRuling.oracle_id == printing.oracle_id)
+            .order_by(CardRuling.published_at, CardRuling.id)
+        ).all()
+        if printing.oracle_id
+        else []
+    )
+    legalities = printing.source_json.get("legalities")
+    return {
+        "legalities": {
+            str(name): str(value)
+            for name, value in (legalities.items() if isinstance(legalities, dict) else [])
+        },
+        "rulings": [
+            {
+                "source": ruling.source,
+                "published_at": ruling.published_at.isoformat(),
+                "comment": ruling.comment,
+            }
+            for ruling in found
+        ],
+        # Lets the page say rulings have not arrived yet instead of "none".
+        "rulings_saved": bool(found) or db.scalar(select(CardRuling.id).limit(1)) is not None,
+    }
 
 
 def records(path, progress=None):

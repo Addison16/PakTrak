@@ -1,5 +1,10 @@
 # Changelog
 
+## Card legality and rulings — October 10, 2026
+
+- Opening a card in your collection or in a deck now lists its format legality and its official rulings right under the card. Legality covers the main paper formats (Standard through Brawl), with banned and restricted marked. Rulings are listed by date; the first three show, and **Show all** opens the rest.
+- PakTrak saves the rulings with its daily card catalog update, so viewing a card never asks Scryfall. After updating, rulings appear once that daily update has run. A card you've opened while connected keeps its rulings for offline use.
+
 ## Friends page tidy-up — October 9, 2026
 
 - **Menu → Friends** is easier to scan: each friend is one row with their initials, their name and what they share with you, and tapping anywhere on the row opens them. Friend requests show at the top with Accept and Decline, and requests you sent sit quietly under your list.

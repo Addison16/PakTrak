@@ -48,6 +48,8 @@ Full images preserve aspect ratio and artist/copyright text; quantity badges sit
 
 Use `docker compose logs --tail 50 data-worker` for results and the app disclosure for progress/errors. Restarting the worker retains daily schedules and cooldowns. Initial preparation can take several minutes. Outages do not stop browsing saved data, importing against the local catalog or processing photos.
 
+Each daily catalog download also fetches Scryfall's **Rulings** bulk file and replaces the saved rulings, which card details list under the card with format legality. A failed rulings download keeps the previous rulings and never delays prices. Rulings first appear after the first daily catalog update that includes them; a catalog loaded only through the CLI brings no rulings until the next daily update.
+
 The automatic catalog is **Default Cards**, primarily English plus cards unavailable in English. Operators can load All Cards through the catalog CLI for localized printing resolution, but daily price coverage is based on the most recent snapshot and is not a guarantee of language-specific market data. Referenced printings remain in the database after later imports.
 
 Prices/schedules live in the `database` volume. Viewed reference images use `catalog-images/` in the private bucket in `photos`; uploads and derived scan images have separate prefixes. Bulk staging uses a temporary directory removed after each attempt. Do not commit downloaded datasets or private volumes to Git.
