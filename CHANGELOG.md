@@ -1,5 +1,12 @@
 # Changelog
 
+## Foil types — October 10, 2026
+
+- PakTrak now knows the named foil treatments from the card data: etched, galaxy, surge, fracture, textured, gilded, confetti, halo, neon ink, oil slick, double rainbow, raised, ripple, silver, dragonscale, singularity, cosmic and more. A copy's foil type follows from its printing, so cards you already own pick it up without any changes.
+- **Collection → Filters → Foil type** shows only the kinds of foil in your collection, plus **Any foil**. Pick one to see just those cards; it combines with every other filter.
+- Cards with a named foil say so wherever a finish appears: the label on the card art in Collection, the price buttons in card details, your copies, the finish menus, and the foil choices after a scan (for example "✓ Selected as galaxy foil").
+- Special foils are usually their own printing with a different collector number. If a scan matched the regular printing, **Correct printing** switches it to the special one.
+
 ## Animations on for everyone — October 10, 2026
 
 - PakTrak's animations (the falling cards, card flights, the deck box opening and the rest) now play for every account by default, including on phones and computers set to reduce motion, such as an iPhone with **Settings → Accessibility → Motion → Reduce Motion** on.

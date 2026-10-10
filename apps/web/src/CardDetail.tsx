@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { money, providers, request, type CollectionCard as Card, type DataFeed, type HistoryChange, type HistoryPoint, type Location, type Printing, type Session } from "./api";
+import { foilName, money, providers, request, type CollectionCard as Card, type DataFeed, type HistoryChange, type HistoryPoint, type Location, type Printing, type Session } from "./api";
 import CollectionCard from "./CollectionCard";
 import CardArrival, { type CardFlightOrigin } from "./CardArrival";
 import { slideTo, useCardSwipe } from "./useCardSwipe";
@@ -137,7 +137,7 @@ export default function CardDetail({ card, origin, binder, locations, session, o
     </div></div>
     <CardRules printingId={card.printing.id} />
     {detail && <section className="price-section" aria-label="Price comparison"><div className="section-heading"><h3>Price guide</h3><span className="fine">USD · per copy</span></div>
-      <div className="finish-tabs" aria-label="Price finish">{card.printing.finishes.map((value) => <button className="filter-chip" key={value} aria-pressed={finish === value} onClick={() => setFinish(value)}>{finishes[value] || value}</button>)}</div>
+      <div className="finish-tabs" aria-label="Price finish">{card.printing.finishes.map((value) => <button className="filter-chip" key={value} aria-pressed={finish === value} onClick={() => setFinish(value)}>{value === "foil" ? foilName(card.printing) : finishes[value] || value}</button>)}</div>
       <div className="price-comparison">{detail.prices.map((source) => { const price = source.finishes.find((item) => item.finish === finish); return <div className="provider-price" key={source.provider}><strong>{source.name}</strong><span className="price-amount">{money(price?.amount)}</span><span className="fine">{source.kind}</span>
         {!price && <span className="fine">No price for this finish</span>}
         {price?.available === false && <span className="fine">Near mint out of stock</span>}

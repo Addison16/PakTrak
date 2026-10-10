@@ -1,6 +1,6 @@
 import ErrorNotice from "./ErrorNotice";
 import { useRef, useState } from "react";
-import { isQueued, mutation, queuedNotice, send, type Lot, type Printing, type Session } from "./api";
+import { foilName, isQueued, mutation, queuedNotice, send, type Lot, type Printing, type Session } from "./api";
 import PrintingPicker from "./PrintingPicker";
 
 const finishes: Record<string, string> = { nonfoil: "Normal / nonfoil", foil: "Foil", etched: "Etched foil", unknown: "Unknown finish" };
@@ -24,7 +24,7 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
     const data = { printing_id: printing.id, finish, condition, notes, expected_version: lot.version };
     const body = JSON.stringify(data);
     if (attempt.current.body !== body) attempt.current = { body, key: crypto.randomUUID() };
-    const changes = [printing.id !== lot.printing.id && `Printing: ${printing.set_code.toUpperCase()} #${printing.collector_number}`, finish !== lot.finish && `Finish: ${finishes[finish] || finish}`,
+    const changes = [printing.id !== lot.printing.id && `Printing: ${printing.set_code.toUpperCase()} #${printing.collector_number}`, finish !== lot.finish && `Finish: ${finish === "foil" ? foilName(printing) : finishes[finish] || finish}`,
       condition !== lot.condition && `Condition: ${condition === "ungraded" ? "Ungraded" : condition}`, notes !== lot.notes && "Notes changed"].filter(Boolean).join(" · ");
     try {
       const result = await send(session, "/api/v1/collection/" + lot.id + "/details", mutation(session, data, attempt.current.key),
@@ -44,7 +44,7 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
         {choosing && <PrintingPicker initialPrinting={lot.printing} selectedId={printing.id} onSelect={choose} />}
       </details>
       <div className="chosen-printing" aria-label="Selected printing"><span className="eyebrow">Selected printing</span><strong>{printing.name}</strong><p>{printing.set_name} ({printing.set_code.toUpperCase()}) · #{printing.collector_number}<br /><span className="rarity-text">{printing.rarity || "Rarity unavailable"}</span> · {printing.language.toUpperCase()}</p></div>
-      <label>Card finish<select value={finish} onChange={(e) => setFinish(e.target.value)}>{!finish && <option value="" disabled>Choose a finish</option>}{[...printing.finishes, "unknown"].map((value) => <option key={value} value={value}>{finishes[value] || value}</option>)}</select></label>
+      <label>Card finish<select value={finish} onChange={(e) => setFinish(e.target.value)}>{!finish && <option value="" disabled>Choose a finish</option>}{[...printing.finishes, "unknown"].map((value) => <option key={value} value={value}>{value === "foil" ? foilName(printing) : finishes[value] || value}</option>)}</select></label>
       {!finish && <p className="fine">This printing does not have the previously recorded finish. Choose the finish on your copy.</p>}
       <label>Condition<select value={condition} onChange={(e) => setCondition(e.target.value)}>{["ungraded", "NM", "LP", "MP", "HP", "damaged"].map((value) => <option key={value} value={value}>{value === "ungraded" ? "Ungraded" : value}</option>)}</select></label>
       <label>Copy notes<textarea rows={3} maxLength={4096} placeholder="Binder page, box divider, or anything useful for finding these copies" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>

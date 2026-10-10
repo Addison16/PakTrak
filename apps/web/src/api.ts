@@ -6,8 +6,16 @@ export type Location = { id: string; name: string; kind: "binder" | "box" | "oth
 export type Lot = { id: string; printing: Printing; quantity: number; finish: string; condition: string; binder: string; binder_id: string; binder_kind: string; notes: string; version: number };
 export type PricingIssues = { unknown_finish: number; custom_value: number; missing_price: number };
 export type CollectionCard = { printing: Printing; quantity: number; location_count: number; locations: { id: string; name: string; kind: string; quantity: number }[]; value: string | null; priced_copies: number; price_min: string | null; price_max: string | null; pricing_issues?: PricingIssues; finish_counts?: Partial<Record<"nonfoil" | "foil" | "etched" | "unknown", number>> };
-export type Printing = { id: string; name: string; display_name?: string; set_code: string; collector_number: string; language: string; finishes: string[]; set_name?: string; type_line?: string; mana_cost?: string; cmc?: number | null; produced_mana?: string[]; rarity?: string; colors?: string[]; image_url?: string | null };
+export type Printing = { id: string; name: string; display_name?: string; set_code: string; collector_number: string; language: string; finishes: string[]; set_name?: string; type_line?: string; mana_cost?: string; cmc?: number | null; produced_mana?: string[]; foil_type?: string; rarity?: string; colors?: string[]; image_url?: string | null };
 export type Finish = "nonfoil" | "foil" | "etched";
+// Named foil treatments from the card data. Each belongs to its own printing, whose foils are always that kind.
+export const foilTypes: Record<string, string> = {
+  regular: "Regular foil", etched: "Etched foil", surge: "Surge foil", galaxy: "Galaxy foil", fracture: "Fracture foil", singularity: "Singularity foil", cosmic: "Cosmic foil", textured: "Textured foil", gilded: "Gilded foil", confetti: "Confetti foil", halo: "Halo foil", neon_ink: "Neon ink foil", oil_slick: "Oil slick foil", step_and_compleat: "Step-and-compleat foil", double_rainbow: "Double rainbow foil", raised: "Raised foil", ripple: "Ripple foil", silver: "Silver foil", invisible_ink: "Invisible ink foil", dragonscale: "Dragonscale foil", chocobo_track: "Chocobo track foil", mana: "Mana foil", rainbow: "Rainbow foil", first_place: "First place foil", dazzle: "Dazzle foil", facet: "Facet foil", embossed: "Embossed foil",
+};
+/** "Galaxy foil" rather than "Foil" when the printing's foils have a named treatment. */
+export function foilName(printing: Pick<Printing, "foil_type">, fallback = "Foil") {
+  return (printing.foil_type && foilTypes[printing.foil_type]) || fallback;
+}
 export type WantedFinish = Finish | "any";
 export type WishlistItem = { id: string; printing: Printing; finish: WantedFinish; quantity: number; notes?: string; price_finish: Finish | null; unit_amount: string | null; owned: number };
 export type Wishlist = { provider: PriceSource; items: WishlistItem[]; copies: number; priced_copies: number; amount: string | null };

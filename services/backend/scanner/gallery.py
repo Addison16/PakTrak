@@ -11,6 +11,7 @@ from scanner.auth import DB, Identity
 from scanner.card_search import card_name_matches, split_collector_search
 from scanner.catalog import printing_json
 from scanner.data_sync import FEEDS, PROVIDERS, trusted_url
+from scanner.foil_types import FOIL_TYPES, owned_foil_type
 from scanner.models import Binder, CardPrice, DataFeed, InventoryLot, Printing, now
 
 router = APIRouter(prefix="/api/v1", tags=["gallery"])
@@ -60,6 +61,7 @@ def collection_cards(
     finish,
     sort,
     seed,
+    foil_type="",
     min_price=None,
     max_price=None,
     printing_id=None,
@@ -107,6 +109,10 @@ def collection_cards(
         condition.append(Printing.set_code == set_code.lower())
     if finish:
         condition.append(InventoryLot.finish == finish)
+    if foil_type == "any":
+        condition.append(InventoryLot.finish.in_(("foil", "etched")))
+    elif foil_type:
+        condition.append(owned_foil_type() == foil_type)
     priced = and_(
         CardPrice.amount.is_not(None),
         InventoryLot.misprint.is_not(True),
@@ -336,7 +342,25 @@ def filters(identity: Identity, db: DB):
         .group_by(Printing.set_code)
         .order_by(Printing.set_code)
     ).all()
-    return {"sets": [{"code": code, "name": name or code.upper()} for code, name in sets]}
+    kind = owned_foil_type()
+    owned_foils = set(
+        db.scalars(
+            select(kind)
+            .select_from(InventoryLot)
+            .join(Printing)
+            .where(
+                InventoryLot.owner_id == identity.owner_id,
+                InventoryLot.quantity_remaining > 0,
+                InventoryLot.finish.in_(("foil", "etched")),
+            )
+            .group_by(kind)
+        )
+    )
+    return {
+        "sets": [{"code": code, "name": name or code.upper()} for code, name in sets],
+        # Only the foil types this collection holds, in a stable order.
+        "foil_types": [key for key in FOIL_TYPES if key in owned_foils],
+    }
 
 
 @router.get("/collection/cards/{printing_id}")

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { linkedCollectionQuery, navigation, restoreScroll, useRoute } from "./navigation";
 import ValueChart, { changeText } from "./ValueChart";
 import "./social.css";
-import { ApiError, isPriceSource, money, providers, request, type HistoryChange, type HistoryPoint, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
+import { ApiError, isPriceSource, money, providers, request, foilName, foilTypes, type HistoryChange, type HistoryPoint, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
 import CardDetail, { CardArt } from "./CardDetail";
 import { captureCardFlight, preloadCardBack, type CardFlightOrigin } from "./CardArrival";
 import DataUpdates from "./DataUpdates";
@@ -19,7 +19,7 @@ import { usePullRefresh } from "./pullRefresh";
 
 type Result = { copies: number; cards: number; items: CollectionCard[]; next_offset: number | null; valuation: { provider: string; amount: string | null; priced_copies: number; unpriced_copies: number; pricing_issues?: PricingIssues; feed: DataFeed | null } };
 const colors = [["", "All"], ["W", "White"], ["U", "Blue"], ["B", "Black"], ["R", "Red"], ["G", "Green"], ["M", "Multi"], ["C", "Colorless"]];
-const initial = { binder: "", color: "", rarity: "", card_type: "", set_code: "", finish: "", min_price: "", max_price: "" };
+const initial = { binder: "", color: "", rarity: "", card_type: "", set_code: "", finish: "", foil_type: "", min_price: "", max_price: "" };
 type View = { query: string; filters: typeof initial; sort: string; seed: string; view: string };
 type SavedView = { name: string; value: string };
 function readSetting<T>(key: string, fallback: T): T {
@@ -34,6 +34,7 @@ function decodeView(value: string | undefined): View {
   for (const key of Object.keys(filters) as (keyof typeof initial)[]) filters[key] = (params.get(key) || "").slice(0, 255);
   if (!colors.some(([color]) => color === filters.color)) filters.color = "";
   if (!["", "nonfoil", "foil", "etched", "unknown"].includes(filters.finish)) filters.finish = "";
+  if (filters.foil_type && filters.foil_type !== "any" && !Object.hasOwn(foilTypes, filters.foil_type)) filters.foil_type = "";
   for (const key of ["min_price", "max_price"] as const) if (filters[key] && (!Number.isFinite(Number(filters[key])) || Number(filters[key]) < 0)) filters[key] = "";
   // The API expects a binder UUID and a set code of at most 16 characters; a stale bookmark must not make every poll fail.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(filters.binder)) filters.binder = "";
@@ -53,8 +54,8 @@ function ownedSheen(card: CollectionCard) {
   const foil = count("foil"), etched = count("etched");
   if (!foil && !etched) return undefined;
   const amount = foil + etched;
-  const label = foil && etched ? "Foil finishes" : `${foil ? "Foil" : "Etched"}${amount < card.quantity ? ` · ×${amount.toLocaleString()}` : ""}`;
-  const description = [foil && `${foil.toLocaleString()} foil ${foil === 1 ? "copy" : "copies"}`, etched && `${etched.toLocaleString()} etched ${etched === 1 ? "copy" : "copies"}`].filter(Boolean).join(" and ");
+  const label = foil && etched ? "Foil finishes" : `${foil ? foilName(card.printing) : "Etched"}${amount < card.quantity ? ` · ×${amount.toLocaleString()}` : ""}`;
+  const description = [foil && `${foil.toLocaleString()} ${foilName(card.printing).toLowerCase()} ${foil === 1 ? "copy" : "copies"}`, etched && `${etched.toLocaleString()} etched ${etched === 1 ? "copy" : "copies"}`].filter(Boolean).join(" and ");
   return { finish: foil ? "foil" : "etched", label, description };
 }
 
@@ -75,6 +76,7 @@ function AccountGallery({ session }: { session: Session }) {
   const [data, setData] = useState<Result | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [sets, setSets] = useState<{ code: string; name: string }[]>([]);
+  const [ownedFoils, setOwnedFoils] = useState<string[]>([]);
   const [query, setQuery] = useState(start.query); const [search, setSearch] = useState(start.query);
   const [filters, setFilters] = useState(start.filters);
   const { provider, ready: sourceReady, saving: sourceSaving, preferenceError, retry, change: changeSource, retrySave } = usePriceSource(session);
@@ -179,10 +181,10 @@ function AccountGallery({ session }: { session: Session }) {
     const earlier = offset > 0 ? keptOffsets.filter((at) => at < offset) : [];
     const page = (at: number) => { const query = new URLSearchParams(params); query.set("offset", String(at)); return request<Result>("/api/v1/collection/cards?" + query); };
     const [pages, bins, options] = await Promise.all([
-      Promise.all([...earlier, offset].map(page)), meta ? request<{ items: Location[] }>("/api/v1/binders") : null, meta ? request<{ sets: { code: string; name: string }[] }>("/api/v1/collection/filters") : null,
+      Promise.all([...earlier, offset].map(page)), meta ? request<{ items: Location[] }>("/api/v1/binders") : null, meta ? request<{ sets: { code: string; name: string }[]; foil_types?: string[] }>("/api/v1/collection/filters") : null,
     ]);
     if (!isCurrent()) return;
-    if (bins && options) { metaLoaded.current = Date.now(); setLocations(bins.items); setSets(options.sets); }
+    if (bins && options) { metaLoaded.current = Date.now(); setLocations(bins.items); setSets(options.sets); setOwnedFoils((options.foil_types || []).filter((key) => Object.hasOwn(foilTypes, key))); }
     const result = pages[pages.length - 1];
     if (earlier.length) setKept(pages.slice(0, -1).flatMap((item) => item.items));
     setData(result); setShownProvider(provider); setLoading(false); backgroundError.recovered();
@@ -258,6 +260,7 @@ function AccountGallery({ session }: { session: Session }) {
       <label>Rarity<select value={filters.rarity} onChange={(e) => filter("rarity", e.target.value)}><option value="">All rarities</option>{["common", "uncommon", "rare", "mythic", "special", "bonus"].map((rarity) => <option key={rarity} value={rarity}>{rarity[0].toUpperCase() + rarity.slice(1)}</option>)}</select></label>
       <label>Set<select value={filters.set_code} onChange={(e) => filter("set_code", e.target.value)}><option value="">All sets</option>{sets.map((set) => <option key={set.code} value={set.code}>{set.name}</option>)}</select></label>
       <label>Owned finish<select value={filters.finish} onChange={(e) => filter("finish", e.target.value)}><option value="">All finishes</option><option value="nonfoil">Nonfoil</option><option value="foil">Foil</option><option value="etched">Etched foil</option><option value="unknown">Unknown finish</option></select></label>
+      <label>Foil type<select value={filters.foil_type} onChange={(e) => filter("foil_type", e.target.value)}><option value="">All cards</option><option value="any">Any foil</option>{[...new Set([...ownedFoils, ...(filters.foil_type && filters.foil_type !== "any" ? [filters.foil_type] : [])])].map((key) => <option key={key} value={key}>{foilTypes[key]}</option>)}</select></label>
     </div><button className="text-button" onClick={clearFilters}>Clear search & filters</button></div>}
     {backgroundError.error && <ErrorNotice error={backgroundError.error} onDismiss={backgroundError.dismiss} />}
     <div className="gallery-result-note" role="status">{loading ? "Finding your cards…" : data?.cards ? `${data.cards.toLocaleString()} printings${search ? " matching “" + search + "”" : " to explore"}` : "No cards in this view"}</div>
