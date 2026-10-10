@@ -35,33 +35,49 @@ test("animations are on by default, even on a device that asks for less motion",
   expect(await cardAnimation(page)).toBe("falling-card-fall");
   await navigate(page, "My account");
   const animations = page.getByRole("group", { name: "Animations" });
-  await expect(animations.getByRole("button", { name: "Always on" })).toHaveAttribute("aria-pressed", "true");
-  await expect(animations).toContainText("even if the device asks for less motion");
+  await expect(animations.getByRole("button", { name: "On", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(animations).toContainText("even if it asks for less motion");
 });
 
-test("Follow device hands animations back to the device and stays chosen", async ({ page }) => {
+test("Auto follows the device and stays chosen", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await fixture(page);
   await page.goto("/");
   await navigate(page, "My account");
   const animations = page.getByRole("group", { name: "Animations" });
-  await animations.getByRole("button", { name: "Follow device" }).click();
-  await expect(animations.getByRole("button", { name: "Follow device" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("html")).not.toHaveAttribute("data-motion", "on");
-  await expect(animations).toContainText("This device asks for less motion");
+  await animations.getByRole("button", { name: "Auto", exact: true }).click();
+  await expect(animations.getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "auto");
+  await expect(animations).toContainText("Follows this device · Off right now");
   await expect(falling(page)).toBeHidden();
 
   await page.reload();
-  await expect(page.getByRole("group", { name: "Animations" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Animations" }).getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(falling(page)).toBeHidden();
 
-  // A device that doesn't ask for less motion keeps animating under Follow device.
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await expect(falling(page)).toBeVisible();
-  await expect(page.getByRole("group", { name: "Animations" })).toContainText("Animations are on.");
+  await expect(page.getByRole("group", { name: "Animations" })).toContainText("Follows this device · On right now");
+});
 
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("group", { name: "Animations" }).getByRole("button", { name: "Always on" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-motion", "on");
+test("Off stops every animation, even on a device that doesn't ask for less motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixture(page);
+  await page.goto("/");
+  await navigate(page, "My account");
+  const animations = page.getByRole("group", { name: "Animations" });
+  await animations.getByRole("button", { name: "Off", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+  await expect(animations).toContainText("Animations are off on this device");
+  await expect(falling(page)).toBeHidden();
+  // The page-wide reduce-motion rule applies under Off.
+  expect(await cardAnimation(page)).toBe("none");
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
+  await expect(falling(page)).toBeHidden();
+
+  await page.getByRole("group", { name: "Animations" }).getByRole("button", { name: "On", exact: true }).click();
   await expect(falling(page)).toBeVisible();
+  expect(await cardAnimation(page)).toBe("falling-card-fall");
 });

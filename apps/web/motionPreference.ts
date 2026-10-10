@@ -1,8 +1,10 @@
-// Lets a browser play PakTrak's animations even when the device asks for less
-// motion (My account > Appearance > Animations sets <html data-motion="on">).
-// Stylesheets keep plain prefers-reduced-motion queries; at build time:
-//   reduce        rules apply only without data-motion="on";
-//   no-preference rules are copied for data-motion="on" without the query.
+// Lets each browser choose how PakTrak animates (My account > Appearance >
+// Animations sets <html data-motion="on|auto|off">). Stylesheets keep plain
+// prefers-reduced-motion queries; at build time:
+//   reduce        rules apply on a reduce-motion device unless data-motion="on",
+//                 and are copied without the query for data-motion="off";
+//   no-preference rules apply unless data-motion="off", and are copied without
+//                 the query for data-motion="on".
 // The added html condition sits in :where(), so specificity doesn't change.
 
 import type { AtRule, Node, Plugin, Rule } from "postcss";
@@ -24,14 +26,12 @@ export default function motionPreference(): Plugin {
         const match = media.params.match(query);
         if (!match || done.has(media)) return;
         done.add(media);
-        if (match[1] === "reduce") {
-          media.walkRules((rule) => { if (!insideKeyframes(rule)) scope(rule, ':not([data-motion="on"])'); });
-          return;
-        }
+        const reduce = match[1] === "reduce";
         const copy = media.clone();
         done.add(copy);
-        copy.walkRules((rule) => { if (!insideKeyframes(rule)) scope(rule, '[data-motion="on"]'); });
-        copy.params = copy.params.replace(/\s*and\s*\(\s*prefers-reduced-motion\s*:\s*no-preference\s*\)|\(\s*prefers-reduced-motion\s*:\s*no-preference\s*\)(\s*and)?\s*/, "").trim();
+        media.walkRules((rule) => { if (!insideKeyframes(rule)) scope(rule, reduce ? ':not([data-motion="on"])' : ':not([data-motion="off"])'); });
+        copy.walkRules((rule) => { if (!insideKeyframes(rule)) scope(rule, reduce ? '[data-motion="off"]' : '[data-motion="on"]'); });
+        copy.params = copy.params.replace(/\s*and\s*\(\s*prefers-reduced-motion\s*:\s*(reduce|no-preference)\s*\)|\(\s*prefers-reduced-motion\s*:\s*(reduce|no-preference)\s*\)(\s*and)?\s*/, "").trim();
         media.parent!.insertAfter(media, copy.params ? copy : copy.nodes);
       },
     },

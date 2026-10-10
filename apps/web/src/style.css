@@ -496,9 +496,10 @@ details p { font-size: 14px; }
   /* The refresh spinner keeps a slow turn (pull-refresh.css), or a refresh shows nothing at all. */
   .pull-refresh[data-state="refreshing"] .pull-refresh-spinner svg { animation: pull-refresh-spin 2400ms linear infinite !important; }
 }
-/* Animations turned on in My account bring back the falling cards, which the
-   shared backdrop stylesheet hides for reduced motion. */
+/* The shared backdrop stylesheet hides the falling cards for reduced motion;
+   the Animations choice in My account decides here instead. */
 @media not all and (forced-colors: active) { html[data-motion="on"] .falling-cards { display: block; } }
+html[data-motion="off"] .falling-cards { display: none; }
 @media (forced-colors: active) {
   select { -webkit-appearance: auto; appearance: auto; background-image: none; }
   .filter-chip[aria-pressed=true], .filter-chip[aria-expanded=true], .view-switch button[aria-pressed=true], .menu-links [aria-current=page] { outline: 2px solid Highlight; outline-offset: -2px; }
@@ -811,5 +812,8 @@ details p { font-size: 14px; }
 .trade-view .hero, .trade-view .account-allowance { display: none; }
 .trade-view > .panel, .trade-view > div > .panel { max-width: 760px; margin-inline: auto; margin-top: 0; }
 /* My account > Appearance > Animations, laid out like the light and dark choice above it. */
+.appearance-picker .mode-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
 .appearance-picker .motion-picker { min-width: 0; margin: 18px 0 0; padding: 0; border: 0; }
-.appearance-options.motion-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* The account page sets labels to block; a checkbox keeps its box beside its words. */
+.my-account .checkbox { display: flex; align-items: flex-start; gap: 11px; margin: 14px 0 2px; font-size: 14px; font-weight: 500; }
+.my-account .checkbox input { margin: 1px 0 0; }

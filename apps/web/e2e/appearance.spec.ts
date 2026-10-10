@@ -122,7 +122,7 @@ test("Auto follows device changes; manual choices survive reload and override th
   const unexpected = await fixture(context);
   await page.emulateMedia({ colorScheme: "light" }); await page.goto("/"); await theme(page, "light");
   await openAppearance(page);
-  await expect(page.getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "Light or dark" }).getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.emulateMedia({ colorScheme: "dark" }); await theme(page, "dark");
   await expect(page.getByText("Follows this device · Dark right now", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Light", exact: true }).click(); await theme(page, "light");
@@ -134,7 +134,7 @@ test("Auto follows device changes; manual choices survive reload and override th
   await page.emulateMedia({ colorScheme: "light" }); await theme(page, "dark");
   await page.reload(); await theme(page, "dark");
   await expect(page.getByRole("region", { name: "Appearance", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Auto", exact: true }).click(); await theme(page, "light");
+  await page.getByRole("group", { name: "Light or dark" }).getByRole("button", { name: "Auto", exact: true }).click(); await theme(page, "light");
   await page.emulateMedia({ colorScheme: "dark" }); await theme(page, "dark");
   expect(unexpected).toEqual([]);
 });
@@ -146,7 +146,7 @@ test("appearance stays in sync between tabs and clearing it restores Auto", asyn
   await theme(other, "dark");
   await other.evaluate(() => localStorage.removeItem("paktrak-appearance"));
   await theme(page, "light");
-  await expect(page.getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "Light or dark" }).getByRole("button", { name: "Auto", exact: true })).toHaveAttribute("aria-pressed", "true");
   await other.close();
 });
 
@@ -158,7 +158,7 @@ test("unavailable storage still allows immediate appearance changes", async ({ c
   await page.getByRole("button", { name: "Ember", exact: true }).click(); await paletteMatches(page, "ember");
   await page.getByRole("button", { name: "Light", exact: true }).click(); await theme(page, "light");
   await paletteMatches(page, "ember");
-  await page.getByRole("button", { name: "Auto", exact: true }).click(); await theme(page, "dark");
+  await page.getByRole("group", { name: "Light or dark" }).getByRole("button", { name: "Auto", exact: true }).click(); await theme(page, "dark");
   expect(errors).toEqual([]);
 });
 

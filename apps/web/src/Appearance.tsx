@@ -6,18 +6,22 @@ const subscribe = (listener: () => void) => {
   return () => window.removeEventListener("paktrak-appearance-change", listener);
 };
 const snapshot = () => `${document.documentElement.dataset.appearance || "auto"}:${document.documentElement.dataset.theme || "light"}:${document.documentElement.dataset.palette || "forest"}`;
+const motionChoices = [["on", "On"], ["auto", "Auto"], ["off", "Off"]] as const;
 const motionSnapshot = () => `${motionPreference()}:${deviceReducesMotion()}`;
 const palettes = ["forest", "ocean", "amethyst", "ember", "slate"] as const;
 
 export default function Appearance() {
   const [mode, theme, palette] = useSyncExternalStore(subscribe, snapshot).split(":");
   const [motion, reduced] = useSyncExternalStore(onMotionChange, motionSnapshot).split(":");
-  return <fieldset className="appearance-picker">
-    <legend>Appearance</legend>
-    <div className="appearance-options">
-      {(["auto", "light", "dark"] as const).map((value) => <button key={value} type="button" className="appearance-option" data-appearance-mode={value} aria-pressed={mode === value}>{value[0].toUpperCase() + value.slice(1)}</button>)}
-    </div>
-    <p className="appearance-note">{mode === "auto" ? `Follows this device · ${theme === "dark" ? "Dark" : "Light"} right now` : `${theme === "dark" ? "Dark" : "Light"} on this device`}</p>
+  // My account's "Appearance" heading names the whole section, so each choice gets its own label.
+  return <div className="appearance-picker">
+    <fieldset className="mode-picker">
+      <legend>Light or dark</legend>
+      <div className="appearance-options">
+        {(["auto", "light", "dark"] as const).map((value) => <button key={value} type="button" className="appearance-option" data-appearance-mode={value} aria-pressed={mode === value}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+      </div>
+      <p className="appearance-note">{mode === "auto" ? `Follows this device · ${theme === "dark" ? "Dark" : "Light"} right now` : `${theme === "dark" ? "Dark" : "Light"} on this device`}</p>
+    </fieldset>
     <fieldset className="palette-picker">
       <legend>Color theme</legend>
       <div className="palette-options">
@@ -33,11 +37,10 @@ export default function Appearance() {
     </fieldset>
     <fieldset className="motion-picker">
       <legend>Animations</legend>
-      <div className="appearance-options motion-options">
-        <button type="button" className="appearance-option" aria-pressed={motion === "on"} onClick={() => setMotionPreference("on")}>Always on</button>
-        <button type="button" className="appearance-option" aria-pressed={motion !== "on"} onClick={() => setMotionPreference("auto")}>Follow device</button>
+      <div className="appearance-options">
+        {motionChoices.map(([value, label]) => <button key={value} type="button" className="appearance-option" aria-pressed={motion === value} onClick={() => setMotionPreference(value)}>{label}</button>)}
       </div>
-      <p className="appearance-note">{motion === "on" ? "Animations play in this browser, even if the device asks for less motion." : reduced === "true" ? "This device asks for less motion, so animations are off here." : "Animations are on. They turn off if this device asks for less motion."}</p>
+      <p className="appearance-note">{motion === "on" ? "Animations play on this device, even if it asks for less motion" : motion === "off" ? "Animations are off on this device" : `Follows this device · ${reduced === "true" ? "Off right now because it asks for less motion" : "On right now"}`}</p>
     </fieldset>
-  </fieldset>;
+  </div>;
 }

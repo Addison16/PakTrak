@@ -3,7 +3,8 @@
 ## Animations on for everyone — October 10, 2026
 
 - PakTrak's animations (the falling cards, card flights, the deck box opening and the rest) now play for every account by default, including on phones and computers set to reduce motion, such as an iPhone with **Settings → Accessibility → Motion → Reduce Motion** on.
-- Anyone who prefers less motion can choose **Follow device** under **My account → Appearance → Animations**; PakTrak then pauses animations whenever that device asks for less motion. The choice is saved per browser.
+- **My account → Appearance → Animations** offers **On** (the default), **Auto**, which pauses animations whenever the device asks for less motion, and **Off**. The choice is saved per browser.
+- My account's appearance choices are labeled **Light or dark**, **Color theme** and **Animations**, and the price alert checkbox sits neatly beside its words.
 
 ## Card legality and rulings — October 10, 2026
 
