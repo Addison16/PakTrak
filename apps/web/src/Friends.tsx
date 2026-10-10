@@ -8,10 +8,11 @@ import "./trade-value.css";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
 
-type FriendsData = { code: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string }[]; outgoing: { id: string; created_at: string }[] };
+type FriendsData = { code: string | null; address?: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string; server?: string | null }[]; outgoing: { id: string; created_at: string; server?: string | null }[] };
 type Match = { printing: Printing; finish: Finish; finish_recorded: boolean; quantity: number; wanted: number; unit_amount: string | null };
 type Matches = { name: string; they_have: Match[]; you_have: Match[]; shares_collection: boolean; shares_wishlist: boolean };
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+const on = (server?: string | null) => server ? ` · on ${server}` : "";
 const sharing = (friend: Friend) => friend.shares_collection && friend.shares_wishlist ? "Sharing cards and wishlist" : friend.shares_collection ? "Sharing cards" : friend.shares_wishlist ? "Sharing wishlist" : "Not sharing anything yet";
 
 // Initials on a soft tint picked from the name, so the same friend always looks the same.
@@ -75,7 +76,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
         <h3 className="friends-heading">Friend requests<span>{data.incoming.length}</span></h3>
         <ul className="plain-list friend-list">{data.incoming.map((request, index) => <li key={request.id} className="friend-request" style={{ "--row": Math.min(index, 8) } as CSSProperties}>
           <Avatar name={request.name} />
-          <span className="friend-text"><strong>{request.name}</strong><small>Wants to be friends · {date(request.created_at)}</small></span>
+          <span className="friend-text"><strong>{request.name}</strong><small>Wants to be friends{on(request.server)} · {date(request.created_at)}</small></span>
           <span className="friend-request-actions"><button type="button" className="button primary" disabled={busy} onClick={() => void act(async () => { await post(`/api/v1/friends/requests/${request.id}/accept`); return `You and ${request.name} are now friends.`; })}>Accept</button>
             <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => { await post(`/api/v1/friends/requests/${request.id}/decline`); })}>Decline</button></span>
         </li>)}</ul>
@@ -89,12 +90,12 @@ export default function Friends({ session, active, friendId }: { session: Sessio
           : <ul className="plain-list friend-list" aria-label="Your friends">{shown.map((person, index) => <li key={person.id} style={{ "--row": Math.min(index, 8) } as CSSProperties}>
             <button type="button" className="friend-row" onClick={() => navigation.go({ page: "friends", friend: person.user_id })}>
               <Avatar name={person.name} />
-              <span className="friend-text"><strong>{person.name}</strong><small>{sharing(person)}</small></span>
+              <span className="friend-text"><strong>{person.name}</strong><small>{sharing(person)}{on(person.server)}</small></span>
               <Icon name="chevron" />
             </button>
           </li>)}</ul>}
         {data.outgoing.length > 0 && <ul className="plain-list friend-pending" aria-label="Requests you sent">{data.outgoing.map((request) => <li key={request.id}>
-          <span className="friend-text"><strong>Request sent {date(request.created_at)}</strong><small>Waiting for them to accept</small></span>
+          <span className="friend-text"><strong>Request sent {date(request.created_at)}</strong><small>Waiting for them to accept{on(request.server)}</small></span>
           <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => { await remove(request.id); return "Request withdrawn."; })}>Withdraw</button>
         </li>)}</ul>}
       </div>
@@ -113,6 +114,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
                 <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => { await post("/api/v1/friends/code", { action: "off" }); return "Code turned off. No one can send you a request until you make a new one."; })}>Turn off</button>
               </div>
               <p className="fine">Give it only to people you want to add. You still accept each request.</p>
+              {data.address && <p className="fine">On another PakTrak server, they enter <strong className="friends-full-code">{data.code}@{data.address}</strong></p>}
             </> : <>
               <p className="fine">Your code is off, so no one can send you a request.</p>
               <button type="button" className="button secondary" disabled={busy} onClick={() => void act(async () => { await post("/api/v1/friends/code", { action: "new" }); })}>Create my friend code</button>
@@ -123,7 +125,8 @@ export default function Friends({ session, active, friendId }: { session: Sessio
             setCode("");
             return result.state === "accepted" ? `You and ${result.name} are now friends.` : "Request sent. You’ll see them here once they accept.";
           }); }}>
-            <label><span className="friends-label">Their friend code</span><input value={code} maxLength={32} autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="ABCDE-23456" onChange={(event) => setCode(event.target.value)} /></label>
+            <label><span className="friends-label">Their friend code</span><input value={code} maxLength={300} autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="ABCDE-23456" onChange={(event) => setCode(event.target.value)} /></label>
+            {data.address && <p className="fine">Someone on another PakTrak server? Add @ and their server’s address, like ABCDE-23456@cards.example.net.</p>}
             <button className="button primary" disabled={busy || code.replace(/[^a-z0-9]/gi, "").length < 4}>Send request</button>
           </form>
         </div>
@@ -172,25 +175,27 @@ function FriendView({ session, friend, reload, busy, onRemove }: { session: Sess
   }, [base, query, offset, reload]);
 
   const partner = { id: friend.user_id, name: friend.name };
+  const remote = !!friend.server;
   const line = (item: Match, take: number) => ({ key: crypto.randomUUID(), printing: item.printing, finish: item.finish, quantity: Math.max(1, Math.min(take, 999)) });
   return <section className="panel social-page" aria-labelledby="friend-title">
     <button type="button" className="button secondary social-back" onClick={() => navigation.go({ page: "friends" })}>← Back to friends</button>
     <div className="friend-header">
       <Avatar name={friend.name} large />
-      <div><div className="eyebrow">FRIEND</div><h2 id="friend-title">{friend.name}</h2><small>{friend.since ? `Friends since ${date(friend.since)} · ` : ""}{sharing(friend)}</small></div>
+      <div><div className="eyebrow">FRIEND</div><h2 id="friend-title">{friend.name}</h2><small>{friend.since ? `Friends since ${date(friend.since)} · ` : ""}{sharing(friend)}{on(friend.server)}</small></div>
     </div>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
-    <button type="button" className="button primary friend-offer" onClick={() => openTrade(session.owner_id, { give: [], get: [], friend: partner })}>Make a trade offer</button>
+    {remote ? <p className="fine friend-offer">Trade offers work only with friends on this server for now.</p>
+      : <button type="button" className="button primary friend-offer" onClick={() => openTrade(session.owner_id, { give: [], get: [], friend: partner })}>Make a trade offer</button>}
 
     {matches && matches.they_have.length > 0 && <div className="social-block">
       <h3>They have cards you want</h3>
       <MatchList items={matches.they_have} label={`Cards ${friend.name} has that you want`} />
-      <button type="button" className="button secondary" onClick={() => openTrade(session.owner_id, { give: [], get: matches.they_have.map((item) => line(item, Math.min(item.quantity, item.wanted))), friend: partner })}>Ask for these in an offer</button>
+      {!remote && <button type="button" className="button secondary" onClick={() => openTrade(session.owner_id, { give: [], get: matches.they_have.map((item) => line(item, Math.min(item.quantity, item.wanted))), friend: partner })}>Ask for these in an offer</button>}
     </div>}
     {matches && matches.you_have.length > 0 && <div className="social-block">
       <h3>You have cards they want</h3>
       <MatchList items={matches.you_have} label={`Cards you have that ${friend.name} wants`} />
-      <button type="button" className="button secondary" onClick={() => openTrade(session.owner_id, { give: matches.you_have.map((item) => line(item, Math.min(item.quantity, item.wanted))), get: [], friend: partner })}>Offer these</button>
+      {!remote && <button type="button" className="button secondary" onClick={() => openTrade(session.owner_id, { give: matches.you_have.map((item) => line(item, Math.min(item.quantity, item.wanted))), get: [], friend: partner })}>Offer these</button>}
     </div>}
     {matches && !matches.they_have.length && !matches.you_have.length && <p className="fine">No matches between your wishlists and collections right now.</p>}
 
