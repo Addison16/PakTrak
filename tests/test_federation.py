@@ -161,6 +161,8 @@ def test_both_admins_approve_before_a_server_connects(clients, peer):
     assert approved.json()["servers"][0]["state"] == "connected"
     assert peer.received[-1] == ("/accept", {})
 
+    # Disconnecting while paused still tells the other server.
+    admin.post("/api/v1/servers/settings", json={"enabled": False})
     removed = admin.delete(f"/api/v1/servers/{listed[0]['id']}")
     assert removed.json()["servers"] == []
     assert peer.received[-1] == ("/disconnect", {})
@@ -335,7 +337,7 @@ def test_viewing_a_friend_on_another_server(clients, peer, cards):  # noqa: F811
                 {
                     "printing": {"id": cards[0], "image_url": "https://tracker.example/x.png"},
                     "quantity": 2,
-                    "price_max": "6.00",
+                    "price_max": "999.00",
                     "finish_counts": {"foil": 1, "nonfoil": 1},
                     "locations": [{"name": "leak"}],
                 },
@@ -349,6 +351,9 @@ def test_viewing_a_friend_on_another_server(clients, peer, cards):  # noqa: F811
     # Cards are shown from this server's own catalog, never with the other server's links.
     assert [item["printing"]["id"] for item in collection["items"]] == [cards[0]]
     assert "tracker.example" not in json.dumps(collection) and "leak" not in json.dumps(collection)
+    # Prices are this server's own, whatever the other server reported.
+    owl = collection["items"][0]
+    assert (owl["price_min"], owl["price_max"], owl["value"]) == ("2.0000", "6.0000", "8.0000")
     assert peer.received[-1][1]["provider"] == "tcgplayer"
 
     peer.answers["/friends/wishlist"] = (
@@ -407,3 +412,24 @@ def test_viewing_a_friend_on_another_server(clients, peer, cards):  # noqa: F811
     server = admin.get("/api/v1/servers").json()["servers"][0]
     admin.delete(f"/api/v1/servers/{server['id']}")
     assert bob.get("/api/v1/friends").json()["outgoing"] == []
+
+
+def test_connect_requests_from_unknown_servers_are_throttled(clients, peer, monkeypatch):
+    admin_of(clients)
+    fetched = []
+    real_fetch = federation.fetch_server
+    monkeypatch.setattr(
+        federation, "fetch_server", lambda url, timeout: fetched.append(url) or real_fetch(url)
+    )
+    assert peer.post("/connect", {"url": PEER}).json() == {"state": "pending"}
+    # A known server signing with its key on file isn't looked up again.
+    assert peer.post("/connect", {"url": PEER}).json() == {"state": "pending"}
+    assert fetched == [PEER]
+    with session_factory()() as db, db.begin():
+        db.execute(delete(FederationPeer))
+    # Stale requests stop before any lookup, and lookups are limited.
+    stale = peer.post("/connect", {"url": PEER}, date=int(time.time()) - 3600)
+    assert stale.status_code == 401 and fetched == [PEER]
+    monkeypatch.setattr(federation, "DISCOVERIES_PER_MINUTE", 0)
+    assert peer.post("/connect", {"url": PEER}).status_code == 429
+    assert fetched == [PEER]

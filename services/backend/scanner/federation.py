@@ -19,8 +19,10 @@ import json
 import re
 import secrets
 import socket
+import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Literal
@@ -54,6 +56,13 @@ MAX_RESPONSE = 4 * 1024 * 1024
 TIMEOUT = 8.0
 MAX_WAITING = 20
 MISSES_PER_HOUR = 30
+# Connect requests from unknown servers make this server look up their key. Each
+# API process does at most two lookups at once and twenty a minute.
+DISCOVERY_TIMEOUT = 4.0
+DISCOVERIES_PER_MINUTE = 20
+discovery = threading.BoundedSemaphore(2)
+recent_discoveries = deque()
+discovery_lock = threading.Lock()
 HOST = re.compile(
     r"^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$"
 )
@@ -227,11 +236,14 @@ def describe(url):
     return f"Couldn’t reach {host_of(url)}. Check the address, or try again later."
 
 
-def fetch_server(url):
+def fetch_server(url, timeout=TIMEOUT):
     """The other server's published key, read from its own address."""
     check_address(url)
     try:
-        with http_client() as client, client.stream("GET", url + PREFIX + "/server") as response:
+        with (
+            http_client(timeout) as client,
+            client.stream("GET", url + PREFIX + "/server") as response,
+        ):
             if response.status_code != 200:
                 raise Unreachable(
                     f"{host_of(url)} isn’t accepting connections from other PakTrak servers."
@@ -308,26 +320,38 @@ async def signed_body(request: Request):
     return Signed(origin=request.headers.get("paktrak-origin", ""), body=body)
 
 
-def verify(db, request, signed, public_key):
+def signature_parts(request):
+    """The signature headers, refused early when malformed or stale."""
     headers = request.headers
     try:
         date = int(headers.get("paktrak-date", ""))
         nonce = headers.get("paktrak-nonce", "")
         signature = unb64(headers.get("paktrak-signature", ""))
-        key = Ed25519PublicKey.from_public_bytes(unb64(public_key))
     except ValueError as exc:
         raise HTTPException(401, "This request isn’t signed.") from exc
     if abs(time.time() - date) > CLOCK_SKEW:
         raise HTTPException(401, "This request’s time is off. Check both servers’ clocks.")
-    if not 16 <= len(nonce) <= 64:
+    if not 16 <= len(nonce) <= 64 or len(signature) != 64:
         raise HTTPException(401, "This request isn’t signed.")
+    return date, nonce, signature
+
+
+def signed_by(request, signed, public_key):
+    date, nonce, signature = signature_parts(request)
     target = own_url() + request.url.path
     try:
-        key.verify(
+        Ed25519PublicKey.from_public_bytes(unb64(public_key)).verify(
             signature, signing_text(request.method, target, signed.origin, date, nonce, signed.body)
         )
-    except (InvalidSignature, ValueError) as exc:
-        raise HTTPException(401, "This request’s signature doesn’t match.") from exc
+    except (InvalidSignature, ValueError):
+        return False
+    return True
+
+
+def verify(db, request, signed, public_key):
+    if not signed_by(request, signed, public_key):
+        raise HTTPException(401, "This request’s signature doesn’t match.")
+    _, nonce, _ = signature_parts(request)
     db.execute(
         delete(FederationNonce).where(FederationNonce.seen_at < now() - timedelta(minutes=15))
     )
@@ -337,6 +361,17 @@ def verify(db, request, signed, public_key):
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(401, "This request was already received.") from exc
+
+
+def discovery_allowed():
+    with discovery_lock:
+        cutoff = time.monotonic() - 60
+        while recent_discoveries and recent_discoveries[0] < cutoff:
+            recent_discoveries.popleft()
+        if len(recent_discoveries) >= DISCOVERIES_PER_MINUTE:
+            return False
+        recent_discoveries.append(time.monotonic())
+        return True
 
 
 def require_enabled(db):
@@ -449,32 +484,46 @@ def connect_request(request: Request, db: DB, signed: Signed = Depends(signed_bo
         raise HTTPException(422, "The server address isn’t valid.") from exc
     if url != data.url:
         raise HTTPException(422, "The server address isn’t valid.")
+    signature_parts(request)  # Stale or malformed requests stop before any lookup.
+    known = db.scalar(select(FederationPeer.public_key).where(FederationPeer.url == url))
+    if known and signed_by(request, signed, known):
+        key = known  # Signed with the key already on file, so there's nothing to look up.
+    else:
+        if known is None:
+            waiting = db.scalar(
+                select(func.count())
+                .select_from(FederationPeer)
+                .where(FederationPeer.state == "pending")
+            )
+            if waiting >= MAX_WAITING:
+                raise HTTPException(429, "This server has too many connection requests waiting.")
+        db.commit()
+        # Their published key, read from their own address, must have signed this request.
+        # Anyone can ask, so lookups are few at a time and short.
+        if not discovery.acquire(blocking=False):
+            raise HTTPException(429, "This server is busy. Try again in a minute.")
+        try:
+            if not discovery_allowed():
+                raise HTTPException(429, "This server is busy. Try again in a minute.")
+            info = fetch_server(url, timeout=DISCOVERY_TIMEOUT)
+        except Unreachable as exc:
+            raise HTTPException(422, str(exc)) from exc
+        finally:
+            discovery.release()
+        key = info.public_key
     peer = db.scalar(select(FederationPeer).where(FederationPeer.url == url).with_for_update())
-    if peer is None:
-        waiting = db.scalar(
-            select(func.count())
-            .select_from(FederationPeer)
-            .where(FederationPeer.state == "pending")
-        )
-        if waiting >= MAX_WAITING:
-            raise HTTPException(429, "This server has too many connection requests waiting.")
-    # Their published key, read from their own address, must have signed this request.
-    try:
-        info = fetch_server(url)
-    except Unreachable as exc:
-        raise HTTPException(422, str(exc)) from exc
-    if peer is not None and peer.public_key != info.public_key and peer.state == "connected":
+    if peer is not None and peer.public_key != key and peer.state == "connected":
         raise HTTPException(
             409, "This server knows a different key for your server. Ask its admin to reconnect."
         )
-    verify(db, request, signed, info.public_key)
+    verify(db, request, signed, key)
     if peer is None:
         peer = FederationPeer(url=url, state="pending", misses=0, created_at=now())
         db.add(peer)
     elif peer.state == "requested":
         # This server's admin already asked them, so both sides have now approved.
         peer.state, peer.connected_at = "connected", now()
-    peer.public_key, peer.last_seen_at = info.public_key, now()
+    peer.public_key, peer.last_seen_at = key, now()
     db.commit()
     return {"state": "connected" if peer.state == "connected" else "pending"}
 
@@ -856,8 +905,8 @@ def remove_server(peer_id: uuid.UUID, _: Admin, db: DB):
     url = peer.url
     db.delete(peer)
     db.commit()
-    if enabled(db):
-        best_effort(db, url, "/disconnect", {})
+    # Told even while connections are paused, so their side doesn't keep stale friends.
+    best_effort(db, url, "/disconnect", {})
     return servers_json(db)
 
 

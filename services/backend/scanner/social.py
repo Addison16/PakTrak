@@ -467,16 +467,6 @@ def count(value):
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
-def amount_text(value):
-    if not isinstance(value, str) or len(value) > 32:
-        return None
-    try:
-        amount = Decimal(value)
-    except ArithmeticError:
-        return None
-    return str(amount) if amount.is_finite() and amount >= 0 else None
-
-
 def local_printings(db, values):
     ids = set()
     for value in values:
@@ -521,43 +511,55 @@ def remote_collection(db, owner_id, remote, offset, q, sort):
             if isinstance(item.get("printing"), dict)
         ],
     )
+    # Prices come from this server's own feed, like every other price the viewer sees.
+    prices = finish_prices(db, provider, set(printings))
     items = []
     for item in rows:
         printing = printing_of(printings, (item.get("printing") or {}).get("id"))
         if printing is None:
             continue  # Not in this server's catalog yet.
-        finishes = item.get("finish_counts") if isinstance(item.get("finish_counts"), dict) else {}
+        raw = item.get("finish_counts") if isinstance(item.get("finish_counts"), dict) else {}
+        finishes = {finish: count(raw.get(finish)) for finish in FINISH_VALUES}
         issues = item.get("pricing_issues") if isinstance(item.get("pricing_issues"), dict) else {}
+        quoted = [
+            (prices[(printing.id, finish)], copies)
+            for finish, copies in finishes.items()
+            if copies and (printing.id, finish) in prices
+        ]
+        priced = sum(copies for _, copies in quoted)
         items.append(
             {
                 "printing": printing_json(printing),
                 "quantity": count(item.get("quantity")),
                 "location_count": 0,
                 "locations": [],
-                "value": amount_text(item.get("value")),
-                "priced_copies": count(item.get("priced_copies")),
-                "price_min": amount_text(item.get("price_min")),
-                "price_max": amount_text(item.get("price_max")),
-                "finish_counts": {finish: count(finishes.get(finish)) for finish in FINISH_VALUES},
+                "value": str(sum(amount * copies for amount, copies in quoted)) if quoted else None,
+                "priced_copies": priced,
+                "price_min": str(min(amount for amount, _ in quoted)) if quoted else None,
+                "price_max": str(max(amount for amount, _ in quoted)) if quoted else None,
+                "finish_counts": finishes,
                 "pricing_issues": {
-                    name: count(issues.get(name))
-                    for name in ("unknown_finish", "custom_value", "missing_price")
+                    "unknown_finish": finishes["unknown"],
+                    "custom_value": count(issues.get("custom_value")),
+                    "missing_price": max(
+                        0, count(item.get("quantity")) - priced - finishes["unknown"]
+                    ),
                 },
             }
         )
     next_offset = answer.get("next_offset")
-    valuation = answer.get("valuation") if isinstance(answer.get("valuation"), dict) else {}
     return {
         "name": remote[0].remote_name or "Friend",
         "copies": count(answer.get("copies")),
         "cards": count(answer.get("cards")),
         "items": items,
         "next_offset": next_offset if count(next_offset) and next_offset > offset else None,
+        # Only a page of their cards is here, so there's no whole-collection value to show.
         "valuation": {
             "provider": provider,
-            "amount": amount_text(valuation.get("amount")),
-            "priced_copies": count(valuation.get("priced_copies")),
-            "unpriced_copies": count(valuation.get("unpriced_copies")),
+            "amount": None,
+            "priced_copies": 0,
+            "unpriced_copies": 0,
             "feed": None,
         },
     }
