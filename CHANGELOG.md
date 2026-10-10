@@ -1,5 +1,12 @@
 # Changelog
 
+## Deck balancing stats — October 10, 2026
+
+- Under the mana curve on a deck, **Land drops** shows how many lands an opening hand averages, how often it has 2 to 4 of them, and a turn-by-turn table for turns 1 to 7: the average mana your lands give you that turn and the chance you've had a land to play every turn so far, both on the play and on the draw.
+- **Color balance** compares the colored mana symbols in your spells' costs with the lands and other cards that make each color, and points out a color that's short on sources.
+- **Card types** counts creatures, instants, sorceries, artifacts, enchantments, planeswalkers, battles and lands.
+- Everything is worked out on your device from the deck itself, so it works offline and updates as you edit.
+
 ## Card legality and rulings — October 10, 2026
 
 - Opening a card in your collection or in a deck now lists its format legality and its official rulings right under the card. Legality covers the main paper formats (Standard through Brawl), with banned and restricted marked. Rulings are listed by date; the first three show, and **Show all** opens the rest.

@@ -406,3 +406,26 @@ def test_existing_deck_list_updates_preserve_identity_and_reject_stale_or_invali
     assert client.get(path).json()["copies"] == 6
     assert client.get("/api/v1/collection").json()["copies"] == 0
     assert client.get("/api/auth/session").json()["scan_cards_used"] == 0
+
+
+def test_printing_json_lists_produced_mana_only_for_cards_that_make_mana(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(card_images, "source_image", lambda *args: None)
+
+    def printing(raw):
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            snapshot_id=uuid.uuid4(),
+            name=raw["name"],
+            set_code="tst",
+            collector_number="1",
+            language="en",
+            finishes=["nonfoil"],
+            source_json=raw,
+        )
+
+    forest = decks_api.printing_json(printing({"name": "Forest", "produced_mana": ["G"]}))
+    bear = decks_api.printing_json(printing({"name": "Grizzly Bears", "mana_cost": "{1}{G}"}))
+    assert forest["produced_mana"] == ["G"]
+    assert "produced_mana" not in bear
