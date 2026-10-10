@@ -1,0 +1,18 @@
+/* Format legality and rulings under a card (CardRules.tsx). */
+.card-rules { margin: 18px 0 0; }
+.card-rules h3 { margin: 0 0 8px; font-size: 14px; }
+.card-rules h3 + .fine { margin-top: 0; }
+.card-legality { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 0 0 18px; }
+@media (min-width: 721px) { .card-dialog:not(.deck-preview-dialog) .card-legality { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 20px; } }
+.card-legality > div { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.card-legality dt { color: var(--ink); }
+.card-legality dd { margin: 0 0 0 auto; white-space: nowrap; color: var(--muted); text-align: right; }
+.card-legality .legality-legal dd { color: var(--success-text); }
+.card-legality .legality-banned dd { color: var(--error-text); }
+.card-legality .legality-restricted dd { color: var(--warning-text); }
+.card-rulings { margin: 0; }
+.card-rulings li { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.card-rulings li:first-child { padding-top: 0; }
+.card-rulings p { margin: 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.card-rulings .ruling-date { margin-bottom: 2px; font-size: 11px; color: var(--muted); }
+.rulings-more { margin-top: 6px; padding-inline: 0; font-size: 12px; }

@@ -55,6 +55,7 @@ async function fixture(page: Page) {
     }
     if (path === "/api/v1/decks/collection-preview") return reply(collection(req.postDataJSON().cards));
     if (path === "/api/v1/decks/legality") return reply({ format: state.format, status: "not_checked", issues: [], counts: { main: 0, sideboard: 0, commander: 0 }, checked_at: "2026-09-21T00:00:00Z", catalog_updated_at: null, checks: [], limitations: [] });
+    if (/^\/api\/v1\/catalog\/printings\/[\w-]+\/rulings$/.test(path)) return reply({ legalities: {}, rulings: [], rulings_saved: true });
     state.unexpected.push(path); return reply({ detail: "Unexpected test request" }, 500);
   });
   await page.goto("/"); await navigate(page, "Decks");

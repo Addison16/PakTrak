@@ -6,11 +6,12 @@ import { slideTo, useCardSwipe } from "./useCardSwipe";
 import { ReferralNote } from "./StoreButtons";
 import { withReferral, type Store } from "./storeLinks";
 import ValueChart, { changeText } from "./ValueChart";
+import CardRules from "./CardRules";
 import { navigation } from "./navigation";
 import "./social.css";
 
 type Face = { name?: string; mana_cost?: string; type_line?: string; oracle_text?: string; flavor_text?: string; artist?: string; power?: string; toughness?: string; loyalty?: string; defense?: string; image_url: string | null };
-type Detail = { printing: Printing; faces: Face[]; legalities: Record<string, string>; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
+type Detail = { printing: Printing; faces: Face[]; released_at: string | null; scryfall_url: string | null; prices: { provider: string; name: string; kind: string; feed: DataFeed | null; finishes: { finish: string; amount: string; available: boolean | null; url: string | null }[] }[] };
 export const finishes: Record<string, string> = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil", unknown: "Unknown finish" };
 
 export function CardArt({ url, fallbackUrl, name, eager = false }: { url?: string | null; fallbackUrl?: string | null; name: string; eager?: boolean }) {
@@ -134,6 +135,7 @@ export default function CardDetail({ card, origin, binder, locations, session, o
       {detail?.released_at && <p className="fine">Released {detail.released_at}</p>}
       {detail?.scryfall_url && <a className="text-button" href={detail.scryfall_url} target="_blank" rel="noopener noreferrer">View on Scryfall ↗</a>}
     </div></div>
+    <CardRules printingId={card.printing.id} />
     {detail && <section className="price-section" aria-label="Price comparison"><div className="section-heading"><h3>Price guide</h3><span className="fine">USD · per copy</span></div>
       <div className="finish-tabs" aria-label="Price finish">{card.printing.finishes.map((value) => <button className="filter-chip" key={value} aria-pressed={finish === value} onClick={() => setFinish(value)}>{finishes[value] || value}</button>)}</div>
       <div className="price-comparison">{detail.prices.map((source) => { const price = source.finishes.find((item) => item.finish === finish); return <div className="provider-price" key={source.provider}><strong>{source.name}</strong><span className="price-amount">{money(price?.amount)}</span><span className="fine">{source.kind}</span>
@@ -148,7 +150,6 @@ export default function CardDetail({ card, origin, binder, locations, session, o
     </section>}
     <section aria-label="Owned copies"><h3>Your copies & locations</h3><ul className="plain-list holdings"><CollectionCard card={card} binder={binder} locations={locations} session={session} onSaved={onSaved} onCorrected={onCorrected} /></ul></section>
     <DeckUsage printingId={card.printing.id} />
-    {detail && <details><summary>Format legality</summary><div className="legality-grid">{Object.entries(detail.legalities).filter(([name]) => ["standard", "pioneer", "modern", "legacy", "vintage", "commander", "pauper", "brawl"].includes(name)).map(([name, value]) => <div key={name}><span>{name}</span><span className={value === "legal" ? "legal" : ""}>{value.replaceAll("_", " ")}</span></div>)}</div><p className="fine">Card information and legality from Scryfall’s saved catalog.</p></details>}
     <CardArrival origin={origin} cardKey={faceIndex === 0 ? card.printing.id : `${card.printing.id}:face:${faceIndex}`} targetRef={art} dialogRef={dialog} />
   </dialog>;
 }

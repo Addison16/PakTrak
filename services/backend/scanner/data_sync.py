@@ -5,7 +5,7 @@ import re
 import tempfile
 import time
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlparse
@@ -14,9 +14,9 @@ import httpx
 import ijson
 from sqlalchemy import delete, insert, select, text
 
-from scanner.catalog import import_file
+from scanner.catalog import import_file, records
 from scanner.db import session_factory
-from scanner.models import CardPrice, CatalogSnapshot, DataFeed, Printing, now
+from scanner.models import CardPrice, CardRuling, CatalogSnapshot, DataFeed, Printing, now
 from scanner.price_history import record_history
 from scanner.progress import Progress
 
@@ -209,6 +209,52 @@ def download(client, url, path, progress, limit):
         progress("Download complete", count, count, "bytes", force=True)
 
 
+def normalize_rulings(rows):
+    """Keep well-formed rulings only; one odd entry should not hide the rest."""
+    values = []
+    for raw in rows:
+        if not isinstance(raw, dict):
+            continue
+        comment = raw.get("comment")
+        try:
+            oracle_id = uuid.UUID(raw.get("oracle_id") or "")
+            published = date.fromisoformat(str(raw.get("published_at"))[:10])
+        except (ValueError, TypeError, AttributeError):
+            continue
+        if not isinstance(comment, str) or not comment.strip() or len(comment) > 10_000:
+            continue
+        source = raw.get("source") if raw.get("source") in {"wotc", "scryfall"} else "other"
+        values.append(
+            {
+                "oracle_id": oracle_id,
+                "source": source,
+                "published_at": published,
+                "comment": comment.strip(),
+            }
+        )
+    return values
+
+
+def rulings_sync(client, manifest, directory, progress):
+    entry = next((item for item in manifest if item.get("type") == "rulings"), None)
+    url = entry and trusted_url(
+        entry.get("jsonl_download_uri") or entry.get("download_uri"), "data.scryfall.io"
+    )
+    if not url:
+        raise FeedError("Scryfall returned an unsupported rulings address.")
+    path = directory / "rulings.data"
+    download(client, url, path, progress, 512 * 1024**2)
+    progress("Saving card rulings", force=True)
+    values = normalize_rulings(records(path))
+    if not values:
+        raise FeedError("No card rulings arrived. Saved rulings are unchanged.")
+    with session_factory()() as db, db.begin():
+        db.execute(delete(CardRuling))
+        for start in range(0, len(values), 1000):
+            db.execute(insert(CardRuling), values[start : start + 1000])
+    return len(values)
+
+
 def scryfall_sync(client, directory, progress):
     with session_factory()() as db:
         snapshot = db.scalar(
@@ -222,7 +268,8 @@ def scryfall_sync(client, directory, progress):
         progress("Checking daily catalog", force=True)
         response = client.get("https://api.scryfall.com/bulk-data")
         check_response(response)
-        manifest = next(item for item in response.json()["data"] if item["type"] == "default_cards")
+        bulk = response.json()["data"]
+        manifest = next(item for item in bulk if item["type"] == "default_cards")
         url = trusted_url(
             manifest.get("jsonl_download_uri") or manifest.get("download_uri"), "data.scryfall.io"
         )
@@ -232,6 +279,12 @@ def scryfall_sync(client, directory, progress):
         download(client, url, path, progress, 4 * 1024**3)
         import_file(path, url, progress=progress)
         source_time = str(manifest["updated_at"])[:100]
+        # Rulings are optional: a failure keeps the saved ones and never holds
+        # back the day's prices.
+        try:
+            log.info("Saved %s card rulings", rulings_sync(client, bulk, directory, progress))
+        except Exception as exc:
+            log.warning("Card rulings update failed (%s)", type(exc).__name__)
     progress("Indexing TCGplayer prices", force=True)
     values = []
     with session_factory()() as db:
