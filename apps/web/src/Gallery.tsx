@@ -2,7 +2,7 @@ import ErrorNotice from "./ErrorNotice";
 import usePriceSource from "./usePriceSource";
 import useBackgroundError from "./useBackgroundError";
 import { useEffect, useRef, useState } from "react";
-import { navigation, restoreScroll, useRoute } from "./navigation";
+import { linkedCollectionQuery, navigation, restoreScroll, useRoute } from "./navigation";
 import ValueChart, { changeText } from "./ValueChart";
 import "./social.css";
 import { ApiError, isPriceSource, money, providers, request, type HistoryChange, type HistoryPoint, type CollectionCard, type DataFeed, type Location, type PricingIssues, type Session } from "./api";
@@ -68,7 +68,10 @@ function AccountGallery({ session }: { session: Session }) {
   useEffect(preloadCardBack, []);
   const active = route.page === "collection";
   const settingsKey = "paktrak.collection." + session.owner_id;
-  const [start] = useState(() => decodeView(route.collectionQuery ?? readSetting<string>(settingsKey, "")));
+  const [start] = useState(() => {
+    const value = decodeView(route.collectionQuery ?? readSetting<string>(settingsKey, ""));
+    return route.collectionQuery !== undefined && route.collectionQuery === linkedCollectionQuery ? value : { ...value, query: "" };
+  });
   const [data, setData] = useState<Result | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [sets, setSets] = useState<{ code: string; name: string }[]>([]);
@@ -116,17 +119,30 @@ function AccountGallery({ session }: { session: Session }) {
     const next = decodeView(value);
     setQuery(next.query); setSearch(next.query); setFilters(next.filters); setSort(next.sort); setSeed(next.seed); setView(next.view); setOffset(0); setMinPrice(next.filters.min_price); setMaxPrice(next.filters.max_price); setPriceError("");
   }
+  // The page stays mounted between visits; the search starts empty each time the person comes back from another screen.
+  // Filters, sort and layout stay. Opening a card keeps the search, since that stays on this screen.
+  const wasActive = useRef(active);
+  const returning = useRef(false);
   useEffect(() => {
-    if (!active || route.collectionQuery === undefined || route.collectionQuery === lastEncoded.current) return;
-    lastEncoded.current = route.collectionQuery;
+    if (wasActive.current && !active) { setQuery(""); setSearch(""); setOffset(0); returning.current = true; }
+    wasActive.current = active;
+  }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    const back = returning.current; returning.current = false;
+    // Going Back into the collection reopens its history entry; drop the old search from it too.
+    const incoming = back && route.collectionQuery !== undefined ? encodeView({ ...decodeView(route.collectionQuery), query: "" }) : route.collectionQuery;
+    if (incoming === undefined || incoming === lastEncoded.current) return;
+    lastEncoded.current = incoming;
     // A view equal to the current state changes nothing, so the clearing effect below would never run.
-    if (encodeView(decodeView(route.collectionQuery)) === encoded) return;
-    hydrating.current = true; loadView(route.collectionQuery);
+    if (encodeView(decodeView(incoming)) === encoded) return;
+    hydrating.current = true; loadView(incoming);
   }, [route.collectionQuery, active]);
   useEffect(() => {
     if (!active) return;
     if (hydrating.current) { hydrating.current = false; return; }
-    remember(settingsKey, encoded); lastEncoded.current = encoded;
+    // The device copy reopens the collection after a reload, so it keeps the view without the search.
+    remember(settingsKey, encodeView({ query: "", filters, sort, seed, view })); lastEncoded.current = encoded;
     navigation.go({ ...navigation.route, collectionQuery: encoded }, { replace: true });
   }, [encoded, active, settingsKey]);
   function saveView() {

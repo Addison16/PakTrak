@@ -96,6 +96,10 @@ export default function TradeValue({ session, active }: { session: Session; acti
 
   useEffect(() => { try { sessionStorage.setItem(storageKey, JSON.stringify(trade)); } catch { /* The trade still works without tab storage. */ } }, [trade, storageKey]);
 
+  // Card searches start empty each time the person comes back from another screen.
+  const [visit, setVisit] = useState(0);
+  useEffect(() => { if (!active) setVisit((value) => value + 1); }, [active]);
+
   // The page stays mounted between visits; price again on return so a feed update reaches the totals.
   useEffect(() => { if (active && pricedAt.current && Date.now() - pricedAt.current > 5 * 60 * 1000) setPrices({}); }, [active]);
 
@@ -272,7 +276,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
             </div>
           </li>;
         })}</ul>}
-      {adding === side ? <TradeAdder side={side} source={source[side]} onSource={(value) => setSource({ ...source, [side]: value })} partner={side === "get" ? partner : null}
+      {adding === side ? <TradeAdder key={visit} side={side} source={source[side]} onSource={(value) => setSource({ ...source, [side]: value })} partner={side === "get" ? partner : null}
         onLot={(lot) => addLot(side, lot)} onPrinting={(printing, finish) => finish ? add(side, printing, finish) : addPrinting(side, printing)} onDone={() => setAdding(null)} />
         : <button type="button" className="button secondary trade-add" onClick={() => setAdding(side)}>Add a card you {side}</button>}
     </section>)}
