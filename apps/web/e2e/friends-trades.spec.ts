@@ -17,6 +17,7 @@ async function fixture(page: Page) {
   const state = {
     offer: offer("pending", "respond") as ReturnType<typeof offer> | null, calls: [] as string[], importBody: "", removal: null as any, codeAttempts: [] as string[], dragonCopies: 2,
     wishlist: [{ id: "wish-1", printing: ring, finish: "any", quantity: 2, notes: "", price_finish: "nonfoil", unit_amount: "5.00", owned: 0, created_at: "2026-10-01T00:00:00Z" }], wishlistAdds: [] as any[], wishlistSaves: [] as number[],
+    friends: [{ id: "f-1", user_id: "friend-riley", name: "Riley", since: "2026-10-01T00:00:00Z", shares_collection: true, shares_wishlist: true }],
   };
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
@@ -34,7 +35,11 @@ async function fixture(page: Page) {
     else if (path === "/api/v1/collection/lot-9/quantity") { state.removal = body; json = { id: "lot-9", quantity: body.quantity, version: 4 }; }
     else if (path === "/api/v1/imports" && method === "POST") { state.importBody = req.postData() || ""; json = { id: "trade-import", state: "REVIEW", revision: 2, summary: { ready_copies: 2, committed_copies: 0, unresolved_rows: 0 } }; }
     else if (path === "/api/v1/imports/trade-import/confirm") json = { id: "trade-import", state: "COMPLETED", revision: 3, summary: { ready_copies: 0, committed_copies: 2, unresolved_rows: 0 } };
-    else if (path === "/api/v1/friends") json = { code: "ABCDE-23456", share_collection: true, share_wishlist: true, friends: [{ id: "f-1", user_id: "friend-riley", name: "Riley", since: "2026-10-01T00:00:00Z", shares_collection: true, shares_wishlist: true }], incoming: [], outgoing: [] };
+    else if (path === "/api/v1/friends") json = { code: "ABCDE-23456", share_collection: true, share_wishlist: true, friends: state.friends, incoming: [], outgoing: [] };
+    else if (path === "/api/v1/friends/f-1" && method === "DELETE") state.friends = state.friends.filter((friend) => friend.id !== "f-1");
+    else if (path === "/api/v1/friends/friend-riley/matches") json = { name: "Riley", they_have: [], you_have: [], shares_collection: true, shares_wishlist: true };
+    else if (path === "/api/v1/friends/friend-riley/wishlist") json = { provider: "tcgplayer", items: [], copies: 0, priced_copies: 0, amount: "0.00" };
+    else if (path === "/api/v1/friends/friend-riley/collection") json = { items: [], next_offset: null, copies: 0 };
     else if (path === "/api/v1/friends/requests") {
       state.codeAttempts.push(body.code);
       if (body.code === "ZZZZZ-ZZZZZ") { status = 404; json = { detail: "No one can be added with that code. Check it with the person who gave it to you." }; }
@@ -109,6 +114,37 @@ test("friends are added only by code and a wrong code says nothing about account
   await page.getByRole("button", { name: "Send request", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Request sent" })).toBeVisible();
   expect(state.codeAttempts).toEqual(["ZZZZZ-ZZZZZ", "QRSTU-VWXYZ"]);
+});
+
+test("the friends list opens a friend, and removing them happens on their page", async ({ page }) => {
+  const state = await fixture(page);
+  state.friends.push(...["Jordan Matthews", "Sam", "Taylor", "Casey", "Morgan", "Avery", "Quinn", "Drew"].map((name, index) => ({ id: `f-x${index}`, user_id: `friend-x${index}`, name, since: null, shares_collection: index % 2 === 0, shares_wishlist: index % 3 === 0 })));
+  await navigate(page, "Friends");
+  const list = page.getByRole("list", { name: "Your friends" });
+  await expect(list.getByRole("listitem")).toHaveCount(9);
+  await expect(list.getByRole("button", { name: /^Riley/ })).toContainText("Sharing cards and wishlist");
+  await expect(list.getByRole("button", { name: /^Sam/ })).toContainText("Not sharing anything yet");
+  await expect(list.getByRole("button", { name: /^Riley/ })).not.toContainText("Remove");
+
+  await page.getByLabel("Find a friend").fill("ri");
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await page.getByLabel("Find a friend").fill("zz");
+  await expect(page.getByText("No friends match “zz”.")).toBeVisible();
+  await page.getByLabel("Find a friend").fill("ri");
+
+  await list.getByRole("button", { name: /^Riley/ }).click();
+  await expect(page.getByRole("heading", { name: "Riley", exact: true })).toBeVisible();
+  await expect(page.getByText(/Friends since .* · Sharing cards and wishlist/)).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Remove Riley as a friend", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Friends", exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Removed Riley." })).toBeVisible();
+  // Eight friends left would normally hide the search, but it stays while it still filters the list.
+  await expect(page.getByText("No friends match “ri”.")).toBeVisible();
+  await page.getByLabel("Find a friend").fill("");
+  await expect(list.getByRole("listitem")).toHaveCount(8);
+  await expect(page.getByLabel("Find a friend")).toHaveCount(0);
+  expect(state.calls).toEqual(["DELETE /api/v1/friends/f-1"]);
 });
 
 test("wishlist totals and set completion add missing cards to the wishlist", async ({ page }) => {

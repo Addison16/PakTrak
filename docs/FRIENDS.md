@@ -13,11 +13,11 @@ Friends can see each other's collections and wishlists and send trade offers. Pa
 - Each account can create a **friend code** under **Menu → Friends**. It looks like `ABCDE-23456` and is random, so it can't be guessed from a name.
 - To add someone, enter the code they gave you. They see a request and decide whether to accept. You don't see their name until they do.
 - A wrong code always gets the same answer, whether or not the account exists. After 10 wrong codes in an hour, PakTrak asks you to wait.
-- **Get a new code** stops the old one working; current friends stay connected. **Turn off code** means no one can send you a request.
+- **New code** stops the old one working; current friends stay connected. **Turn off** means no one can send you a request.
 - **What friends can see** lets you stop sharing your collection or wishlist at any time. Storage locations and notes are never shared.
-- **Remove** ends the friendship for both people and cancels offers still waiting.
+- **Remove … as a friend**, at the bottom of a friend's page, ends the friendship for both people and cancels offers still waiting.
 
-Opening a friend shows the cards they have that are on your wishlist, the cards you have that are on theirs, their wishlist and a searchable view of their collection.
+Your friends are listed by name, each with what they share with you; **Find a friend** appears once the list is long. Opening a friend shows the cards they have that are on your wishlist, the cards you have that are on theirs, their wishlist and a searchable view of their collection.
 
 ### Friends on other PakTrak servers
 

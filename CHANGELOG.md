@@ -1,5 +1,12 @@
 # Changelog
 
+## Friends page tidy-up — October 9, 2026
+
+- **Menu → Friends** is easier to scan: each friend is one row with their initials, their name and what they share with you, and tapping anywhere on the row opens them. Friend requests show at the top with Accept and Decline, and requests you sent sit quietly under your list.
+- Your code and the box for theirs now sit together under **Add a friend**, side by side on wider screens. **Copy code** says "Copied" when it worked.
+- **Find a friend** filters the list once you have more than eight friends.
+- A friend's page opens with their initials, how long you've been friends and what they share. **Remove** moved from the list to the bottom of that page, so it can't be tapped by accident while scrolling.
+
 ## Friends on other PakTrak servers — October 9, 2026
 
 - Administrators can connect their PakTrak to other PakTrak servers under **Menu → Administration → Other PakTrak servers**. It is off by default, and a connection starts only after the administrators of both servers approve it. **Disconnect** ends it on both sides.
