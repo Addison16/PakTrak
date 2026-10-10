@@ -112,6 +112,24 @@ test("compares both sides of a trade with per-card finishes and quantities", asy
   await expect(verdict(page)).toContainText("Add cards to both sides");
 });
 
+test("card searches start empty after leaving the trade page and coming back", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "Add a card you give", exact: true }).click();
+  await page.getByLabel("Search your collection").fill("Shiv");
+  await expect(page.getByRole("button", { name: /Shivan Dragon/ })).toBeVisible();
+  await navigate(page, "Collection");
+  await navigate(page, "Trade value");
+  await expect(page.getByLabel("Search your collection")).toHaveValue("");
+  await expect(page.getByRole("button", { name: /Shivan Dragon/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Done adding", exact: true }).click();
+  await page.getByRole("button", { name: "Add a card you get", exact: true }).click();
+  await page.getByLabel("Find an exact printing").fill("Lightning");
+  await expect(page.getByRole("button", { name: /Lightning Bolt/ })).toBeVisible();
+  await navigate(page, "Collection");
+  await navigate(page, "Trade value");
+  await expect(page.getByLabel("Find an exact printing")).toHaveValue("");
+});
+
 test("the trade page fits a phone screen without sideways scrolling", async ({ page }) => {
   await fixture(page);
   await page.getByRole("button", { name: "Add a card you get", exact: true }).click();

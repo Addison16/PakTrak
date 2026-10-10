@@ -58,12 +58,14 @@ async function accountApi(context: BrowserContext, preference: Source) {
       const provider = url.searchParams.get("provider") || "tcgplayer";
       const sort = url.searchParams.get("sort") || "name";
       const prices: Record<string, (string | null)[]> = { tcgplayer: ["1.00", "9.00", null], cardkingdom: ["10.00", "2.00", null], manapool: ["8.00", "4.00", null] };
+      const q = (url.searchParams.get("q") || "").toLowerCase();
       const items = ["Alpha", "Beta", "No quote"].map((name, index) => ({
         printing: { id: "printing-" + index, name, set_code: "tst", collector_number: String(index + 1), language: "en", finishes: ["nonfoil"], rarity: "common", image_url: null },
         quantity: 1, location_count: 0, locations: [], value: prices[provider][index], price_min: prices[provider][index], price_max: prices[provider][index], priced_copies: prices[provider][index] == null ? 0 : 1,
       }));
       if (path !== "/api/v1/collection/cards") return json(items.find(item => path.endsWith("/" + item.printing.id)));
       state.queries.push({ provider, sort });
+      if (q) items.splice(0, items.length, ...items.filter((item) => item.printing.name.toLowerCase().includes(q)));
       if (sort === "price_asc" || sort === "price_desc") items.sort((a, b) => a.price_min == null ? 1 : b.price_min == null ? -1 : (Number(a.price_min) - Number(b.price_min)) * (sort === "price_asc" ? 1 : -1));
       return json({ copies: 3, cards: 3, items, next_offset: null, valuation: { provider, amount: "12.00", priced_copies: 2, unpriced_copies: 1, feed: null } });
     }
@@ -208,13 +210,14 @@ test("both price sort directions are always available and use the selected sourc
 });
 
 
-test("browser history closes card details and keeps collection searches, sorting and scroll", async ({ context, page }) => {
+test("browser history closes card details, keeps sorting and scroll, and clears the search after leaving", async ({ context, page }) => {
   const state = await accountApi(context, "tcgplayer");
   await page.route("**/api/v1/collection/printings/*", (route) => route.fulfill({ json: { faces: [], legalities: {}, released_at: null, scryfall_url: null, prices: [] } }));
   await page.goto("/"); await collection(page);
   const search = page.getByRole("searchbox", { name: "Find a card", exact: true });
   await search.fill("Alpha");
   await page.getByRole("combobox", { name: "Sort by", exact: true }).selectOption("price_asc");
+  await expect(page.locator(".gallery-card")).toHaveCount(1);
   await expect(page.locator(".gallery-grid")).toHaveAttribute("aria-busy", "false");
   await page.getByRole("button", { name: "Open Alpha · TST #1", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Alpha", exact: true })).toBeVisible();
@@ -231,8 +234,22 @@ test("browser history closes card details and keeps collection searches, sorting
   })).toEqual({ path: "/collection", card: null, query: "Alpha", sort: "price_asc" });
   await navigate(page, "Batches");
   await page.evaluate(() => history.back());
-  await expect(search).toHaveValue("Alpha");
+  // Coming back from another screen starts with an empty search; the sort stays.
+  await expect(search).toHaveValue("");
   await expect(page.getByRole("combobox", { name: "Sort by", exact: true })).toHaveValue("price_asc");
+  await expect(page.locator(".gallery-card-title strong")).toHaveText(["Alpha", "Beta", "No quote"]);
+  await expect.poll(() => page.evaluate(() => new URLSearchParams(new URL(location.hash.slice(1), location.origin).searchParams.get("filters") || "").get("q"))).toBeNull();
+  await search.fill("Beta");
+  await expect(page.locator(".gallery-card-title strong")).toHaveText(["Beta"]);
+  await navigate(page, "Upload photo");
+  await navigate(page, "Collection");
+  await expect(search).toHaveValue("");
+  await expect(page.locator(".gallery-card-title strong")).toHaveText(["Alpha", "Beta", "No quote"]);
+  await page.reload();
+  await expect(search).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: "Sort by", exact: true })).toHaveValue("price_asc");
+  await navigate(page, "Batches");
+  await page.evaluate(() => history.back());
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await page.evaluate(() => scrollTo(0, 200));
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(200);
