@@ -34,10 +34,10 @@ export default function Appearance() {
     <fieldset className="motion-picker">
       <legend>Animations</legend>
       <div className="appearance-options motion-options">
-        <button type="button" className="appearance-option" aria-pressed={motion !== "on"} onClick={() => setMotionPreference("auto")}>Follow device</button>
         <button type="button" className="appearance-option" aria-pressed={motion === "on"} onClick={() => setMotionPreference("on")}>Always on</button>
+        <button type="button" className="appearance-option" aria-pressed={motion !== "on"} onClick={() => setMotionPreference("auto")}>Follow device</button>
       </div>
-      <p className="appearance-note">{motion === "on" ? "Animations play in this browser, even if the device asks for less motion." : reduced === "true" ? "This device asks for less motion, so animations are off. Choose Always on to play them here." : "Animations are on. They turn off if this device asks for less motion."}</p>
+      <p className="appearance-note">{motion === "on" ? "Animations play in this browser, even if the device asks for less motion." : reduced === "true" ? "This device asks for less motion, so animations are off here." : "Animations are on. They turn off if this device asks for less motion."}</p>
     </fieldset>
   </fieldset>;
 }
