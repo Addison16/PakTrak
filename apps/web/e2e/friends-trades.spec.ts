@@ -17,7 +17,8 @@ async function fixture(page: Page) {
   const state = {
     offer: offer("pending", "respond") as ReturnType<typeof offer> | null, calls: [] as string[], importBody: "", removal: null as any, codeAttempts: [] as string[], dragonCopies: 2,
     wishlist: [{ id: "wish-1", printing: ring, finish: "any", quantity: 2, notes: "", price_finish: "nonfoil", unit_amount: "5.00", owned: 0, created_at: "2026-10-01T00:00:00Z" }], wishlistAdds: [] as any[], wishlistSaves: [] as number[],
-    friends: [{ id: "f-1", user_id: "friend-riley", name: "Riley", since: "2026-10-01T00:00:00Z", shares_collection: true, shares_wishlist: true }],
+    friends: [{ id: "f-1", user_id: "friend-riley", name: "Riley", since: "2026-10-01T00:00:00Z", shares_collection: true, shares_wishlist: true }] as Record<string, unknown>[],
+    address: null as string | null, incoming: [] as Record<string, unknown>[],
   };
   await page.route("**/api/**", async (route) => {
     const req = route.request(), url = new URL(req.url()), path = url.pathname, method = req.method();
@@ -35,9 +36,11 @@ async function fixture(page: Page) {
     else if (path === "/api/v1/collection/lot-9/quantity") { state.removal = body; json = { id: "lot-9", quantity: body.quantity, version: 4 }; }
     else if (path === "/api/v1/imports" && method === "POST") { state.importBody = req.postData() || ""; json = { id: "trade-import", state: "REVIEW", revision: 2, summary: { ready_copies: 2, committed_copies: 0, unresolved_rows: 0 } }; }
     else if (path === "/api/v1/imports/trade-import/confirm") json = { id: "trade-import", state: "COMPLETED", revision: 3, summary: { ready_copies: 0, committed_copies: 2, unresolved_rows: 0 } };
-    else if (path === "/api/v1/friends") json = { code: "ABCDE-23456", share_collection: true, share_wishlist: true, friends: state.friends, incoming: [], outgoing: [] };
+    else if (path === "/api/v1/friends") json = { code: "ABCDE-23456", address: state.address, share_collection: true, share_wishlist: true, friends: state.friends, incoming: state.incoming, outgoing: [] };
     else if (path === "/api/v1/friends/f-1" && method === "DELETE") state.friends = state.friends.filter((friend) => friend.id !== "f-1");
     else if (path === "/api/v1/friends/friend-riley/matches") json = { name: "Riley", they_have: [], you_have: [], shares_collection: true, shares_wishlist: true };
+    else if (path === "/api/v1/friends/remote-pat/matches") json = { name: "Pat", they_have: [{ printing: bolt, finish: "nonfoil", finish_recorded: true, quantity: 3, wanted: 2, unit_amount: "2.50" }], you_have: [], shares_collection: true, shares_wishlist: false };
+    else if (path === "/api/v1/friends/remote-pat/collection") json = { items: [], next_offset: null, copies: 0 };
     else if (path === "/api/v1/friends/friend-riley/wishlist") json = { provider: "tcgplayer", items: [], copies: 0, priced_copies: 0, amount: "0.00" };
     else if (path === "/api/v1/friends/friend-riley/collection") json = { items: [], next_offset: null, copies: 0 };
     else if (path === "/api/v1/friends/requests") {
@@ -114,6 +117,34 @@ test("friends are added only by code and a wrong code says nothing about account
   await page.getByRole("button", { name: "Send request", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Request sent" })).toBeVisible();
   expect(state.codeAttempts).toEqual(["ZZZZZ-ZZZZZ", "QRSTU-VWXYZ"]);
+});
+
+test("friends on another server are added with their server's address and can't be sent offers", async ({ page }, info) => {
+  const state = await fixture(page);
+  state.address = "cards.alex.example";
+  state.friends.push({ id: "remote-pat", user_id: "remote-pat", name: "Pat", since: "2026-10-09T00:00:00Z", shares_collection: true, shares_wishlist: false, server: "pals.example.net" });
+  state.incoming.push({ id: "remote-sky", name: "Sky", created_at: "2026-10-09T00:00:00Z", server: "pals.example.net" });
+  await navigate(page, "Friends");
+  await expect(page.getByText("ABCDE-23456@cards.alex.example")).toBeVisible();
+  await expect(page.getByLabel("Friend requests")).toContainText("Wants to be friends · on pals.example.net");
+  const list = page.getByRole("list", { name: "Your friends" });
+  await expect(list.getByRole("button", { name: /^Pat/ })).toContainText("Sharing cards · on pals.example.net");
+  await expect(list.getByRole("button", { name: /^Riley/ })).not.toContainText(" on ");
+  const full = "QRSTU-VWXYZ@paktrak.my-family-collection.example.com";
+  await page.getByLabel("Their friend code").fill(full);
+  await page.getByRole("button", { name: "Send request", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Request sent" })).toBeVisible();
+  expect(state.codeAttempts).toEqual([full]);
+  await page.screenshot({ path: info.outputPath("friends-remote.png"), fullPage: true });
+
+  await list.getByRole("button", { name: /^Pat/ }).click();
+  await expect(page.getByRole("heading", { name: "Pat", exact: true })).toBeVisible();
+  await expect(page.getByText("They have cards you want")).toBeVisible();
+  await expect(page.getByText(/· on pals.example.net/)).toBeVisible();
+  await expect(page.getByText("Trade offers work only with friends on this server for now.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Make a trade offer" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask for these in an offer" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("friend-remote-page.png"), fullPage: true });
 });
 
 test("the friends list opens a friend, and removing them happens on their page", async ({ page }) => {

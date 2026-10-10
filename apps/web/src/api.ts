@@ -6,14 +6,15 @@ export type Location = { id: string; name: string; kind: "binder" | "box" | "oth
 export type Lot = { id: string; printing: Printing; quantity: number; finish: string; condition: string; binder: string; binder_id: string; binder_kind: string; notes: string; version: number };
 export type PricingIssues = { unknown_finish: number; custom_value: number; missing_price: number };
 export type CollectionCard = { printing: Printing; quantity: number; location_count: number; locations: { id: string; name: string; kind: string; quantity: number }[]; value: string | null; priced_copies: number; price_min: string | null; price_max: string | null; pricing_issues?: PricingIssues; finish_counts?: Partial<Record<"nonfoil" | "foil" | "etched" | "unknown", number>> };
-export type Printing = { id: string; name: string; display_name?: string; set_code: string; collector_number: string; language: string; finishes: string[]; set_name?: string; type_line?: string; mana_cost?: string; cmc?: number | null; rarity?: string; colors?: string[]; image_url?: string | null };
+export type Printing = { id: string; name: string; display_name?: string; set_code: string; collector_number: string; language: string; finishes: string[]; set_name?: string; type_line?: string; mana_cost?: string; cmc?: number | null; produced_mana?: string[]; rarity?: string; colors?: string[]; image_url?: string | null };
 export type Finish = "nonfoil" | "foil" | "etched";
 export type WantedFinish = Finish | "any";
 export type WishlistItem = { id: string; printing: Printing; finish: WantedFinish; quantity: number; notes?: string; price_finish: Finish | null; unit_amount: string | null; owned: number };
 export type Wishlist = { provider: PriceSource; items: WishlistItem[]; copies: number; priced_copies: number; amount: string | null };
 export type OfferCard = { printing: Printing; finish: Finish; quantity: number; unit_amount: string | null };
 export type TradeOffer = { id: string; direction: "incoming" | "outgoing"; friend: { id: string | null; name: string }; state: "pending" | "accepted" | "declined" | "cancelled"; message: string; created_at: string; responded_at: string | null; applied: boolean; attention: null | "respond" | "apply" | "declined" | "cancelled"; give: OfferCard[]; get: OfferCard[]; give_amount: string | null; get_amount: string | null; give_unpriced: number; get_unpriced: number; provider: PriceSource };
-export type Friend = { id: string; user_id: string; name: string; since: string | null; shares_collection: boolean; shares_wishlist: boolean };
+// server is the address of the friend's own PakTrak when it isn't this one.
+export type Friend = { id: string; user_id: string; name: string; since: string | null; shares_collection: boolean; shares_wishlist: boolean; server?: string | null };
 export type HistoryPoint = { day: string; amount: string };
 export type HistoryChange = { amount: string; percent: number | null; since: string } | null;
 export type WorkProgress = { phase: string; done: number; total: number | null; unit: string; eta_seconds: number | null; measured_at: string };

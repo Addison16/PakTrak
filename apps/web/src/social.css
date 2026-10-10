@@ -169,6 +169,25 @@
 .deck-stats h3 { margin: 0; font-size: 16px; }
 .deck-stats h3 + .actions { margin-top: 8px; }
 .deck-stats .fine + h3 { margin-top: 18px; }
+.deck-stats h3 + .fine { margin-top: 4px; }
+.deck-odds { width: 100%; max-width: 560px; margin: 8px 0 2px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.deck-odds th, .deck-odds td { padding: 7px 0 7px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+.deck-odds thead th { padding-top: 0; color: var(--muted); font-weight: 500; vertical-align: bottom; }
+.deck-odds th:first-child { padding-left: 0; text-align: left; }
+.deck-odds tbody th { font-weight: 600; color: var(--ink); }
+.deck-colors { display: grid; max-width: 560px; gap: 12px; margin: 10px 0 2px; }
+.deck-color { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) 5.5em; gap: 4px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.deck-color strong { grid-column: 1 / -1; color: var(--ink); font-size: 13px; font-weight: 600; }
+.deck-color > span:nth-child(3n + 1) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.deck-color-bar { display: block; height: 6px; border-radius: 3px; background: var(--surface-muted); overflow: hidden; }
+.deck-color-bar i { display: block; height: 100%; border-radius: 3px; background: var(--forest); }
+.deck-color-bar.sources i { background: color-mix(in srgb, var(--forest) 45%, var(--surface-muted)); }
+.deck-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 8px 0 2px; }
+@media (min-width: 721px) { .deck-types { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.deck-types > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.deck-types dt { color: var(--ink); }
+.deck-types dd { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .social-sharing > legend { float: left; width: 100%; font-weight: 600; color: var(--forest); }
 .social-sharing > legend + * { clear: both; }
 .social-code + .actions .button { white-space: nowrap; }
+.friends-full-code { overflow-wrap: anywhere; font-weight: 600; user-select: all; -webkit-user-select: all; }
