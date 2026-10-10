@@ -60,6 +60,8 @@ def printing_json(printing):
         else None,
         "catalog_snapshot_id": str(printing.snapshot_id),
         "faces": [face.get("name") for face in printing.source_json.get("card_faces") or []],
+        # Only cards that make mana carry this, so card lists stay small.
+        **({"produced_mana": produced} if (produced := raw.get("produced_mana")) else {}),
     }
 
 
