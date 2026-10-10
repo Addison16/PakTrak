@@ -17,6 +17,8 @@ export type Region = { id: string; region_index: number; polygon: number[][]; st
   rotation: 0 | 180;
   finish: string; candidates: Candidate[]; confirmed_printing?: Printing | null; recognition: { status?: string; reason?: string; auto_imported?: boolean; auto_confirmed?: boolean };
   estimate: { min: string; max: string } | null;
+  finish_prices?: Partial<Record<"nonfoil" | "foil" | "etched", string>>;
+  foil_versions?: { printing_id: string; foil_type: string; collector_number: string; price: string | null }[];
   owned_elsewhere?: { name: string; copies: number; locations: string[] } | null;
   lot: { id: string; version: number; printing: Printing; finish: string; condition: string; quantity: number; binder: string } | null };
 export type FinishPlan = { foil_count: number | null; foil_ids: string[]; etched_ids: string[]; confirmed: boolean; token: string };

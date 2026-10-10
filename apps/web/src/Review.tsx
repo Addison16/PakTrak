@@ -1,7 +1,7 @@
 import useBackgroundError from "./useBackgroundError";
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { money, mutation, providers, request, savePriceSource, type Location, type Printing, type Session, type WorkProgress, type PriceSource } from "./api";
+import { foilName, money, mutation, providers, request, savePriceSource, type Location, type Printing, type Session, type WorkProgress, type PriceSource } from "./api";
 import PrintingPicker from "./PrintingPicker";
 import CropEditor from "./ScanCropEditor";
 import ScanFinishes from "./ScanFinishes";
@@ -440,7 +440,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
             </span>
             <span className="scan-tile-number">{i + 1}</span><strong>{name}</strong>
             <span className={"scan-match-state " + (item.state === "COMMITTED" ? "imported" : "")}>{item.state === "COMMITTED" ? deckOnly ? item.recognition.auto_confirmed ? "✓ Auto-matched" : "✓ Matched" : item.recognition.auto_imported ? "✓ Auto-imported" : "✓ Imported" : item.state === "IGNORED" ? "Ignored" : suggested ? `${suggested.match_score > (summary?.auto_add_threshold ?? .88) ? "✓ " : ""}${Math.round(suggested.match_score * 100)}% match` : item.recognition?.status ? "Needs a match" : "Reading card…"}</span>
-            {item.finish && item.finish !== "unknown" && <span className={"scan-finish " + item.finish}>{item.finish === "etched" ? "Etched foil" : item.finish === "foil" ? "Foil" : "Nonfoil"}</span>}
+            {item.finish && item.finish !== "unknown" && <span className={"scan-finish " + item.finish}>{item.finish === "etched" ? "Etched foil" : item.finish === "foil" ? foilName(item.lot?.printing || item.confirmed_printing || suggested?.printing || {}) : "Nonfoil"}</span>}
             {finishConflict(item) && <span className="scan-finish-conflict">Finish unavailable for this printing</span>}
             {item.state === "NEEDS_REVIEW" && <span className="scan-review-prompt">Review match <span aria-hidden="true">→</span></span>}
           </button></div>;
@@ -482,7 +482,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
           {region.state === "NEEDS_REVIEW" && photo && <button className="text-button" disabled={busy} onClick={() => setCropEditor(region)}>Adjust crop</button>}</div>}
         {editing && <PrintingPicker key={region.id} initialPrinting={printing || undefined} selectedId={printing?.id} onSelect={changePrinting} quickSets={batchSets} />}
         {(region.state === "NEEDS_REVIEW" || editing) && <>
-          <div className="form-grid"><label>Finish<select value={finish} onChange={(e) => setFinish(e.target.value)}><option value="unknown">Unknown / mixed</option>{(printing?.finishes || ["nonfoil", "foil", "etched"]).map((value) => <option key={value} value={value}>{value === "nonfoil" ? "Nonfoil" : value === "foil" ? "Foil" : "Etched"}</option>)}</select></label>
+          <div className="form-grid"><label>Finish<select value={finish} onChange={(e) => setFinish(e.target.value)}><option value="unknown">Unknown / mixed</option>{(printing?.finishes || ["nonfoil", "foil", "etched"]).map((value) => <option key={value} value={value}>{value === "nonfoil" ? "Nonfoil" : value === "foil" ? printing ? foilName(printing) : "Foil" : "Etched"}</option>)}</select></label>
             {!region.lot && !deckOnly && <label>Condition<select value={condition} onChange={(e) => changeCondition(e.target.value)}>{conditions.map((value) => <option key={value}>{value}</option>)}</select></label>}</div>
           {!region.lot && !deckOnly && <label>Storage location<input value={binder} list={"review-locations-" + scanId} maxLength={255} placeholder="Red binder or Box 4" onChange={(e) => { setBinder(e.target.value); setBinderDirty(true); }} /><datalist id={"review-locations-" + scanId}>{locations.map((item) => <option key={item.id} value={item.name} />)}</datalist></label>}
           {finish === "unknown" && <p className="fine">Finish stays unknown until you choose one. Choose nonfoil or foil for an exact price estimate.</p>}

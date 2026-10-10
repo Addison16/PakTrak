@@ -1,7 +1,7 @@
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useState } from "react";
 import { pendingPreviews } from "./offline";
-import { isQueued, mutation, queuedNotice, request, send, type CollectionCard as Card, type Location, type Lot, type Session } from "./api";
+import { foilName, isQueued, mutation, queuedNotice, request, send, type CollectionCard as Card, type Location, type Lot, type Session } from "./api";
 import { MoveCards } from "./Locations";
 import CardEditor from "./CardEditor";
 
@@ -59,7 +59,7 @@ export default function CollectionCard({ card, binder, locations, session, onSav
         {notice && <p className="message success" role="status">{notice}</p>}
         {loading && lots.length === 0 ? <p role="status">Loading your copies…</p> : lots.length === 0 ? <p>No remaining copies on this page.</p> : <ul className="plain-list copy-groups">{lots.map((lot) => <li key={lot.id + ":" + lot.version + ":" + lot.quantity}>
           <div className="holding-title"><strong>{lot.binder}</strong><span className="badge">{lot.quantity.toLocaleString()} {lot.quantity === 1 ? "copy" : "copies"}</span></div>
-          <p className="fine">{finishes[lot.finish] || lot.finish} · {lot.condition === "ungraded" ? "Ungraded" : lot.condition}</p>
+          <p className="fine">{lot.finish === "foil" ? foilName(lot.printing) : finishes[lot.finish] || lot.finish} · {lot.condition === "ungraded" ? "Ungraded" : lot.condition}</p>
           {lot.notes && <p className="fine">{lot.notes}</p>}
           <CardEditor lot={lot} session={session} onSaved={onCorrected} />
           <MoveCards lot={lot} locations={locations} session={session} onSaved={onSaved} />

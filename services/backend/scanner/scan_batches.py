@@ -21,6 +21,7 @@ from scanner.auth import DB, Identity
 from scanner.card_images import load_image
 from scanner.catalog import printing_json
 from scanner.crop_orientation import display_rotation
+from scanner.foil_types import foil_versions
 from scanner.models import (
     Binder,
     CardPrice,
@@ -186,6 +187,17 @@ def batch_data(db, scan, provider=None):
             select(CardPrice).where(CardPrice.printing_id.in_(ids), CardPrice.provider == provider)
         ):
             prices.setdefault(price.printing_id, {})[price.finish] = price.amount
+    versions = foil_versions(db, list(cards.values()))
+    sibling_ids = {printing.id for found in versions.values() for printing, _ in found} - ids
+    if sibling_ids:
+        for price in db.scalars(
+            select(CardPrice).where(
+                CardPrice.printing_id.in_(sibling_ids),
+                CardPrice.provider == provider,
+                CardPrice.finish == "foil",
+            )
+        ):
+            prices.setdefault(price.printing_id, {})["foil"] = price.amount
     locations = (
         {
             b.id: b.name
@@ -259,6 +271,20 @@ def batch_data(db, scan, provider=None):
                 if row.confirmed_printing_id in cards
                 else None,
                 "estimate": estimate,
+                # The current printing's price per finish, and its special foil versions,
+                # so choosing a foil type shows what that copy is worth.
+                "finish_prices": {key: str(value) for key, value in quotes.items()},
+                "foil_versions": [
+                    {
+                        "printing_id": str(printing.id),
+                        "foil_type": kind,
+                        "collector_number": printing.collector_number,
+                        "price": str(prices[printing.id]["foil"])
+                        if "foil" in prices.get(printing.id, {})
+                        else None,
+                    }
+                    for printing, kind in versions.get(card_id, [])
+                ],
                 "owned_elsewhere": {
                     **elsewhere[cards[card_id].name.lower()],
                     "name": cards[card_id].name,
@@ -315,6 +341,8 @@ class FinishSelection(Strict):
     foil_count: int = Field(ge=0, le=32, strict=True)
     foil_ids: list[uuid.UUID] = Field(max_length=32)
     etched_ids: list[uuid.UUID] = Field(default_factory=list, max_length=32)
+    # A foil card switched to one of its special foil printings (galaxy, surge...).
+    printing_ids: dict[uuid.UUID, uuid.UUID] = Field(default_factory=dict, max_length=32)
     token: str = Field(min_length=64, max_length=64)
 
 
@@ -347,6 +375,7 @@ def select_finishes(
         or len(etched_ids) != len(data.etched_ids)
         or not etched_ids <= foil_ids
         or not foil_ids <= {row.id for row in active}
+        or not set(data.printing_ids) <= foil_ids - etched_ids
     ):
         raise HTTPException(
             422,
@@ -363,6 +392,36 @@ def select_finishes(
             lot.printing_id if lot else row.confirmed_printing_id or candidate.get("printing_id")
         )
         card = db.get(Printing, uuid.UUID(str(printing_id))) if printing_id else None
+        switch_to = data.printing_ids.get(row.id)
+        if switch_to and switch_to != (card and card.id):
+            choices = (
+                {printing.id: printing for printing, _ in foil_versions(db, [card])[card.id]}
+                if card
+                else {}
+            )
+            if switch_to not in choices:
+                raise HTTPException(
+                    422,
+                    f"Card {index + 1} has no such foil version. Refresh and choose its foil type again.",
+                )
+            card = choices[switch_to]
+            row.confirmed_printing_id, row.version = card.id, row.version + 1
+            if lot:
+                before = {"printing_id": str(lot.printing_id), "version": lot.version}
+                lot.printing_id, lot.version = card.id, lot.version + 1
+                db.add(
+                    InventoryEvent(
+                        lot_id=lot.id,
+                        operation_key=f"scan-foil-version:{scan.id}:{lot.id}:{hashlib.sha256(key.encode()).hexdigest()[:16]}",
+                        kind="CORRECT_CARD",
+                        delta=0,
+                        detail={
+                            "scan_id": str(scan.id),
+                            "before": before,
+                            "after": {"printing_id": str(card.id), "version": lot.version},
+                        },
+                    )
+                )
         if card and finish not in card.finishes:
             raise HTTPException(
                 422,

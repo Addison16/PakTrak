@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert
 from scanner.auth import DB
 from scanner.card_search import card_display_name, card_name_matches, split_collector_search
 from scanner.db import session_factory
+from scanner.foil_types import special_foil
 from scanner.models import CardRuling, CatalogSnapshot, Printing, now
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["public catalog"])
@@ -62,6 +63,12 @@ def printing_json(printing):
         "faces": [face.get("name") for face in printing.source_json.get("card_faces") or []],
         # Only cards that make mana carry this, so card lists stay small.
         **({"produced_mana": produced} if (produced := raw.get("produced_mana")) else {}),
+        # Named foil treatments (galaxy, surge, fracture...) apply to this printing's foils.
+        **(
+            {"foil_type": foil}
+            if "foil" in printing.finishes and (foil := special_foil(raw))
+            else {}
+        ),
     }
 
 

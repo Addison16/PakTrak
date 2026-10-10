@@ -18,6 +18,7 @@ from scanner.auth import DB, Identity
 from scanner.card_search import card_name_matches, split_collector_search
 from scanner.catalog import printing_json
 from scanner.crop_orientation import display_rotation, oriented_crop
+from scanner.foil_types import FOIL_TYPES
 from scanner.models import (
     Binder,
     ExportBatch,
@@ -677,6 +678,7 @@ def collection_cards(
     ] = "",
     set_code: str = Query("", max_length=16),
     finish: Literal["", "unknown", "nonfoil", "foil", "etched"] = "",
+    foil_type: str = Query("", max_length=32),
     min_price: Decimal | None = Query(None, ge=0, max_digits=16, decimal_places=4),
     max_price: Decimal | None = Query(None, ge=0, max_digits=16, decimal_places=4),
     sort: gallery.Sort = "name",
@@ -684,6 +686,8 @@ def collection_cards(
 ):
     if min_price is not None and max_price is not None and min_price > max_price:
         raise HTTPException(422, "Minimum price must not exceed maximum price.")
+    if foil_type and foil_type != "any" and foil_type not in FOIL_TYPES:
+        raise HTTPException(422, "Unknown foil type.")
     return gallery.collection_cards(
         db,
         identity.owner_id,
@@ -696,6 +700,7 @@ def collection_cards(
         card_type=card_type,
         set_code=set_code,
         finish=finish,
+        foil_type=foil_type,
         min_price=min_price,
         max_price=max_price,
         sort=sort,

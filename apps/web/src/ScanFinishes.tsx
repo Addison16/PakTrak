@@ -1,16 +1,17 @@
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useRef, useState } from "react";
-import { mutation, request, type Session } from "./api";
+import { foilName, foilTypes, money, mutation, request, type Session } from "./api";
 import type { Batch, ReviewState } from "./scanTypes";
 import { Icon } from "./Icon";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./scan-qol.css";
 
-type FoilDraft = { foils: string[]; etched: string[]; token: string };
+type FoilDraft = { foils: string[]; etched: string[]; versions?: Record<string, string>; token: string };
 function isFoilDraft(value: FoilDraft | null): value is FoilDraft {
   return !!value && Array.isArray(value.foils) && value.foils.length <= 32 && value.foils.every((id) => typeof id === "string")
     && Array.isArray(value.etched) && value.etched.length <= 32 && value.etched.every((id) => typeof id === "string")
-    && typeof value.token === "string";
+    && typeof value.token === "string"
+    && (value.versions === undefined || !!value.versions && typeof value.versions === "object" && Object.values(value.versions).every((id) => typeof id === "string"));
 }
 
 export default function ScanFinishes({ scanId, session, data, processing, disabled, openRequest = 0, onSaved, onRefresh, onStateChange, onReviewCard }: {
@@ -23,6 +24,8 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
   const [open, setOpen] = useState(false);
   const [foils, setFoils] = useState<Set<string>>(new Set());
   const [etched, setEtched] = useState<Set<string>>(new Set());
+  // Foil cards switched to one of their special foil printings: region id → printing id.
+  const [versions, setVersions] = useState<Record<string, string>>({});
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | string>("");
@@ -35,32 +38,35 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
   const plan = data.finishes;
   const active = data.items.filter((r) => r.state !== "IGNORED");
   const selected = active.filter((r) => foils.has(r.id));
+  const chosenVersions = Object.fromEntries(Object.entries(versions).filter(([id, printing]) => foils.has(id) && !etched.has(id) && active.some((item) => item.id === id && item.foil_versions?.some((v) => v.printing_id === printing))));
   const conflicts = active.filter((item) => {
+    if (chosenVersions[item.id]) return false;
     const card = item.lot?.printing || item.confirmed_printing || item.candidates[0]?.printing;
     const finish = foils.has(item.id) ? etched.has(item.id) ? "etched" : "foil" : "nonfoil";
     return !!card && !card.finishes.includes(finish);
   });
   const dirty = !!recovery || open && ([...foils].sort().join() !== [...plan.foil_ids].sort().join()
-    || [...etched].filter((id) => foils.has(id)).sort().join() !== [...plan.etched_ids].sort().join());
+    || [...etched].filter((id) => foils.has(id)).sort().join() !== [...plan.etched_ids].sort().join()
+    || Object.keys(chosenVersions).length > 0);
   useEffect(() => { onStateChange({ dirty, busy }); }, [dirty, busy, onStateChange]);
   useEffect(() => () => onStateChange({ dirty: false, busy: false }), [onStateChange]);
   useEffect(() => { if (openRequest && !open && !processing && !disabled) start(); }, [openRequest]);
   useEffect(() => {
     if (!open || recovery) return;
     if (!dirty) { removeDraft(recoveryKey); setLocalSaved(null); return; }
-    setLocalSaved(writeDraft(recoveryKey, { foils: [...foils], etched: [...etched].filter((id) => foils.has(id)), token } satisfies FoilDraft));
-  }, [open, recovery, dirty, foils, etched, token, recoveryKey]);
+    setLocalSaved(writeDraft(recoveryKey, { foils: [...foils], etched: [...etched].filter((id) => foils.has(id)), versions: chosenVersions, token } satisfies FoilDraft));
+  }, [open, recovery, dirty, foils, etched, versions, token, recoveryKey]);
 
   function start() {
     if (recovery) { restore(); return; }
-    setFoils(new Set(plan.foil_ids)); setEtched(new Set(plan.etched_ids));
+    setFoils(new Set(plan.foil_ids)); setEtched(new Set(plan.etched_ids)); setVersions({});
     setToken(plan.token); setError(""); setNotice(""); setOpen(true);
   }
   function restore() {
     if (!recovery) return;
     const ids = new Set(active.map((item) => item.id));
     const restored = recovery.foils.filter((id) => ids.has(id));
-    setFoils(new Set(restored)); setEtched(new Set(recovery.etched.filter((id) => restored.includes(id))));
+    setFoils(new Set(restored)); setEtched(new Set(recovery.etched.filter((id) => restored.includes(id)))); setVersions(recovery.versions || {});
     setToken(plan.token); setError(""); setOpen(true); setRecovery(null);
     setNotice(recovery.token !== plan.token || restored.length !== recovery.foils.length ? "Your foil choices are restored. This batch changed; check the current cards before confirming." : "Your unfinished foil choices are restored. Confirm to save their finishes.");
   }
@@ -68,7 +74,7 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
     removeDraft(recoveryKey); setRecovery(null); setLocalSaved(null); setNotice(""); setError(""); setOpen(false);
   }
   function correctPrinting(id: string) {
-    const draft = { foils: [...foils], etched: [...etched].filter((item) => foils.has(item)), token };
+    const draft = { foils: [...foils], etched: [...etched].filter((item) => foils.has(item)), versions: chosenVersions, token };
     writeDraft(recoveryKey, draft); setRecovery(draft); setOpen(false); onReviewCard?.(id);
   }
   // A single light sweep marks a card as foil; it does not replay while the card stays selected.
@@ -76,12 +82,13 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
   function toggle(id: string, etchedOnly: boolean) {
     if (!foils.has(id)) setShimmer(id);
     setFoils((before) => { const next = new Set(before); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    if (foils.has(id)) setVersions((before) => { const next = { ...before }; delete next[id]; return next; });
     if (etchedOnly) setEtched((before) => new Set(before).add(id));
   }
   async function save() {
     if (working.current) return;
     working.current = true; setBusy(true); setError("");
-    const body = { foil_count: selected.length, foil_ids: selected.map((r) => r.id), etched_ids: selected.filter((r) => etched.has(r.id)).map((r) => r.id), token };
+    const body = { foil_count: selected.length, foil_ids: selected.map((r) => r.id), etched_ids: selected.filter((r) => etched.has(r.id)).map((r) => r.id), printing_ids: chosenVersions, token };
     const encoded = JSON.stringify(body);
     if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
     try {
@@ -109,12 +116,24 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
         const number = data.items.indexOf(item) + 1;
         const name = card?.name || `Card ${number}`;
         const chosen = foils.has(item.id);
+        const version = item.foil_versions?.find((v) => v.printing_id === chosenVersions[item.id]);
+        const priced = (label: string, price?: string | null) => price ? `${label} · ${money(price)}` : label;
+        const kind = etched.has(item.id) ? "etched foil" : version ? (foilTypes[version.foil_type] || "foil").toLowerCase() : card ? foilName(card).toLowerCase() : "foil";
+        const typeChoices = !!card?.finishes.includes("etched") || !!item.foil_versions?.length;
         return <div className={"scan-tile" + (chosen ? " foil-selected" : "")} key={item.id} data-shimmer={chosen && shimmer === item.id || undefined} onAnimationEnd={(event) => { if (event.animationName === "foil-tap-sweep") setShimmer(null); }}>
           <button disabled={busy} aria-pressed={chosen} aria-label={`Foil card ${number}: ${name}`} onClick={() => toggle(item.id, !!card?.finishes.includes("etched") && !card.finishes.includes("foil"))}>
             {item.crop_url ? <img src={item.crop_url} alt="" loading="lazy" /> : card?.image_url ? <img src={card.image_url} alt="" loading="lazy" /> : <div className="scan-crop-missing">Card {number}</div>}
-            <span className="scan-tile-number">{number}</span><span className={"foil-tile-check" + (chosen ? " checked" : "")} aria-hidden="true"><svg viewBox="0 0 16 16">{chosen ? <path d="M3.5 8.5l3 3 6-7" /> : <path d="M8 3.5v9M3.5 8h9" />}</svg></span><strong>{name}</strong><span className="scan-match-state">{chosen ? "✓ Selected as foil" : "Tap to mark foil"}</span>
+            <span className="scan-tile-number">{number}</span><span className={"foil-tile-check" + (chosen ? " checked" : "")} aria-hidden="true"><svg viewBox="0 0 16 16">{chosen ? <path d="M3.5 8.5l3 3 6-7" /> : <path d="M8 3.5v9M3.5 8h9" />}</svg></span><strong>{name}</strong><span className="scan-match-state">{chosen ? `✓ Selected as ${kind}` : "Tap to mark foil"}</span>
           </button>
-          {chosen && card?.finishes.includes("etched") && <label className="foil-etched">Foil type<select disabled={busy} value={etched.has(item.id) ? "etched" : "foil"} onChange={(e) => setEtched((before) => { const next = new Set(before); if (e.target.value === "etched") next.add(item.id); else next.delete(item.id); return next; })}>{card.finishes.includes("foil") && <option value="foil">Foil</option>}<option value="etched">Etched foil</option></select></label>}
+          {chosen && card && typeChoices && <label className="foil-etched">Foil type<select disabled={busy} value={etched.has(item.id) ? "etched" : version ? "printing:" + version.printing_id : "foil"} onChange={(e) => {
+            const value = e.target.value;
+            setEtched((before) => { const next = new Set(before); if (value === "etched") next.add(item.id); else next.delete(item.id); return next; });
+            setVersions((before) => { const next = { ...before }; if (value.startsWith("printing:")) next[item.id] = value.slice(9); else delete next[item.id]; return next; });
+          }}>
+            {card.finishes.includes("foil") && <option value="foil">{priced(foilName(card), item.finish_prices?.foil)}</option>}
+            {card.finishes.includes("etched") && <option value="etched">{priced("Etched foil", item.finish_prices?.etched)}</option>}
+            {item.foil_versions?.map((v, _, all) => <option key={v.printing_id} value={"printing:" + v.printing_id}>{priced((foilTypes[v.foil_type] || "Special foil") + (all.filter((other) => other.foil_type === v.foil_type).length > 1 ? " #" + v.collector_number : ""), v.price)}</option>)}
+          </select></label>}
           {conflicts.some((conflict) => conflict.id === item.id) && <span className="scan-finish-conflict">This printing does not support the selected finish.{onReviewCard && <button className="text-button" disabled={busy} onClick={() => correctPrinting(item.id)}>Correct printing</button>}</span>}
         </div>;
       })}</div>
