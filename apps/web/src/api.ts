@@ -13,7 +13,8 @@ export type WishlistItem = { id: string; printing: Printing; finish: WantedFinis
 export type Wishlist = { provider: PriceSource; items: WishlistItem[]; copies: number; priced_copies: number; amount: string | null };
 export type OfferCard = { printing: Printing; finish: Finish; quantity: number; unit_amount: string | null };
 export type TradeOffer = { id: string; direction: "incoming" | "outgoing"; friend: { id: string | null; name: string }; state: "pending" | "accepted" | "declined" | "cancelled"; message: string; created_at: string; responded_at: string | null; applied: boolean; attention: null | "respond" | "apply" | "declined" | "cancelled"; give: OfferCard[]; get: OfferCard[]; give_amount: string | null; get_amount: string | null; give_unpriced: number; get_unpriced: number; provider: PriceSource };
-export type Friend = { id: string; user_id: string; name: string; since: string | null; shares_collection: boolean; shares_wishlist: boolean };
+// server is the address of the friend's own PakTrak when it isn't this one.
+export type Friend = { id: string; user_id: string; name: string; since: string | null; shares_collection: boolean; shares_wishlist: boolean; server?: string | null };
 export type HistoryPoint = { day: string; amount: string };
 export type HistoryChange = { amount: string; percent: number | null; since: string } | null;
 export type WorkProgress = { phase: string; done: number; total: number | null; unit: string; eta_seconds: number | null; measured_at: string };

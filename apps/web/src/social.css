@@ -172,3 +172,4 @@
 .social-sharing > legend { float: left; width: 100%; font-weight: 600; color: var(--forest); }
 .social-sharing > legend + * { clear: both; }
 .social-code + .actions .button { white-space: nowrap; }
+.friends-full-code { overflow-wrap: anywhere; font-weight: 600; user-select: all; -webkit-user-select: all; }

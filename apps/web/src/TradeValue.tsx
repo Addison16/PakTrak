@@ -90,7 +90,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
   useEffect(() => {
     if (!active) return;
     let stopped = false;
-    request<{ friends: Friend[] }>("/api/v1/friends", { quiet: true }).then((data) => { if (!stopped) setFriends(data.friends); }).catch(() => { /* Trading with a friend is optional. */ });
+    request<{ friends: Friend[] }>("/api/v1/friends", { quiet: true }).then((data) => { if (!stopped) setFriends(data.friends.filter((item) => !item.server)); }).catch(() => { /* Trading with a friend is optional. Offers stay on one server for now. */ });
     return () => { stopped = true; };
   }, [active]);
 
