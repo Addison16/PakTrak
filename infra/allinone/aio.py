@@ -106,6 +106,9 @@ def environment(origin, values):
             "SCANNER_APP_URL": origin,
             "SCANNER_ALLOW_INSECURE_HTTP": str(origin.startswith("http://")).lower(),
             "SCANNER_MAX_UPLOAD_BYTES": max_upload,
+            "SCANNER_FEDERATION_ALLOW_PRIVATE_ADDRESSES": str(
+                os.environ.get("FEDERATION_ALLOW_PRIVATE_ADDRESSES", "").strip().lower() == "true"
+            ).lower(),
             "SCANNER_DATABASE_URL": f"postgresql+psycopg://scanner:{values['SCANNER_DB_PASSWORD']}@127.0.0.1/scanner",
             "SCANNER_BROKER_URL": "redis://127.0.0.1:6379/0",
             "SCANNER_SESSION_SECRET": values["SESSION_SECRET"],

@@ -203,7 +203,7 @@ def test_friend_codes_stay_private_and_rate_limited(clients, cards):
     # Lowercase and missing dash still match; who owns the code stays hidden until accepted.
     sent = bob.post("/api/v1/friends/requests", json={"code": code.replace("-", "").lower()})
     assert sent.json() == {"state": "pending", "name": None}
-    assert bob.get("/api/v1/friends").json()["outgoing"][0].keys() == {"id", "created_at"}
+    assert bob.get("/api/v1/friends").json()["outgoing"][0].keys() == {"id", "created_at", "server"}
     incoming = alice.get("/api/v1/friends").json()["incoming"]
     assert incoming[0]["name"] == "Test collector"
     assert bob.get(f"/api/v1/friends/{alice_id}/collection").status_code == 404

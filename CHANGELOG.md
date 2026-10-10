@@ -1,5 +1,11 @@
 # Changelog
 
+## Friends on other PakTrak servers — October 9, 2026
+
+- Administrators can connect their PakTrak to other PakTrak servers under **Menu → Administration → Other PakTrak servers**. It is off by default, and a connection starts only after the administrators of both servers approve it. **Disconnect** ends it on both sides.
+- People on connected servers add each other with a friend code followed by `@` and the server's address, such as `ABCDE-23456@cards.example.net`. Friends on other servers appear in the Friends list with their server's address, and their collection, wishlist and matching cards open like any other friend's.
+- Servers sign every request to each other and never list or search each other's accounts. Each person's sharing switches still decide what friends see, and storage locations and notes are never sent. Trade offers stay between people on the same server for now. See [connecting to other PakTrak servers](docs/OPERATIONS.md#connecting-to-other-paktrak-servers).
+
 ## Security review — October 8, 2026
 
 - A review of sign-in, sessions, friends, trade offers, imports, backups and the web app found no way for one account to read or change another account's cards. Smaller hardening fixes shipped:

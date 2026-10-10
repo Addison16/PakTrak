@@ -37,6 +37,8 @@ from scanner.diagnostics import (
     validation_details,
 )
 from scanner.diagnostics_api import router as diagnostics_router
+from scanner.federation import admin as servers_router
+from scanner.federation import protocol as federation_router
 from scanner.gallery import router as gallery_router
 from scanner.models import Deck, Job, LoginSession, Outbox, Scan, User, now
 from scanner.photo_formats import (
@@ -84,6 +86,8 @@ app.include_router(card_images_router)
 app.include_router(scan_batches_router)
 app.include_router(diagnostics_router)
 app.include_router(backups_router)
+app.include_router(servers_router)
+app.include_router(federation_router)
 
 
 @app.middleware("http")
