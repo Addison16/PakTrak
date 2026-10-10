@@ -4,6 +4,7 @@ import ErrorNotice from "./ErrorNotice";
 import { Icon } from "./Icon";
 import "./price-alerts.css";
 import { usePullReload } from "./pullRefresh";
+import { reducedMotion } from "./motion";
 
 export type PriceAlertSettings = { enabled: boolean; percent: number | null; amount: string | null };
 type Mover = { printing_id: string; name: string; set_code: string; collector_number: string; finish: "nonfoil" | "foil" | "etched"; quantity: number; image_url: string | null; old_amount: string; new_amount: string; change: string; percent: number; since: string };
@@ -74,7 +75,7 @@ export default function PriceAlerts({ session, onSettings }: { session: Session;
     };
   }, [open]);
   if (!alerts || !alerts.rises.length && !alerts.drops.length) return null;
-  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reduced = reducedMotion;
   async function dismiss() {
     if (!alerts) return;
     setError("");
@@ -170,7 +171,7 @@ export function PriceAlertSettingsForm({ session, onDirtyChange }: { session: Se
   useEffect(() => {
     if (!saved || !revealSettings) return;
     revealSettings = false;
-    form.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    form.current?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
   }, [saved]);
   const dirty = !!saved && (enabled !== saved.enabled || percent !== (saved.percent == null ? "" : String(saved.percent)) || amount !== (saved.amount ?? ""));
   useEffect(() => { onDirtyChange(dirty); }, [dirty]);

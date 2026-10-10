@@ -3,6 +3,7 @@ import { Icon } from "./Icon";
 import { cameraError, capturePhoto, stillCamera, type CameraAdjustments, type CameraCapabilities, type CameraSettings } from "./camera";
 import "./camera.css";
 import { useNavigationGuard } from "./navigation";
+import { reducedMotion } from "./motion";
 
 type Photo = { file: File; url: string; source: "still" | "frame" };
 type CameraChoice = { id: string; label: string };
@@ -255,7 +256,7 @@ export default function CameraCapture({ progress, uploadError, onClose, onNative
     try {
       if (!await onUpload(photo.file, next)) return;
       if (!next) { onClose(); return; }
-      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setDropping(URL.createObjectURL(photo.file));
+      if (!reducedMotion()) setDropping(URL.createObjectURL(photo.file));
       setUploaded((count) => count + 1); setPhoto(null); setAttemptedUpload(false); setError("");
     }
     finally { submitting.current = false; setUploading(false); }

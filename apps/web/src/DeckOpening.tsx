@@ -4,6 +4,7 @@ import { DeckBoxVisual } from "./DeckBox";
 import { presentationCovers, useDeckPresentation } from "./deckPresentation";
 import type { DeckCover, DeckSummary } from "./deckTypes";
 import { sampleCardMotion } from "./cardMotion";
+import { onMotionChange, reducedMotion } from "./motion";
 
 export type DeckOpeningOrigin = { ownerId?: string; deck: DeckSummary; left: number; top: number; width: number; height: number };
 
@@ -80,12 +81,11 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
   }, [stage, seed]);
 
   useEffect(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const dismiss = () => complete.current();
-    const preferenceChanged = () => { if (reduceMotion.matches) dismiss(); };
+    const preferenceChanged = () => { if (reducedMotion()) dismiss(); };
     window.addEventListener("resize", dismiss);
-    reduceMotion.addEventListener("change", preferenceChanged);
-    return () => { window.removeEventListener("resize", dismiss); reduceMotion.removeEventListener("change", preferenceChanged); };
+    const stopWatching = onMotionChange(preferenceChanged);
+    return () => { window.removeEventListener("resize", dismiss); stopWatching(); };
   }, []);
 
   useLayoutEffect(() => {

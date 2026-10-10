@@ -17,6 +17,10 @@ export default defineConfig({
     colorScheme: process.env.SCANNER_E2E_COLOR_SCHEME === "dark" ? "dark" : "light",
     actionTimeout: 15000,
     baseURL: process.env.SCANNER_E2E_URL || "http://localhost:8095",
+    // PakTrak plays animations even under reduced motion unless Follow device
+    // is chosen; tests that emulate reduced motion expect still pages, so the
+    // browser starts with Follow device (motion.spec.ts covers the default).
+    storageState: { cookies: [], origins: [{ origin: new URL(process.env.SCANNER_E2E_URL || "http://localhost:8095").origin, localStorage: [{ name: "paktrak-motion", value: "auto" }] }] },
     viewport: { width: 390, height: 844 },
     trace: "off",
     // page.route can't see requests a service worker answers; offline.spec.ts turns it on where needed.

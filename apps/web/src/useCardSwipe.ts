@@ -1,11 +1,11 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { reducedMotion } from "./motion";
 
 type Step = (() => void) | null | undefined;
 type Side = "left" | "right";
 
 // Controls that need their own horizontal gestures or arrow keys.
 const ownGestures = "input, select, textarea, [contenteditable], .finish-tabs, .value-chart";
-const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // The next viewer slides in from the side the user moved toward. A collection
 // step remounts its dialog, so the hint lives outside the component.

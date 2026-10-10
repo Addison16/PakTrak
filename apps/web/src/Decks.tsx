@@ -28,6 +28,7 @@ import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./deck-qol.css";
 import "./deck-studio.css";
 import { usePullRefresh } from "./pullRefresh";
+import { reducedMotion } from "./motion";
 
 type EditableCard = Card & { quantityInput?: string };
 type DeckDraft = { name: string; format: string; notes: string; matchMode: MatchMode; cards: EditableCard[]; baseVersion: number };
@@ -362,14 +363,14 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
         if (result.skipped.length) parts.push(`Skipped ${result.skipped.length} already saved here.`);
         if (result.problem_count) parts.push(`${result.problem_count} ${result.problem_count === 1 ? "row" : "rows"} couldn't be added: ${result.problems.slice(0, 3).map((item) => `${item.deck}${item.card ? ", " + item.card : ""}: ${item.error.replace(/\.$/, "")}`).join("; ")}${result.problem_count > 3 ? "…" : ""}.`);
         setNotice(parts.join(" ")); setOffset(0); await list(0);
-        window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
       })}
       onOpen={(item, box) => {
         if (opening) return;
         const { left, top, width, height } = box.getBoundingClientRect();
         returnTo.current = { id: item.id, y: window.scrollY };
         if (!navigation.go({ page: "decks", deck: item.id })) { returnTo.current = null; return; }
-        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setOpening({ deck: item, ownerId: session.owner_id, left, top, width, height });
+        if (!reducedMotion()) setOpening({ deck: item, ownerId: session.owner_id, left, top, width, height });
         setGallery(true);
       }} />}
     {importing && (!route.deck || deck) && <DeckImport key={`import:${deck?.id || "new"}`} session={session} deck={deck || undefined} onStateChange={setImportState} onCancel={() => {

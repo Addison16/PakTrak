@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { sampleCardMotion } from "./cardMotion";
 import "./card-arrival.css";
+import { onMotionChange, reducedMotion } from "./motion";
 
 let cardBackPreloaded = false;
 export function preloadCardBack() {
@@ -22,7 +23,7 @@ export type CardFlightOrigin = {
 };
 
 export function captureCardFlight(source: HTMLElement, cardKey: string): CardFlightOrigin | null {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !source.isConnected) return null;
+  if (reducedMotion() || !source.isConnected) return null;
   const art = source.querySelector<HTMLElement>(".card-art");
   const image = art?.querySelector<HTMLImageElement>("img");
   if (!art || !image?.complete || !image.naturalWidth) return null;
@@ -48,8 +49,7 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-    if (!origin || origin.cardKey !== cardKey || reduced.matches) { setVisible(false); return; }
+    if (!origin || origin.cardKey !== cardKey || reducedMotion()) { setVisible(false); return; }
     if (!visible || !stage.current || !card.current || !solid.current) return;
     const scene = stage.current;
     const flight = card.current;
@@ -229,7 +229,7 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
       dialog.addEventListener("close", finish, { once: true });
     };
     frame = requestAnimationFrame(start);
-    const preferenceChanged = () => { if (reduced.matches) finish(); };
+    const preferenceChanged = () => { if (reducedMotion()) finish(); };
     // Opening the viewer locks page scrolling, which removes a desktop
     // scrollbar and narrows the visual viewport. Only zoom or a real size
     // change should end the flight.
@@ -240,13 +240,13 @@ export default function CardArrival({ origin, cardKey, targetRef, dialogRef }: P
     };
     window.addEventListener("resize", finish);
     viewport?.addEventListener("resize", viewportChanged);
-    reduced.addEventListener("change", preferenceChanged);
+    const stopWatching = onMotionChange(preferenceChanged);
     return () => {
       disposed = true;
       restore();
       window.removeEventListener("resize", finish);
       viewport?.removeEventListener("resize", viewportChanged);
-      reduced.removeEventListener("change", preferenceChanged);
+      stopWatching();
     };
   }, [origin, cardKey, marker, targetRef, dialogRef, visible]);
 

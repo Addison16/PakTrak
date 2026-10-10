@@ -1,5 +1,11 @@
 # Changelog
 
+## Animations on for everyone — October 10, 2026
+
+- PakTrak's animations (the falling cards, card flights, the deck box opening and the rest) now play for every account by default, including on phones and computers set to reduce motion, such as an iPhone with **Settings → Accessibility → Motion → Reduce Motion** on.
+- **My account → Appearance → Animations** offers **On** (the default), **Auto**, which pauses animations whenever the device asks for less motion, and **Off**. The choice is saved per browser.
+- My account's appearance choices are labeled **Light or dark**, **Color theme** and **Animations**, and the price alert checkbox sits neatly beside its words.
+
 ## Deck balancing stats — October 10, 2026
 
 - Under the mana curve on a deck, **Land drops** shows how many lands an opening hand averages, how often it has 2 to 4 of them, and a turn-by-turn table for turns 1 to 7: the average mana your lands give you that turn and the chance you've had a land to play every turn so far, both on the play and on the draw.
