@@ -52,6 +52,8 @@ SPECIAL_FOILS = (
     ("dazzle", ("dazzlefoil",)),
     ("facet", ("facetfoil",)),
     ("embossed", ("embossed",)),
+    ("silver_scroll", ("silverscroll",)),
+    ("gleaming_gold", ("gleaminggold",)),
 )
 FOIL_TYPES = ("regular", "etched", *(key for key, _ in SPECIAL_FOILS))
 

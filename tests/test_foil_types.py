@@ -12,6 +12,7 @@ def test_special_foil_reads_scryfall_promo_types():
     assert special_foil({"promo_types": ["boosterfun"]}) is None
     assert special_foil({"promo_types": ["boosterfun", "galaxyfoil"]}) == "galaxy"
     assert special_foil({"promo_types": ["neoninkyellow"]}) == "neon_ink"
+    assert special_foil({"promo_types": ["silverscroll"]}) == "silver_scroll"
     # The more specific treatment wins when a printing lists two.
     assert special_foil({"promo_types": ["textured", "surgefoil"]}) == "surge"
 
