@@ -142,6 +142,29 @@ Enter either:
 
 Store programs set their own link rules, so check your program's instructions and try a link before relying on it. When any field is set, store links show a short note that they include the owner's referral code. Everyone sees saved changes after reloading the page.
 
+## Connecting to other PakTrak servers
+
+People on two PakTrak servers can be friends once the two servers are connected. Each server keeps its own accounts, collections and sign-in; nothing is copied between them except what a friend opens.
+
+1. Both administrators open **Menu → Administration → Other PakTrak servers** and turn on **Allow connections with other servers**. It is off by default.
+2. One administrator enters the other server's address, such as `https://cards.example.net`, and taps **Send request**.
+3. The other administrator sees the server under **Asking to connect** and taps **Approve**. The servers are connected from then on, and both lists show it under **Connected**.
+
+People then add a friend there by entering their friend code with that server's address after an `@`, such as `ABCDE-23456@cards.example.net`. The Friends page shows the exact text to give out. **Disconnect** ends the connection on both servers and ends every friendship between them. Turning the setting off pauses everything: friends on other servers are hidden until it is turned back on.
+
+How it stays private:
+
+- Every request between servers is signed with the sending server's own key, which PakTrak creates on first use and keeps in the database (so it is part of backups). The receiving server checks the signature against the key the other server publishes at its own address, rejects requests more than five minutes old, and never accepts the same request twice.
+- Neither server lists or searches the other's accounts. A friend request names a friend code, and a wrong code gets the same answer whether or not anyone has it. Each connected server can try 30 wrong codes an hour, on top of each person's own limit.
+- After two people accept, each server answers only about that pair, and only with what its own person's sharing switches allow. Storage locations and notes are never sent. Cards are shown from the viewer's own catalog and prices.
+- Trade offers stay between people on the same server for now.
+
+Requirements:
+
+- Each server needs an `https://` address that the other can reach (`APP_URL`). A server set up at a plain `http://` address can only connect to servers on its own network, with the private-network setting below.
+- Other servers reach yours at `/api/federation/v1/`. If you use Cloudflare's bot protection (**Bot Fight Mode** or a challenge rule), add a rule that skips it for that path, or the other server's requests are turned away before they reach PakTrak.
+- PakTrak refuses server addresses on private networks (such as `192.168.x.x`, `10.x.x.x` or `localhost`), so a request can't be used to reach other devices on your network. To connect two servers on the same home network, set `FEDERATION_ALLOW_PRIVATE_ADDRESSES=true` (in `.env` for Compose, or as a container variable on Unraid) on both and restart PakTrak.
+
 ## Catalog maintenance
 
 The `data-worker` container now prepares the default card catalog and daily price feeds automatically. No separate initial catalog command is needed. Open **Card data & prices** in the app for progress and step estimates; accepted uploads continue independently. See [card data and pricing](CARD_DATA.md) for provider meanings, schedules and missing-price handling.

@@ -308,6 +308,14 @@ details p { font-size: 14px; }
 .backup-notice p { margin: 0 0 8px; }
 .backup-list > li { padding: 12px 0; }
 .backup-list .actions { margin: 6px 0 0; align-items: center; }
+.servers h4 { margin: 14px 0 2px; font-size: 14px; font-weight: 600; }
+.server-address { overflow-wrap: anywhere; font-weight: 600; }
+.server-list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.server-list > li:last-child { border-bottom: 0; }
+.server-list > li > div:first-child { min-width: 0; flex: 1 1 220px; }
+.server-list strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.server-list small { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.server-list .actions { margin: 0; align-items: center; }
 .collection-search .button { min-height: 46px; }
 .deck-cards .badge { max-width: none; }
 .quantity-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 44px; padding: 4px 10px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--surface-muted); color: var(--forest); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; }

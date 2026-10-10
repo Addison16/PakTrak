@@ -4,7 +4,7 @@ PakTrak is free and open-source software under the [GNU Affero General Public Li
 
 ## Development
 
-Follow the [Docker setup instructions](README.md#run-with-docker), using `sh scripts/start.sh --build` to build your development checkout. The default Compose file pulls released application images; `compose.build.yaml` adds source builds. Keep `.env`, `infra/generated/`, private volumes, photos, collection exports, backups and local artifacts out of Git. Use synthetic fixtures for automated tests. Runtime card metadata/artwork comes from the configured providers rather than committed datasets.
+Follow the [Docker setup instructions](README.md#install), using `sh scripts/start.sh --build` to build your development checkout. The default Compose file pulls released application images; `compose.build.yaml` adds source builds. Keep `.env`, `infra/generated/`, private volumes, photos, collection exports, backups and local artifacts out of Git. Use synthetic fixtures for automated tests. Runtime card metadata/artwork comes from the configured providers rather than committed datasets.
 
 Use a separate development installation for tests. The backend integration suite uses its own database and storage bucket, but browser tests create disposable accounts and some recovery tests intentionally restart services. Read [the operations guide](docs/OPERATIONS.md) before running them.
 

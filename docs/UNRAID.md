@@ -30,6 +30,10 @@ When a new release is published, the **Docker** page shows an update for PakTrak
 
 If you run a reverse proxy on Unraid with a hostname and certificate, point it at `http://YOUR-SERVER-IP:8095` and allow uploads of at least 100 MB. Then edit the PakTrak container, change **App address** to the HTTPS address, for example `https://cards.example.net`, and apply. Accounts and collections are kept; sign in again at the new address.
 
+## Connecting to friends' PakTrak servers
+
+Once PakTrak has an HTTPS address, you can connect it to a friend's PakTrak server so people on both can be friends. Open **Menu → Administration → Other PakTrak servers**; the steps are in [connecting to other PakTrak servers](OPERATIONS.md#connecting-to-other-paktrak-servers). If you use Cloudflare's bot protection, let requests to `/api/federation/v1/` through. To connect to another server on your own network, add a container variable named `FEDERATION_ALLOW_PRIVATE_ADDRESSES` with the value `true`.
+
 ## Where your data lives
 
 The **Data** folder holds the database, your photos and `paktrak.env`, which contains the container's private passwords. Keep it private. To back up, stop the container and copy the whole folder, or use a backup plugin that does the same. Restoring the folder and starting the container brings everything back.
