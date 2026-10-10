@@ -15,7 +15,7 @@ export default function serviceWorker({ imageLimit }) {
       /** @param {string} dir @returns {string[]} */
       const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? files(join(dir, entry.name)) : [join(dir, entry.name)]);
       const publicFiles = files(publicDir).map((file) => "/" + relative(publicDir, file).split("\\").join("/"))
-        .filter((file) => !/\.(md|txt)$/.test(file) && !/appearance-v1\./.test(file));
+        .filter((file) => !/\.(md|txt)$/.test(file) && !/appearance-v1\.|appearance-v2\.js/.test(file));
       const built = Object.keys(bundle).filter((file) => !file.endsWith(".map") && file !== "index.html").map((file) => "/" + file);
       const precache = ["/", ...built, ...publicFiles].sort();
       const hash = createHash("sha256");

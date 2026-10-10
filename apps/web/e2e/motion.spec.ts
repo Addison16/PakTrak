@@ -81,3 +81,20 @@ test("Off stops every animation, even on a device that doesn't ask for less moti
   await expect(falling(page)).toBeVisible();
   expect(await cardAnimation(page)).toBe("falling-card-fall");
 });
+
+test("the signed-out page plays animations by default and reads a saved Off before rendering", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/auth/session") return route.fulfill({ status: 401, json: { detail: "Signed out" } });
+    return route.fulfill({ json: path === "/api/auth/status" ? { setup_required: false, guest_signup_enabled: true } : {} });
+  });
+  await page.goto("/");
+  await expect(page.getByText("Your next favorite is already here.")).toBeVisible();
+  await expect(falling(page)).toBeVisible();
+  // The shared pre-render script (also used by the sign-in pages) sets the choice.
+  await page.evaluate(() => localStorage.setItem("paktrak-motion", "off"));
+  await page.reload();
+  expect(await page.evaluate(() => document.documentElement.dataset.motion)).toBe("off");
+  await expect(falling(page)).toBeHidden();
+});
