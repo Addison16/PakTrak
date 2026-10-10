@@ -934,3 +934,22 @@ test("the phone tab bar keeps its buttons clear of the bottom edge", async ({ pa
   expect(viewport!.height - (box!.y + box!.height)).toBeGreaterThanOrEqual(10);
   if (process.env.SCANNER_E2E_SHOTS) await page.screenshot({ path: process.env.SCANNER_E2E_SHOTS + "/tab-bar.png" });
 });
+
+test("a foil card offers its special foil versions with prices and saves the chosen printing", async ({ page }) => {
+  const mock = await fixture(page, 3, 0, [], 0, 1);
+  Object.assign(mock.rows[0], { finish_prices: { nonfoil: "1.00", foil: "2.50" }, foil_versions: [{ printing_id: "printing-galaxy", foil_type: "galaxy", collector_number: "402", price: "9.75" }] });
+  await page.reload();
+  const panel = page.getByRole("region", { name: "Foil cards", exact: true });
+  await panel.getByRole("button", { name: "Select foil cards", exact: true }).click();
+  await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
+  const type = panel.getByRole("combobox", { name: "Foil type", exact: true });
+  await expect(type.locator("option")).toHaveText(["Foil · $2.50", "Galaxy foil · $9.75"]);
+  await type.selectOption({ label: "Galaxy foil · $9.75" });
+  await expect(panel.getByText("✓ Selected as galaxy foil", { exact: true })).toBeVisible();
+  // A card without special versions keeps the plain foil choice.
+  await panel.getByRole("button", { name: "Foil card 2: Fixture Card 2", exact: true }).click();
+  await expect(panel.getByRole("combobox", { name: "Foil type", exact: true })).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
+  await expect.poll(() => mock.calls.find((c) => c.path.endsWith("/finishes"))?.body).toMatchObject({ foil_ids: ["region-0", "region-1"], printing_ids: { "region-0": "printing-galaxy" } });
+});

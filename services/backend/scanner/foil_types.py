@@ -6,7 +6,7 @@ whose finish is "foil" and whose promo_types names the treatment, so the type of
 owned foil follows from its printing and finish without storing anything new.
 """
 
-from sqlalchemy import case
+from sqlalchemy import case, select, tuple_
 from sqlalchemy.dialects.postgresql import array
 
 from scanner.models import InventoryLot, Printing
@@ -73,3 +73,33 @@ def owned_foil_type():
         *((promos.has_any(array(values)), key) for key, values in SPECIAL_FOILS),
         else_="regular",
     )
+
+
+def foil_versions(db, cards):
+    """Each printing's special foil siblings: same name, set and language, foil available.
+
+    A scan usually matches the regular printing, while a galaxy or surge foil is a
+    separate printing with its own collector number and its own price.
+    """
+    keys = {(card.set_code, card.name, card.language) for card in cards}
+    if not keys:
+        return {}
+    siblings = {}
+    for printing in db.scalars(
+        select(Printing)
+        .where(tuple_(Printing.set_code, Printing.name, Printing.language).in_(keys))
+        .order_by(Printing.collector_number)
+    ):
+        kind = special_foil(printing.source_json)
+        if kind and "foil" in printing.finishes:
+            siblings.setdefault((printing.set_code, printing.name, printing.language), []).append(
+                (printing, kind)
+            )
+    return {
+        card.id: [
+            (printing, kind)
+            for printing, kind in siblings.get((card.set_code, card.name, card.language), [])
+            if printing.id != card.id
+        ]
+        for card in cards
+    }

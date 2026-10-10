@@ -1,10 +1,13 @@
 import uuid
 
 from sqlalchemy import delete
+from test_collections import catalog as catalog
+from test_collections import key
+from test_scan_finishes import identified
 
 from scanner.db import session_factory
 from scanner.foil_types import special_foil
-from scanner.models import Binder, CatalogSnapshot, InventoryLot, Printing
+from scanner.models import Binder, CardPrice, CatalogSnapshot, InventoryLot, Printing
 
 
 def test_special_foil_reads_scryfall_promo_types():
@@ -107,3 +110,57 @@ def test_collection_filters_by_foil_type(clients):
             )
             db.execute(delete(Printing).where(Printing.id.in_((plain_id, galaxy_id, fracture_id))))
             db.execute(delete(CatalogSnapshot).where(CatalogSnapshot.id == snapshot_id))
+
+
+def test_scan_foil_choice_offers_and_switches_to_special_foil_printings(
+    clients, catalog, monkeypatch
+):
+    regular_id, galaxy_id = (uuid.UUID(value) for value in catalog)
+    with session_factory()() as db, db.begin():
+        db.get(Printing, galaxy_id).source_json = {"promo_types": ["galaxyfoil"]}
+        db.add(CardPrice(printing_id=galaxy_id, provider="tcgplayer", finish="foil", amount=4.2))
+        db.add(CardPrice(printing_id=regular_id, provider="tcgplayer", finish="foil", amount=1.5))
+    try:
+        client, _ = clients()
+        scan_id, data = identified(client, catalog, monkeypatch)
+        auto, pending = data["items"]
+        assert auto["finish_prices"]["foil"] == "1.5000"
+        assert auto["foil_versions"] == [
+            {
+                "printing_id": str(galaxy_id),
+                "foil_type": "galaxy",
+                "collector_number": "2",
+                "price": "4.2000",
+            }
+        ]
+
+        def save(printing_ids, etched_ids=()):
+            return client.post(
+                f"/api/v1/scans/{scan_id}/finishes",
+                headers=key(),
+                json={
+                    "foil_count": 2,
+                    "foil_ids": [auto["id"], pending["id"]],
+                    "etched_ids": list(etched_ids),
+                    "printing_ids": printing_ids,
+                    "token": data["finishes"]["token"],
+                },
+            )
+
+        # Only a foil card's own special versions are accepted, never etched copies.
+        assert save({auto["id"]: str(uuid.uuid4())}).status_code == 422
+        assert save({auto["id"]: str(galaxy_id)}, [auto["id"]]).status_code == 422
+        response = save({auto["id"]: str(galaxy_id), pending["id"]: str(galaxy_id)})
+        assert response.status_code == 200, response.text
+        updated = client.get(f"/api/v1/scans/{scan_id}/observations").json()
+        imported, reviewed = updated["items"]
+        assert imported["lot"]["printing"]["id"] == str(galaxy_id)
+        assert imported["lot"]["printing"]["foil_type"] == "galaxy"
+        assert imported["lot"]["finish"] == "foil"
+        assert imported["estimate"] == {"min": "4.2000", "max": "4.2000"}
+        assert reviewed["confirmed_printing"]["id"] == str(galaxy_id)
+        assert updated["finishes"]["confirmed"]
+    finally:
+        with session_factory()() as db, db.begin():
+            db.execute(delete(CardPrice).where(CardPrice.printing_id.in_((regular_id, galaxy_id))))
+            db.get(Printing, galaxy_id).source_json = {}

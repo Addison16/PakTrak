@@ -5,7 +5,7 @@
 - PakTrak now knows the named foil treatments from the card data: etched, galaxy, surge, fracture, textured, gilded, confetti, halo, neon ink, oil slick, double rainbow, raised, ripple, silver, dragonscale, singularity, cosmic, silver scroll, gleaming gold and more. A copy's foil type follows from its printing, so cards you already own pick it up without any changes.
 - **Collection → Filters → Foil type** shows only the kinds of foil in your collection, plus **Any foil**. Pick one to see just those cards; it combines with every other filter.
 - Cards with a named foil say so wherever a finish appears: the label on the card art in Collection, the price buttons in card details, your copies, the finish menus, and the foil choices after a scan (for example "✓ Selected as galaxy foil").
-- Special foils are usually their own printing with a different collector number. If a scan matched the regular printing, **Correct printing** switches it to the special one.
+- When you mark a card as foil after a scan, **Foil type** lists only the foils that card really comes in: regular foil, etched foil where it exists, and its special foil versions from the same set, each with its price. Special foils are usually their own printing with a different collector number, so choosing one switches the copy to that printing and it is valued at that foil's price.
 
 ## Animations on for everyone — October 10, 2026
 
