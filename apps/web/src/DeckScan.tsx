@@ -107,7 +107,7 @@ export default function DeckScan({ session, deck, fromBatch, onCreated, onSaved,
       <div className="actions"><button className="button secondary" disabled={busy || selected.size === 0} onClick={() => void act(loadPreview)}>{preview ? "Refresh preview" : "Preview scanned cards"}</button><span className="fine">{selected.size} photo batches selected · up to 32 at once</span></div>
       {preview && <section className="deck-scan-preview" aria-label="Scanned deck preview">
         <h3>Review cards for your deck</h3>
-        <p>{picked.length} cards to add · {counts.commander} commander · {counts.main} mainboard · {counts.sideboard} sideboard</p>
+        <p>{picked.length} cards to add · {counts.commander} commander · {counts.main} mainboard · {counts.sideboard} sideboard{counts.schemes > 0 && ` · ${counts.schemes} ${counts.schemes === 1 ? "scheme" : "schemes"}`}</p>
         {pending > 0 && <p className="message">{pending} cards still need a match approved in their photo batches. They are not included in this preview.</p>}
         {processing && <p className="message" role="status">Some photos are still processing. Refresh this preview when they finish.</p>}
         {deck.format === "commander" && <p className="fine">Set your commander’s section below. For partners, select both commanders. Other cards start in Mainboard; mark any extras as Sideboard.</p>}

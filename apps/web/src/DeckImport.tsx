@@ -103,7 +103,7 @@ export default function DeckImport({ session, deck, onImported, onCancel, onStat
   }
   async function preview() {
     const data = await request<{ items: ImportRow[]; layout?: { applied: boolean; reason: string; counts: Record<Section, number> } }>("/api/v1/decks/import-preview", mutation(session, { content, file_format: fileFormat, match_mode: mode, deck_format: deckFormat, section_mode: target && operation === "add" ? "listed" : sectionMode }));
-    setLayoutNote(data.layout?.applied ? `Arranged automatically: ${data.layout.counts.commander} commander · ${data.layout.counts.main} mainboard · ${data.layout.counts.sideboard} extras. Quantities count as individual cards.` : deckFormat === "commander" && data.layout?.reason === "listed_sections" ? "Your list’s Commander, Mainboard and Sideboard labels were preserved." : "");
+    setLayoutNote(data.layout?.applied ? `Arranged automatically: ${data.layout.counts.commander} commander · ${data.layout.counts.main} mainboard · ${data.layout.counts.sideboard} extras. Quantities count as individual cards.` : deckFormat === "commander" && data.layout?.reason === "listed_sections" ? "Your list’s Commander, Mainboard, Sideboard and Schemes labels were preserved." : "");
     const reviewed = new Map([...priorRows.current, ...(rows || [])].filter((row) => row.source_key && row.reviewed).map((row) => [row.source_key, row]));
     setRows(data.items.map((row) => {
       const prior = row.source_key ? reviewed.get(row.source_key) : undefined;

@@ -54,7 +54,7 @@ def errors(result):
 def test_constructed_formats_accept_60_cards_and_basic_land_copy_exception(format):
     result = report([entry(basic(), 60), entry(basic("Island"), 15, "sideboard")], format)
     assert result["status"] == "legal"
-    assert result["counts"] == {"main": 60, "sideboard": 15, "commander": 0}
+    assert result["counts"] == {"main": 60, "sideboard": 15, "commander": 0, "schemes": 0}
 
 
 def test_combined_copy_limits_include_sideboard_and_different_editions():
@@ -317,3 +317,56 @@ def test_legality_endpoint_is_advisory_reads_current_catalog_and_never_changes_h
     assert client.get("/api/auth/session").json()["scan_cards_used"] == 0
     data["cards"][0]["printing_id"] = str(uuid.uuid4())
     assert client.post("/api/v1/decks/legality", headers=key(), json=data).status_code == 422
+
+
+def scheme(name="Fixture scheme", ongoing=False):
+    return printing(name, "Ongoing Scheme" if ongoing else "Scheme", layout="scheme", legalities={})
+
+
+def schemes(count, copies=1, prefix="Scheme"):
+    return [entry(scheme(f"{prefix} {n}"), copies, "schemes") for n in range(count)]
+
+
+def test_archenemy_scheme_deck_needs_twenty_with_up_to_two_of_each():
+    deck = [entry(basic(), 60)]
+    result = report(deck + schemes(10, 2), "standard")
+    assert result["status"] == "legal"
+    assert result["archenemy"] and "Scheme deck" in result["checks"]
+    assert result["counts"]["schemes"] == 20
+    assert any("40 life" in i["message"] for i in result["issues"])
+    result = report(deck + schemes(9, 2) + [entry(scheme("Extra"), 1, "schemes")], "standard")
+    assert "scheme_deck_size" in errors(result)
+    result = report(deck + schemes(17) + [entry(scheme("Triple"), 3, "schemes")], "standard")
+    assert errors(result) == {"scheme_copies"}
+
+
+def test_commander_archenemy_needs_ten_differently_named_schemes():
+    deck = [entry(commander(), section="commander"), entry(basic(), 99)]
+    result = report(deck + schemes(10))
+    assert result["status"] == "legal"
+    assert result["counts"]["commander"] == 1
+    assert any("60 life" in i["message"] for i in result["issues"])
+    # Schemes never count toward the 100 cards or get checked as Commander cards.
+    assert "deck_size" not in errors(result) and "non_playable" not in errors(result)
+    assert "scheme_copies" in errors(report(deck + schemes(9) + schemes(1, 2, "Twice")))
+    assert "scheme_deck_size" in errors(report(deck + schemes(9)))
+    flagged = report(deck + schemes(9) + [entry(scheme("Mortal Flesh Is Weak"), 1, "schemes")])
+    assert flagged["status"] == "legal"
+    assert any(i["code"] == "scheme_shared_life" for i in flagged["issues"])
+
+
+def test_scheme_deck_only_holds_schemes_and_schemes_stay_out_of_the_deck():
+    deck = [entry(basic(), 60)]
+    result = report(deck + schemes(19) + [entry(printing("Bolt"), 1, "schemes")], "modern")
+    assert errors(result) == {"not_a_scheme"}
+    result = report([entry(basic(), 59), entry(scheme())], "modern")
+    assert "non_playable" in errors(result)
+    assert not result["archenemy"]
+
+
+def test_casual_decks_still_check_their_scheme_deck():
+    result = report([entry(basic(), 40)] + schemes(5), "casual")
+    assert result["status"] == "issues" and errors(result) == {"scheme_deck_size"}
+    assert result["checks"] == ["Scheme deck"]
+    assert report([entry(basic(), 40)] + schemes(20), "casual")["status"] == "legal"
+    assert report([entry(basic(), 40)], "casual")["status"] == "not_checked"

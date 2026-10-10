@@ -24,8 +24,11 @@ SECTIONS = {
     "companion": "sideboard",
     "commander": "commander",
     "commanders": "commander",
+    "schemes": "schemes",
+    "scheme": "schemes",
+    "scheme deck": "schemes",
 }
-SECTION_ORDER = {"commander": 0, "main": 1, "sideboard": 2}
+SECTION_ORDER = {"commander": 0, "main": 1, "sideboard": 2, "schemes": 3}
 
 
 def identity_groups(printings):
@@ -379,7 +382,7 @@ def preview_list(
             else None
         )
         section_error = (
-            "Section must be Mainboard, Sideboard or Commander. Choose a section below."
+            "Section must be Mainboard, Sideboard, Commander or Schemes. Choose a section below."
             if section is None
             else None
         )

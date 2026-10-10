@@ -1,6 +1,6 @@
 """Advisory paper-deck construction checks using the server's cached catalog.
 
-Rules: MTR 6.1/7.1; CR 100, 702.124, 903 (reviewed 2026-09-20).
+Rules: MTR 6.1/7.1; CR 100, 314, 702.124, 903, 904 (reviewed 2026-10-10).
 Never blocks saving a deck plan or makes an external request.
 """
 
@@ -129,6 +129,66 @@ def copy_limit(printing, default):
     return default
 
 
+def is_scheme(printing):
+    return (
+        printing.source_json.get("layout") == "scheme"
+        or "Scheme" in front(printing).get("type_line", "").split(" — ")[0].split()
+    )
+
+
+def check_schemes(rows, deck_format, issue):
+    """Archenemy scheme deck (CR 904.3), or Archenemy Commander (CR 904.13d) for Commander decks."""
+    schemes = [(c, p) for c, p in rows if c.section == "schemes"]
+    total = sum(c.quantity for c, _ in schemes)
+    commander = deck_format == "commander"
+    minimum, limit = (10, 1) if commander else (20, 2)
+    if total < minimum:
+        issue(
+            "scheme_deck_size",
+            f"{'Archenemy Commander' if commander else 'Archenemy'} needs at least {minimum} schemes; "
+            f"this scheme deck has {total}.",
+        )
+    others = [p for _, p in schemes if front(p).get("type_line") and not is_scheme(p)]
+    for p in others:
+        issue("not_a_scheme", f"{p.name} is not a scheme card. Move it out of the scheme deck.", [p])
+    copies, members = Counter(), defaultdict(dict)
+    for card, p in schemes:
+        key = front(p).get("name", p.name).casefold()
+        copies[key] += card.quantity
+        members[key][p.id] = p
+    for key, quantity in copies.items():
+        if quantity > limit:
+            cards = list(members[key].values())
+            issue(
+                "scheme_copies",
+                f"{cards[0].name}: {quantity} copies in the scheme deck; "
+                + (
+                    "each scheme must have a different name in Archenemy Commander."
+                    if commander
+                    else "the limit is 2."
+                ),
+                cards,
+            )
+    if commander:
+        flagged = [p for _, p in schemes if p.name.casefold() == "mortal flesh is weak"]
+        if flagged:
+            issue(
+                "scheme_shared_life",
+                "Mortal Flesh Is Weak doesn't work as written with the shared team life total. "
+                "Swap it for another scheme.",
+                flagged,
+                "info",
+            )
+    issue(
+        "archenemy_setup",
+        "Archenemy Commander: the archenemy starts at 60 life and goes first. The other players "
+        "share one 60 life total."
+        if commander
+        else "Archenemy: the archenemy starts at 40 life and goes first. Everyone else starts at 20.",
+        severity="info",
+    )
+
+
 def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
     checked_at = checked_at or now()
     counts = Counter()
@@ -136,12 +196,15 @@ def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
         counts[card.section] += card.quantity
     report = {
         "format": deck_format,
+        "archenemy": bool(counts["schemes"]),
         "status": "not_checked",
         "issues": [],
-        "counts": {section: counts[section] for section in ("commander", "main", "sideboard")},
+        "counts": {
+            section: counts[section] for section in ("commander", "main", "sideboard", "schemes")
+        },
         "catalog_updated_at": catalog_updated_at,
         "checked_at": checked_at,
-        "rules_version": "2026-09-20",
+        "rules_version": "2026-10-10",
         "checks": [],
         "limitations": [
             "Companion declarations, Commander brackets and event-specific house rules are not checked."
@@ -160,6 +223,14 @@ def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
         )
 
     if deck_format not in CONSTRUCTED | {"commander", "limited"}:
+        if report["archenemy"]:
+            # Casual decks still get their scheme deck checked.
+            report["checks"] = ["Scheme deck"]
+            check_schemes(rows, deck_format, issue)
+            report["status"] = (
+                "issues" if any(i["severity"] == "error" for i in issues) else "legal"
+            )
+            return report
         issue(
             "choose_format",
             "Choose a supported format to check this deck against its rules.",
@@ -167,7 +238,11 @@ def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
         )
         return report
     report["checks"] = ["Deck and sideboard size", "Card eligibility"]
-    active = [(c, p) for c, p in rows if deck_format != "commander" or c.section != "sideboard"]
+    active = [
+        (c, p)
+        for c, p in rows
+        if c.section != "schemes" and (deck_format != "commander" or c.section != "sideboard")
+    ]
     printings = {p.id: p for _, p in active}
     if not catalog_updated_at or catalog_updated_at < checked_at - timedelta(hours=72):
         issue(
@@ -365,6 +440,9 @@ def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
                     f"{cards[0].name}: {quantity} copies across the checked sections; the limit is {limit}.",
                     cards,
                 )
+    if report["archenemy"]:
+        report["checks"].append("Scheme deck")
+        check_schemes(rows, deck_format, issue)
     report["status"] = (
         "issues"
         if any(i["severity"] == "error" for i in issues)
@@ -376,7 +454,11 @@ def check_deck(rows, deck_format, catalog_updated_at=None, checked_at=None):
 
 
 def legality_report(db, rows, deck_format):
-    active = [p for c, p in rows if deck_format != "commander" or c.section != "sideboard"]
+    active = [
+        p
+        for c, p in rows
+        if c.section != "schemes" and (deck_format != "commander" or c.section != "sideboard")
+    ]
     ids = {p.snapshot_id for p in active}
     dates = (
         dict(

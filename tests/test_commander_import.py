@@ -40,7 +40,7 @@ def test_unsectioned_commander_import_splits_quantities_at_one_and_100(
     assert data["layout"] == {
         "applied": True,
         "reason": "commander_order",
-        "counts": {"commander": 1, "main": 99, "sideboard": 11},
+        "counts": {"commander": 1, "main": 99, "sideboard": 11, "schemes": 0},
     }
     assert [(r["quantity"], r["section"]) for r in data["items"]] == [
         (1, "commander"),

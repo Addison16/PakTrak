@@ -78,7 +78,7 @@ def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
         "fallback_copies": sum(item["quantity"] for item in items if item["finish_fallback"]),
         "sections": {
             section: subtotal([item for item in items if item["section"] == section])
-            for section in ("commander", "main", "sideboard")
+            for section in ("commander", "main", "sideboard", "schemes")
         },
         "items": items,
         "feed": feed_json(feed) if feed else None,

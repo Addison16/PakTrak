@@ -355,7 +355,8 @@ class DeckCard(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0 AND quantity <= 100000", name="deck_card_positive_quantity"),
         CheckConstraint(
-            "section IN ('main','sideboard','commander')", name="deck_card_valid_section"
+            "section IN ('main','sideboard','commander','schemes')",
+            name="deck_card_valid_section",
         ),
     )
     deck_id: Mapped[uuid.UUID] = mapped_column(

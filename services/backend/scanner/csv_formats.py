@@ -196,6 +196,8 @@ def read_text(data, options):
         "sideboard": "sideboard",
         "commander": "commander",
         "commanders": "commander",
+        "schemes": "schemes",
+        "scheme deck": "schemes",
     }
     for number, original in enumerate(decoded.splitlines(), 1):
         line = original.strip()

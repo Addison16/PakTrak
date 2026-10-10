@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { money, mutation, providers, request, type PriceSource, type Session } from "./api";
 import usePriceSource from "./usePriceSource";
-import { sections, type DeckValuation, type FinishPreference, type Section } from "./deckTypes";
+import { sectionOrder, sections, type DeckValuation, type FinishPreference, type Section } from "./deckTypes";
 import "./deck-value.css";
 
 const finishes = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
@@ -50,7 +50,7 @@ export default function DeckValue({ session, cards, saved, live, paused, busy, o
       <p className="fine">{providers[report.provider]} · {report.price_kind}. {report.feed?.updated_at ? `Prices updated ${new Date(report.feed.updated_at).toLocaleString()}.` : "No dated price update available."}{(!report.feed || report.feed.stale) && " Cached prices may be out of date."}</p>
       {report.feed?.error && <p className="fine row-error">The latest source update failed. Showing the last saved prices.</p>}
       <details className="deck-value-breakdown"><summary>Card values and sections</summary>
-        <div className="deck-value-sections" aria-label="Value by deck section">{(["commander", "main", "sideboard"] as Section[]).filter(section => report.sections[section].copies > 0).map(section => <div key={section}><span>{sections[section]}</span><strong>{money(report.sections[section].amount)}</strong><small>{report.sections[section].copies} {report.sections[section].copies === 1 ? "copy" : "copies"}{report.sections[section].unpriced_copies > 0 && ` · ${report.sections[section].unpriced_copies} unpriced`}</small></div>)}</div>
+        <div className="deck-value-sections" aria-label="Value by deck section">{sectionOrder.filter(section => (report.sections[section]?.copies || 0) > 0).map(section => <div key={section}><span>{sections[section]}</span><strong>{money(report.sections[section].amount)}</strong><small>{report.sections[section].copies} {report.sections[section].copies === 1 ? "copy" : "copies"}{report.sections[section].unpriced_copies > 0 && ` · ${report.sections[section].unpriced_copies} unpriced`}</small></div>)}</div>
         <p className="fine">Prices use the editions saved in this deck and include every requested copy, whether or not it is in your collection.</p>
         <label className="checkbox"><input type="checkbox" checked={onlyUnpriced} onChange={event => setOnlyUnpriced(event.target.checked)} />Only unpriced cards</label>
         <ul className="plain-list">{rows.map(item => <li key={item.printing_id + item.section}>

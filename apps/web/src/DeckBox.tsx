@@ -127,9 +127,10 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
   const colors = ["W", "U", "B", "R", "G"].filter((color) => deck.colors?.includes(color));
   const colorName = colors.length ? colors.map((color) => mana[color].name).join(" / ") : deck.colors_known === false ? "Colors unavailable" : "Colorless";
   const coverName = covers.length ? `${commander && !presentation.featuredCard ? "Commander" : "Featured card"}: ${covers.map((card) => card.name).join(" and ")}` : commander && deck.copies ? "Commander not set" : "No cover card yet";
-  const description = `${deck.name}, ${deck.format}, ${deck.copies || 0} cards, ${colorName}. ${coverName}.`;
+  const schemes = deck.scheme_copies || 0;
+  const description = `${deck.name}, ${deck.format}${schemes ? " Archenemy" : ""}, ${(deck.copies || 0) - schemes} cards${schemes ? ` and ${schemes} ${schemes === 1 ? "scheme" : "schemes"}` : ""}, ${colorName}. ${coverName}.`;
   return <button ref={button} type="button" className="deck-box-button" data-deck-id={deck.id} data-deck-colors={colors.join("") || "C"} disabled={busy} onClick={(event) => onOpen(event.currentTarget.querySelector<HTMLElement>(".deck-box")!)} aria-label={`Open ${description}`} title={description}>
     <DeckBoxVisual deck={deck} presentation={presentation} />
-    <span className="deck-box-label"><strong>{deck.name}</strong><span className="deck-box-meta"><span className="deck-box-format">{deck.format}</span><span className="deck-box-count">{deck.copies || 0} cards</span></span><span className="deck-box-open" aria-hidden="true">Open deck <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 10h13m-5-5 5 5-5 5" /></svg></span></span>
+    <span className="deck-box-label"><strong>{deck.name}</strong><span className="deck-box-meta"><span className="deck-box-format">{deck.format}{schemes > 0 && " · archenemy"}</span><span className="deck-box-count">{(deck.copies || 0) - schemes} cards</span></span><span className="deck-box-open" aria-hidden="true">Open deck <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 10h13m-5-5 5 5-5 5" /></svg></span></span>
   </button>;
 }

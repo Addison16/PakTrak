@@ -1,5 +1,11 @@
 # Changelog
 
+## Archenemy scheme decks — October 10, 2026
+
+- Decks can carry a **Scheme deck** for playing Archenemy. Pick **Scheme deck** under **Add cards to** while editing a deck, or import a list with a `Schemes` heading. Schemes are kept apart from the deck's card count, mana curve and format checks.
+- The legality panel checks the scheme deck by the official rules: at least 20 schemes with up to 2 of each, or for a Commander deck (Archenemy Commander) at least 10 schemes that all have different names. It also notes each variant's starting life totals.
+- Deck boxes and the deck overview mark these decks "archenemy". Scheme decks come along in deck exports, the all-decks download and restore. See [Archenemy scheme decks](docs/DECKS.md#archenemy-scheme-decks).
+
 ## Friends on other PakTrak servers — October 9, 2026
 
 - Administrators can connect their PakTrak to other PakTrak servers under **Menu → Administration → Other PakTrak servers**. It is off by default, and a connection starts only after the administrators of both servers approve it. **Disconnect** ends it on both sides.

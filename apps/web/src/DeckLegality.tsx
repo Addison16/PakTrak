@@ -22,16 +22,18 @@ export default function DeckLegality({ session, format, cards, saved, live = fal
   const report = live ? answer?.key === payload ? answer.report : undefined : saved;
   const error = live && answer?.key === payload ? answer.error : undefined;
   const errors = report?.issues.filter((item) => item.severity === "error").length || 0;
+  const fixed = !["casual", "other"].includes(format);
+  const name = report?.archenemy ? fixed ? `${format[0].toUpperCase() + format.slice(1)} Archenemy` : "Archenemy" : format[0].toUpperCase() + format.slice(1);
   const title = error ? "Legality check unavailable" : !report ? "Checking format rules…"
-    : report.status === "legal" ? `✓ Passes ${format[0].toUpperCase() + format.slice(1)} checks`
-    : report.status === "issues" ? `${errors} ${errors === 1 ? "issue" : "issues"} to fix for ${format[0].toUpperCase() + format.slice(1)}`
+    : report.status === "legal" ? `✓ Passes ${name} checks`
+    : report.status === "issues" ? `${errors} ${errors === 1 ? "issue" : "issues"} to fix for ${name}`
     : report.status === "incomplete" ? "Legality needs a closer look" : "Choose a format to check legality";
   if (!live && !saved) return null;
   return <section className={`deck-legality ${report?.status || "checking"}`} aria-label="Deck legality">
     <p className="legality-title" role="status">{title}</p>
     {error && <p className="fine">{error} <button className="text-button" onClick={() => { setAnswer(null); setRetry((n) => n + 1); }}>Try again</button></p>}
     {report && <>
-      <p className="fine">{report.counts.commander > 0 && `${report.counts.commander} commander · `}{report.counts.main} mainboard · {report.counts.sideboard} {format === "commander" ? "extras" : "sideboard"}{live && " · Unsaved list"}</p>
+      <p className="fine">{report.counts.commander > 0 && `${report.counts.commander} commander · `}{report.counts.main} mainboard · {report.counts.sideboard} {format === "commander" ? "extras" : "sideboard"}{report.counts.schemes > 0 && ` · ${report.counts.schemes} ${report.counts.schemes === 1 ? "scheme" : "schemes"}`}{live && " · Unsaved list"}</p>
       {report.status === "not_checked" ? <p className="fine">Casual and Other have no fixed rules. Choose a format in the deck settings to check legality.</p> : <details open={report.status === "issues" || report.status === "incomplete"}>
         <summary>Legality details</summary>
         {report.issues.length > 0 && <ul className="plain-list legality-issues">{report.issues.map((item, index) => <li key={item.code + index} className={item.severity === "error" ? "row-error" : ""}>

@@ -45,7 +45,7 @@ class DeckInfo(StrictModel):
 
 class CardChoice(StrictModel):
     printing_id: uuid.UUID
-    section: Literal["main", "sideboard", "commander"] = "main"
+    section: Literal["main", "sideboard", "commander", "schemes"] = "main"
     quantity: int = Field(ge=1, le=100_000, strict=True)
 
 
@@ -266,12 +266,13 @@ def list_decks(identity: Identity, db: DB, offset: int = Query(0, ge=0)):
     deck_colors, unknown_colors = defaultdict(set), set()
     if ids:
         totals = {
-            deck_id: {"copies": copies, "unique_printings": unique}
-            for deck_id, copies, unique in db.execute(
+            deck_id: {"copies": copies, "unique_printings": unique, "scheme_copies": schemes}
+            for deck_id, copies, unique, schemes in db.execute(
                 select(
                     DeckCard.deck_id,
                     func.sum(DeckCard.quantity),
                     func.count(func.distinct(DeckCard.printing_id)),
+                    func.sum(case((DeckCard.section == "schemes", DeckCard.quantity), else_=0)),
                 )
                 .where(DeckCard.deck_id.in_(ids))
                 .group_by(DeckCard.deck_id)
@@ -302,7 +303,8 @@ def list_decks(identity: Identity, db: DB, offset: int = Query(0, ge=0)):
                     case(
                         (DeckCard.section == "commander", 0),
                         (DeckCard.section == "main", 1),
-                        else_=2,
+                        (DeckCard.section == "sideboard", 2),
+                        else_=3,
                     )
                 ).label("section_order"),
                 func.max(case((DeckCard.section == "main", DeckCard.quantity), else_=0)).label(
@@ -357,14 +359,14 @@ def list_decks(identity: Identity, db: DB, offset: int = Query(0, ge=0)):
                     "art_url": f"/api/v1/card-images/{card.id}/0/art"
                     if source_image(card, 0, "art")
                     else None,
-                    "section": ("commander", "main", "sideboard")[section_order],
+                    "section": ("commander", "main", "sideboard", "schemes")[section_order],
                 }
             )
     return {
         "items": [
             {
                 **deck_json(deck),
-                **totals.get(deck.id, {"copies": 0, "unique_printings": 0}),
+                **totals.get(deck.id, {"copies": 0, "unique_printings": 0, "scheme_copies": 0}),
                 "preview_cards": previews[deck.id],
                 "colors": [color for color in "WUBRG" if color in deck_colors[deck.id]],
                 "colors_known": deck.id not in unknown_colors,
@@ -466,6 +468,7 @@ def download_all_decks(identity: Identity, db: DB, format: Literal["csv", "text"
                 ("commander", "Commander"),
                 ("main", "Mainboard"),
                 ("sideboard", "Sideboard"),
+                ("schemes", "Schemes"),
             ]:
                 rows = [
                     (card, printing) for card, printing in cards[deck.id] if card.section == section
@@ -588,7 +591,10 @@ def restore_decks(data: DeckRestore, key: Key, identity: Identity, db: DB):
                 error = "Quantity must be a whole number from 1 to 100,000."
                 printing = None
             elif section is None:
-                error, printing = "Section must be Mainboard, Sideboard or Commander.", None
+                error, printing = (
+                    "Section must be Mainboard, Sideboard, Commander or Schemes.",
+                    None,
+                )
             elif any(len(value) > 255 for value in values.values()):
                 error, printing = "Card identifiers are too long.", None
             else:
@@ -761,6 +767,7 @@ def download_deck(
             ("commander", "Commander"),
             ("main", "Mainboard"),
             ("sideboard", "Sideboard"),
+            ("schemes", "Schemes"),
         ]:
             cards = [(card, printing) for card, printing in rows if card.section == section]
             if cards:

@@ -17,7 +17,7 @@ function shuffle<T>(items: T[]) {
 
 /** Mana curve for the main deck and commander, and a sample opening hand from the main deck. */
 export default function DeckStats({ cards }: { cards: StatCard[] }) {
-  const counted = cards.filter((card) => card.section !== "sideboard");
+  const counted = cards.filter((card) => card.section !== "sideboard" && card.section !== "schemes");
   const spells = counted.filter((card) => !isLand(card));
   const lands = counted.filter(isLand).reduce((sum, card) => sum + card.quantity, 0);
   const curve = LABELS.map(() => 0);

@@ -35,7 +35,7 @@ class Preview(StrictModel):
 
 class SourceChoice(StrictModel):
     observation_id: uuid.UUID
-    section: Literal["main", "sideboard", "commander"] = "main"
+    section: Literal["main", "sideboard", "commander", "schemes"] = "main"
 
 
 class Save(Preview):

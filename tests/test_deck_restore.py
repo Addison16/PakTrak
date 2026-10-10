@@ -103,3 +103,42 @@ def test_deck_restore_reports_unknown_cards_and_rejects_other_files(clients, dec
         json={"content": "Name,Quantity\nDeck Fixture Water,1\n"},
     )
     assert wrong.status_code == 422
+
+
+def test_scheme_deck_section_saves_lists_exports_imports_and_restores(clients, deck_catalog):
+    client, _ = clients()
+    other, _ = clients()
+    deck = client.post(
+        "/api/v1/decks",
+        headers=key(),
+        json={
+            "name": "Villain",
+            "format": "commander",
+            "cards": [
+                {"printing_id": deck_catalog[0], "quantity": 1, "section": "commander"},
+                {"printing_id": deck_catalog[2], "quantity": 2, "section": "schemes"},
+            ],
+        },
+    )
+    assert deck.status_code == 201, deck.text
+    body = deck.json()
+    assert body["legality"]["archenemy"] and body["legality"]["counts"]["schemes"] == 2
+    assert body["valuation"]["sections"]["schemes"]["copies"] == 2
+    listed = client.get("/api/v1/decks").json()["items"][0]
+    assert (listed["copies"], listed["scheme_copies"]) == (3, 2)
+
+    text = client.get(f"/api/v1/decks/{body['id']}/download").text
+    assert "Schemes\n2 Deck Fixture Water (TST) 3\n" in text
+    assert "Schemes\n" in client.get("/api/v1/decks/download-all?format=text").text
+    preview = client.post(
+        "/api/v1/decks/import-preview",
+        headers=key(),
+        json={"content": "Commander\n1 Deck Fixture Ember\n\nScheme deck\n2 Deck Fixture Water"},
+    ).json()
+    assert [row["section"] for row in preview["items"]] == ["commander", "schemes"]
+
+    content = client.get("/api/v1/decks/download-all").content.decode("utf-8-sig")
+    restored = other.post("/api/v1/decks/restore", headers=key(), json={"content": content})
+    assert restored.status_code == 200 and restored.json()["problem_count"] == 0
+    _, cards = deck_cards(other, restored.json()["restored"][0]["id"])
+    assert cards == deck_cards(client, body["id"])[1]

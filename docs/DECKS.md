@@ -102,11 +102,24 @@ The legality panel checks import previews, saved decks and unsaved edits against
 | Limited | At least 40 mainboard cards, no commander section and playable paper cards. Duplicate and sideboard counts are unrestricted. The result stays partial because PakTrak cannot verify the event's draft/sealed pool. |
 | Casual, Other | No fixed format rules; the panel asks the owner to select a supported format. |
 
+### Archenemy scheme decks
+
+A deck can carry a **Scheme deck** for playing Archenemy, where one player takes on the rest of the table with a deck of schemes. Choose **Scheme deck** under **Add cards to** in the deck editor, or use a `Schemes` heading or Section value in an imported list. Schemes stay apart from the deck: they don't count toward its card total, mana curve or format checks, and the deck shelf labels the deck "archenemy". They still count in collection comparisons, buy lists, deck value and exports. MTG Arena and MTGO exports leave them out because those games don't use schemes.
+
+When a deck has schemes, the legality panel also checks the scheme deck:
+
+| Deck format | Scheme deck checks |
+| --- | --- |
+| Commander (Archenemy Commander) | At least 10 schemes, each with a different name. The archenemy starts at 60 life and the other players share one 60 life total. Mortal Flesh Is Weak is flagged because it doesn't work with the shared life total. |
+| Any other format, including Casual | At least 20 schemes, at most 2 of any one scheme. The archenemy starts at 40 life and everyone else at 20. |
+
+Every card in the scheme deck must be a scheme, and schemes placed in another section are flagged as not playable there. The server's catalog includes scheme cards when its Scryfall data does, such as the original Archenemy, Archenemy: Nicol Bolas and the Duskmourn Commander schemes.
+
 Basic lands and card-specific copy exceptions are respected, including unlimited-copy cards, Seven Dwarves and Nazgûl. Commander eligibility uses the front face, applicable oracle-text exceptions, legendary Vehicles and legendary Spacecraft with power/toughness. Compatible partner variants and commanders that choose a color before the game are supported. Tokens, art inserts, oversized cards and other nonplayable paper printings are flagged.
 
 Missing rules metadata or legality data, or catalog data more than 72 hours old, prevents a clean pass. Card legality follows the existing daily catalog refresh, so newly announced changes may not appear until that refresh. Companion declarations, Commander brackets and event-specific house rules are not checked. A passing result covers the listed checks rather than guaranteeing eligibility at every event.
 
-Construction rules were reviewed on September 20, 2026 against the [official Comprehensive Rules, effective February 27, 2026](https://media.wizards.com/2026/downloads/MagicCompRules%2020260227.pdf) (100, 702.124 and 903), [Tournament Rules, effective February 27, 2026](https://media.wizards.com/ContentResources/WPN/MTG_MTR_2026_Feb27_EN.pdf) (6.1, 6.2 and 7.1), and the [August update bulletin](https://magic.wizards.com/en/news/announcements/the-hobbit-update-bulletin). The rules hub's September 25 document was not yet effective at review time. Current reference links remain available in the app: [official rules](https://magic.wizards.com/en/rules), [Commander](https://magic.wizards.com/en/formats/commander), and [banned and restricted cards](https://magic.wizards.com/en/banned-restricted-list).
+Construction rules were reviewed on September 20, 2026 against the [official Comprehensive Rules, effective February 27, 2026](https://media.wizards.com/2026/downloads/MagicCompRules%2020260227.pdf) (100, 702.124 and 903; the Archenemy rules in 314 and 904 were checked against the same document on October 10, 2026), [Tournament Rules, effective February 27, 2026](https://media.wizards.com/ContentResources/WPN/MTG_MTR_2026_Feb27_EN.pdf) (6.1, 6.2 and 7.1), and the [August update bulletin](https://magic.wizards.com/en/news/announcements/the-hobbit-update-bulletin). The rules hub's September 25 document was not yet effective at review time. Current reference links remain available in the app: [official rules](https://magic.wizards.com/en/rules), [Commander](https://magic.wizards.com/en/formats/commander), and [banned and restricted cards](https://magic.wizards.com/en/banned-restricted-list).
 
 ## Exporting the missing cards
 

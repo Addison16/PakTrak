@@ -23,7 +23,7 @@ import { CardArt } from "./CardDetail";
 import PrintingPicker from "./PrintingPicker";
 import { splitCollectorSearch } from "./cardSearch";
 import { navigation, restoreScroll, useRoute } from "./navigation";
-import { formats, sections, type Deck, type DeckCard as Card, type DeckCollection, type DeckSummary, type DeckWorkState, type MatchMode, type Section } from "./deckTypes";
+import { formats, sectionOrder, sections, type Deck, type DeckCard as Card, type DeckCollection, type DeckSummary, type DeckWorkState, type MatchMode, type Section } from "./deckTypes";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./deck-qol.css";
 import "./deck-studio.css";
@@ -39,7 +39,7 @@ function validDraft(value: DeckDraft | null): value is DeckDraft {
 }
 function cardChoices(cards: EditableCard[]) { return cards.filter((card) => card.quantity > 0).map((card) => ({ printing_id: card.printing.id, section: card.section, quantity: card.quantity })); }
 function deckText(cards: Card[]) {
-  return (["commander", "main", "sideboard"] as Section[]).flatMap((section) => {
+  return sectionOrder.flatMap((section) => {
     const entries = cards.filter((card) => card.section === section && card.quantity > 0);
     return entries.length ? [sections[section], ...entries.map((card) => `${card.quantity} ${card.printing.name} (${card.printing.set_code.toUpperCase()}) ${card.printing.collector_number}`), ""] : [];
   }).join("\n");
@@ -342,7 +342,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   const visibleCards = cards.filter((card) => (!onlyMissing || !comparison || (ownership.get(card.printing.id + ":" + card.section)?.missing || 0) > 0)
     && `${card.printing.name} ${card.printing.set_code} ${card.printing.collector_number}`.toLowerCase().includes(deckSearch.text.toLowerCase())
     && (!deckSearch.collectorNumber || card.printing.collector_number.toLowerCase() === deckSearch.collectorNumber.toLowerCase()));
-  const previewCards = (["commander", "main", "sideboard"] as Section[]).flatMap((board) => visibleCards.filter((card) => card.section === board));
+  const schemeCount = cards.reduce((sum, card) => sum + (card.section === "schemes" ? card.quantity : 0), 0);
+  const previewCards = sectionOrder.flatMap((board) => visibleCards.filter((card) => card.section === board));
   const previewCard = deckIsCurrent ? previewCards.find((card) => card.printing.id + "_" + card.section === route.card) : undefined;
   const previewIndex = previewCards.indexOf(previewCard!);
   return <>
@@ -399,7 +400,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
         <div className="deck-hero-identity">
           <div className="deck-hero-title"><div className="eyebrow">{editing ? "DECK STUDIO" : artView ? "THE ART OF YOUR DECK" : "YOUR NEXT GAME"}</div>
             <h2 id="deck-title" tabIndex={-1}>{deck.name}</h2>
-      <div className="batch-detail-meta"><span className="badge deck-format">{deck.format}</span><span>{cards.reduce((sum, card) => sum + card.quantity, 0)} cards</span><span>{deck.match_mode === "any" ? "Any printing counts" : "Exact printings"}</span></div>
+      <div className="batch-detail-meta"><span className="badge deck-format">{deck.format}{schemeCount > 0 && " · archenemy"}</span><span>{cards.reduce((sum, card) => sum + (card.section === "schemes" ? 0 : card.quantity), 0)} cards{schemeCount > 0 && ` · ${schemeCount} ${schemeCount === 1 ? "scheme" : "schemes"}`}</span><span>{deck.match_mode === "any" ? "Any printing counts" : "Exact printings"}</span></div>
       {archived && <p className="fine" role="status">This deck is archived.</p>}
       <p className="batch-save-status" role="status">{busy ? "Working…" : dirty ? localDraftSaved ? "Unsaved changes · draft backed up on this device." : "Unsaved changes · device backup unavailable. Save your deck to keep your work." : "✓ All changes saved"}</p>
           </div>
@@ -436,6 +437,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
           <label>Compare with my collection<select value={matchMode} onChange={(e) => { remember(); setMatchMode(e.target.value as MatchMode); }}><option value="any">Any printing of the card</option><option value="exact">Exact printings only</option></select></label></div>
         <label>Deck notes<textarea rows={3} value={notes} maxLength={4096} onChange={(e) => { remember("notes"); setNotes(e.target.value); }} onBlur={() => { lastEdit.current = ""; }} /></label>
         <div className="form-grid deck-add-options"><label>Add cards to<select value={section} onChange={(e) => setSection(e.target.value as Section)}>{Object.entries(sections).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Copies to add<input type="number" min={1} max={100000} step={1} inputMode="numeric" value={addQuantity} aria-invalid={addQuantityError || undefined} onChange={(e) => setAddQuantity(e.target.value)} /></label></div>
+        {section === "schemes" && <p className="fine">Scheme deck for playing Archenemy. It stays apart from your deck and is checked on its own: at least 20 schemes with up to 2 of each, or for a Commander deck at least 10 schemes that all have different names.</p>}
         {addQuantityError && <p className="row-error">Choose a whole number from 1 to 100,000 before adding a card.</p>}
         <details open><summary>Add from your collection</summary>
           <label>Find cards you own<input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setSearchOffset(0); }} placeholder="Card name or Plains #287" /></label>
@@ -449,7 +451,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       {!editing && <div className="deck-view-controls" role="group" aria-label="Deck card view"><button className="filter-chip" aria-pressed={gallery} onClick={() => setGallery(true)}>Gallery</button><button className="filter-chip" aria-pressed={!gallery} onClick={() => setGallery(false)}>List</button><span className="fine">Tap a card to preview it.</span></div>}
       {(comparison || onlyMissing) && <label className="checkbox"><input type="checkbox" checked={onlyMissing} onChange={(e) => setOnlyMissing(e.target.checked)} />Show only missing cards</label>}
       <div className="deck-studio-card-sections" data-commander={gallery && !editing && visibleCards.some(card => card.section === "commander") && visibleCards.some(card => card.section === "main") || undefined}>
-      {(["commander", "main", "sideboard"] as Section[]).map((board) => {
+      {sectionOrder.map((board) => {
         const entries = visibleCards.filter((card) => card.section === board);
         return entries.length > 0 && <section className="deck-card-section" key={board} data-card-board={board} aria-label={sections[board]}><h3>{sections[board]} <span>{entries.reduce((sum, card) => sum + card.quantity, 0)}</span></h3>
           <ul className={gallery && !editing ? "plain-list deck-cards deck-gallery" : "plain-list deck-cards"}>{entries.map((card) => {
