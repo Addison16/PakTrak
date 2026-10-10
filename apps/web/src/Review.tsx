@@ -12,6 +12,7 @@ import { navigation } from "./navigation";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import CountUp from "./CountUp";
 import "./scan-qol.css";
+import { reducedMotion } from "./motion";
 
 type CardDraft = { version: number; choice: Printing | null; editing: boolean; finish: string; condition: string };
 type SavedReview = { schema: 1; cards: [string, CardDraft][]; current: string | null; binder: string; binderDirty: boolean; selected: string[]; bulkFinish: string; bulkCondition: string; bulkBinder: string };
@@ -30,7 +31,6 @@ function saveSetting(key: string, value: unknown) {
 const isCondition = (value: unknown): value is string => typeof value === "string" && conditions.includes(value);
 const isCardCount = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 32;
 const isStrength = (value: unknown): value is number => typeof value === "number" && strengths.includes(value);
-const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const finishConflict = (item: Region) => item.state !== "IGNORED" && item.finish !== "unknown" && !!savedPrinting(item) && !savedPrinting(item)!.finishes.includes(item.finish);
 function validSavedReview(value: SavedReview | null): value is SavedReview {
   return !!value && value.schema === 1 && Array.isArray(value.cards) && value.cards.every((entry) => Array.isArray(entry) && typeof entry[0] === "string" && entry[1] && typeof entry[1].version === "number" && typeof entry[1].finish === "string" && typeof entry[1].condition === "string" && (!entry[1].choice || typeof entry[1].choice.id === "string" && Array.isArray(entry[1].choice.finishes))) && Array.isArray(value.selected) && value.selected.every((id) => typeof id === "string") && typeof value.binder === "string" && typeof value.bulkBinder === "string";
@@ -229,7 +229,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     const target = destination === "foils" ? foilSection.current : pending.length > 0 ? detail.current : galleryHeading.current;
     const frame = window.requestAnimationFrame(() => {
       target?.focus({ preventScroll: true });
-      target?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      target?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" });
       setDestination(null);
     });
     return () => window.cancelAnimationFrame(frame);

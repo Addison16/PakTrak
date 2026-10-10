@@ -496,6 +496,9 @@ details p { font-size: 14px; }
   /* The refresh spinner keeps a slow turn (pull-refresh.css), or a refresh shows nothing at all. */
   .pull-refresh[data-state="refreshing"] .pull-refresh-spinner svg { animation: pull-refresh-spin 2400ms linear infinite !important; }
 }
+/* Animations turned on in My account bring back the falling cards, which the
+   shared backdrop stylesheet hides for reduced motion. */
+@media not all and (forced-colors: active) { html[data-motion="on"] .falling-cards { display: block; } }
 @media (forced-colors: active) {
   select { -webkit-appearance: auto; appearance: auto; background-image: none; }
   .filter-chip[aria-pressed=true], .filter-chip[aria-expanded=true], .view-switch button[aria-pressed=true], .menu-links [aria-current=page] { outline: 2px solid Highlight; outline-offset: -2px; }
@@ -807,3 +810,6 @@ details p { font-size: 14px; }
 .card-swipe { touch-action: pan-y pinch-zoom; }
 .trade-view .hero, .trade-view .account-allowance { display: none; }
 .trade-view > .panel, .trade-view > div > .panel { max-width: 760px; margin-inline: auto; margin-top: 0; }
+/* My account > Appearance > Animations, laid out like the light and dark choice above it. */
+.appearance-picker .motion-picker { min-width: 0; margin: 18px 0 0; padding: 0; border: 0; }
+.appearance-options.motion-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }

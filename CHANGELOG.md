@@ -1,5 +1,10 @@
 # Changelog
 
+## Animations switch — October 10, 2026
+
+- PakTrak's animations (the falling cards, card flights, the deck box opening and the rest) are the same for every account. They pause on phones and computers set to reduce motion, such as an iPhone with **Settings → Accessibility → Motion → Reduce Motion** on.
+- **My account → Appearance → Animations** now has **Always on**, which plays every animation in that browser even when the device asks for less motion. **Follow device** stays the default, and the note under the choice says whether the device is asking for less motion right now.
+
 ## Card legality and rulings — October 10, 2026
 
 - Opening a card in your collection or in a deck now lists its format legality and its official rulings right under the card. Legality covers the main paper formats (Standard through Brawl), with banned and restricted marked. Rulings are listed by date; the first three show, and **Show all** opens the rest.

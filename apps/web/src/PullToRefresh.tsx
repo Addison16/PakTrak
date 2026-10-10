@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { checkConnection, connection } from "./offline";
 import { runPullRefresh, usePullRefreshAvailable } from "./pullRefresh";
 import "./pull-refresh.css";
+import { reducedMotion } from "./motion";
 
 const reach = 120; // Furthest the page moves, however far the finger goes.
 const trigger = 64; // Pull at least this far to refresh.
@@ -12,7 +13,6 @@ const messageTime = 2400;
 const offlineText = "You’re offline. Showing saved copies.";
 const failedText = "Couldn’t refresh. Try again in a moment.";
 
-const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 // The pull slows the further it goes, like a rubber band.
 const resist = (finger: number) => reach * (1 - Math.exp(-finger / 180));

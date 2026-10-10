@@ -4,6 +4,7 @@ import { caseAppearance, DeckEmblem, defaultPresentation, presentationCovers, us
 import { DeckBoxLid, DeckBoxShell, deckBoxFrontClip } from "./DeckBoxShell";
 import "./deck-box.css";
 import "./deck-box-light.css";
+import { onMotionChange, reducedMotion } from "./motion";
 
 const mana: Record<string, { name: string; paint: string; pip: string }> = {
   W: { name: "White", paint: "#454034", pip: "#e6d8b3" },
@@ -70,7 +71,6 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
     const element = button.current;
     if (!element || busy) return;
     const hover = matchMedia("(hover: hover) and (pointer: fine)");
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     let frame = 0;
     let bounds: DOMRect | null = null;
     let point = { x: .5, y: .5 };
@@ -82,7 +82,7 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
       for (const name of ["--box-light-x", "--box-light-y", "--box-turn-x", "--box-turn-y"]) element.style.removeProperty(name);
     };
     const move = (event: PointerEvent) => {
-      if (event.pointerType === "touch" || !hover.matches || reduced.matches) return;
+      if (event.pointerType === "touch" || !hover.matches || reducedMotion()) return;
       bounds ??= element.querySelector(".deck-box")!.getBoundingClientRect();
       point = {
         x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
@@ -107,7 +107,7 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
     window.addEventListener("resize", reset);
     window.addEventListener("scroll", reset, true);
     hover.addEventListener("change", reset);
-    reduced.addEventListener("change", reset);
+    const stopWatching = onMotionChange(reset);
     return () => {
       reset();
       element.removeEventListener("pointerenter", move);
@@ -119,7 +119,7 @@ export default function DeckBox({ deck, busy, onOpen, ownerId = "" }: { deck: De
       window.removeEventListener("resize", reset);
       window.removeEventListener("scroll", reset, true);
       hover.removeEventListener("change", reset);
-      reduced.removeEventListener("change", reset);
+      stopWatching();
     };
   }, [busy]);
   const commander = deck.format === "commander";

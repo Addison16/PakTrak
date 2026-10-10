@@ -1,14 +1,17 @@
 import { useSyncExternalStore } from "react";
+import { deviceReducesMotion, motionPreference, onMotionChange, setMotionPreference } from "./motion";
 
 const subscribe = (listener: () => void) => {
   window.addEventListener("paktrak-appearance-change", listener);
   return () => window.removeEventListener("paktrak-appearance-change", listener);
 };
 const snapshot = () => `${document.documentElement.dataset.appearance || "auto"}:${document.documentElement.dataset.theme || "light"}:${document.documentElement.dataset.palette || "forest"}`;
+const motionSnapshot = () => `${motionPreference()}:${deviceReducesMotion()}`;
 const palettes = ["forest", "ocean", "amethyst", "ember", "slate"] as const;
 
 export default function Appearance() {
   const [mode, theme, palette] = useSyncExternalStore(subscribe, snapshot).split(":");
+  const [motion, reduced] = useSyncExternalStore(onMotionChange, motionSnapshot).split(":");
   return <fieldset className="appearance-picker">
     <legend>Appearance</legend>
     <div className="appearance-options">
@@ -27,6 +30,14 @@ export default function Appearance() {
         </button>)}
       </div>
       <p className="appearance-note">Make it yours. Your choice stays in this browser.</p>
+    </fieldset>
+    <fieldset className="motion-picker">
+      <legend>Animations</legend>
+      <div className="appearance-options motion-options">
+        <button type="button" className="appearance-option" aria-pressed={motion !== "on"} onClick={() => setMotionPreference("auto")}>Follow device</button>
+        <button type="button" className="appearance-option" aria-pressed={motion === "on"} onClick={() => setMotionPreference("on")}>Always on</button>
+      </div>
+      <p className="appearance-note">{motion === "on" ? "Animations play in this browser, even if the device asks for less motion." : reduced === "true" ? "This device asks for less motion, so animations are off. Choose Always on to play them here." : "Animations are on. They turn off if this device asks for less motion."}</p>
     </fieldset>
   </fieldset>;
 }

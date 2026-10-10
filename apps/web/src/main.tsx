@@ -25,6 +25,7 @@ import { saveDaily } from "./offlineSave";
 import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
 import PullToRefresh from "./PullToRefresh";
 import FallingCards from "./FallingCards";
+import { loadMotionPreference } from "./motion";
 import { usePullRefresh } from "./pullRefresh";
 
 const Collections = lazy(() => import("./Collections"));
@@ -764,5 +765,6 @@ function App() {
 addEventListener("pointerdown", () => { document.documentElement.dataset.pointer = ""; }, true);
 addEventListener("keydown", () => { delete document.documentElement.dataset.pointer; }, true);
 
+loadMotionPreference();
 registerServiceWorker();
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
