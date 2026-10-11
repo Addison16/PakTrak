@@ -622,6 +622,14 @@ def save_geometry(scan_id, observation_id, data, key, identity, db):
             raise HTTPException(409, "This request key belongs to a different crop.")
         return {"id": str(row.id)}
     rows = batch_rows(db, scan)
+    if not row:
+        retried = next(
+            (r for r in rows if r.recognition.get("_crop_request", {}).get("key") == key), None
+        )
+        if retried:
+            if retried.recognition["_crop_request"]["hash"] != digest:
+                raise HTTPException(409, "This request key belongs to a different crop edit.")
+            return {"id": str(retried.id)}
     covered = [
         r
         for r in rows
@@ -634,12 +642,14 @@ def save_geometry(scan_id, observation_id, data, key, identity, db):
             409, "That card is already saved from this photo. Undo it before outlining it again."
         )
     user = db.get(User, identity.owner_id)
-    if not row:
+    if not row and covered:
+        # A hand-drawn outline takes over a detected region that missed the same
+        # card, so the batch keeps its region count and the card is not charged twice.
+        row = covered.pop(0)
+    elif not row:
         if len(rows) >= 32:
             raise HTTPException(409, "This batch already has 32 card regions.")
-        if not covered:
-            check_scan_allowance(user)
-    # A hand-drawn outline replaces detected regions that missed the same card.
+        check_scan_allowance(user)
     for r in covered:
         r.state, r.version = "IGNORED", r.version + 1
     # Geometry edits are bounded server crops, not recognition in the request.
@@ -661,8 +671,7 @@ def save_geometry(scan_id, observation_id, data, key, identity, db):
             finish=new_observation_finish(db, scan),
         )
         db.add(row)
-        if not covered:
-            user.scan_cards_used += 1
+        user.scan_cards_used += 1
     else:
         row.polygon, row.crop_key, row.recognition = data.polygon, crop_key, {}
         row.detector_version, row.version = "manual-v1", row.version + 1

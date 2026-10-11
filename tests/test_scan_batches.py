@@ -316,12 +316,17 @@ def test_manual_outline_replaces_a_region_that_missed_the_card(clients, catalog)
         [min(xs) - pad, max(ys) + pad],
     ]
     url = f"/api/v1/scans/{scan_id}/observations"
-    response = client.post(url, headers=key(), json={"polygon": polygon})
+    headers = key()
+    response = client.post(url, headers=headers, json={"polygon": polygon})
     assert response.status_code == 201, response.text
+    # The outline takes over the region that missed, so the batch does not grow.
+    assert response.json()["id"] == rows[0]["id"]
+    assert client.post(url, headers=headers, json={"polygon": polygon}).json() == response.json()
     items = {item["id"]: item for item in client.get(url).json()["items"]}
-    assert items[rows[0]["id"]]["state"] == "IGNORED"
-    assert items[rows[1]["id"]]["state"] == "NEEDS_REVIEW"
-    assert items[response.json()["id"]]["polygon"] == polygon
+    assert len(items) == 2
+    assert items[rows[0]["id"]]["state"] == "NEEDS_REVIEW"
+    assert items[rows[0]["id"]]["polygon"] == polygon
+    assert items[rows[0]["id"]]["version"] == rows[0]["version"] + 1
     with session_factory()() as db:
         assert db.get(User, owner).scan_cards_used == 2
 
