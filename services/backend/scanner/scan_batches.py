@@ -622,18 +622,26 @@ def save_geometry(scan_id, observation_id, data, key, identity, db):
             raise HTTPException(409, "This request key belongs to a different crop.")
         return {"id": str(row.id)}
     rows = batch_rows(db, scan)
-    if any(
-        r.id != (row.id if row else None) and detection.overlap(data.polygon, r.polygon) > 0.65
+    covered = [
+        r
         for r in rows
-    ):
+        if r.id != (row.id if row else None)
+        and r.state != "IGNORED"
+        and detection.overlap(data.polygon, r.polygon) > 0.65
+    ]
+    if any(r.state != "NEEDS_REVIEW" for r in covered):
         raise HTTPException(
-            409, "That card already has a region. Edit its existing outline instead."
+            409, "That card is already saved from this photo. Undo it before outlining it again."
         )
     user = db.get(User, identity.owner_id)
     if not row:
         if len(rows) >= 32:
             raise HTTPException(409, "This batch already has 32 card regions.")
-        check_scan_allowance(user)
+        if not covered:
+            check_scan_allowance(user)
+    # A hand-drawn outline replaces detected regions that missed the same card.
+    for r in covered:
+        r.state, r.version = "IGNORED", r.version + 1
     # Geometry edits are bounded server crops, not recognition in the request.
     obj = storage.get(scan.prepared_key)
     try:
@@ -653,7 +661,8 @@ def save_geometry(scan_id, observation_id, data, key, identity, db):
             finish=new_observation_finish(db, scan),
         )
         db.add(row)
-        user.scan_cards_used += 1
+        if not covered:
+            user.scan_cards_used += 1
     else:
         row.polygon, row.crop_key, row.recognition = data.polygon, crop_key, {}
         row.detector_version, row.version = "manual-v1", row.version + 1
