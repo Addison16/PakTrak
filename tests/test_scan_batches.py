@@ -338,6 +338,24 @@ def test_manual_outline_replaces_a_region_that_missed_the_card(clients, catalog)
     assert "already saved" in blocked.json()["detail"]
 
 
+def test_manual_outline_over_regions_marked_not_a_card(clients):
+    client, _ = clients()
+    scan_id, _, rows = prepared(client)
+    for row in rows:
+        response = client.post(
+            f"/api/v1/scans/{scan_id}/observations/{row['id']}/decision",
+            headers=key(),
+            json={"expected_version": row["version"], "action": "ignore"},
+        )
+        assert response.status_code == 200, response.text
+    url = f"/api/v1/scans/{scan_id}/observations"
+    response = client.post(url, headers=key(), json={"polygon": rows[0]["polygon"]})
+    assert response.status_code == 201, response.text
+    items = {item["id"]: item for item in client.get(url).json()["items"]}
+    assert items[response.json()["id"]]["state"] == "NEEDS_REVIEW"
+    assert items[rows[0]["id"]]["state"] == "IGNORED"
+
+
 def test_crop_edit_retry_survives_recognition_checkpoint(clients, monkeypatch):
     client, owner = clients()
     scan_id, job_id, rows = prepared(client)
