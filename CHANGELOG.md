@@ -1,5 +1,9 @@
 # Changelog
 
+## Special foil prices after a scan — October 12, 2026
+
+- Approving strong matches or importing selected cards in a batch now keeps the special foil (fracture, galaxy, surge and the rest) you chose in the foil step. Before, those quick approvals saved the regular printing instead, so the card was valued at the regular foil price.
+
 ## Foil types — October 10, 2026
 
 - PakTrak now knows the named foil treatments from the card data: etched, galaxy, surge, fracture, textured, gilded, confetti, halo, neon ink, oil slick, double rainbow, raised, ripple, silver, dragonscale, singularity, cosmic, silver scroll, gleaming gold and more. A copy's foil type follows from its printing, so cards you already own pick it up without any changes.

@@ -19,6 +19,8 @@ type SavedReview = { schema: 1; cards: [string, CardDraft][]; current: string | 
 type ReviewFilter = "all" | "pending" | "unmatched" | "finish";
 const range = (min: string | null, max: string | null) => min === max ? money(min) : money(min) + "–" + money(max);
 const savedPrinting = (item: Region) => item.lot?.printing || item.confirmed_printing || item.candidates[0]?.printing || null;
+// A card waiting for review keeps the printing saved for it, such as a special foil chosen in the foil step, over the top suggestion.
+const reviewPrinting = (item: Region) => item.confirmed_printing || item.candidates[0].printing;
 const conditions = ["ungraded", "NM", "LP", "MP", "HP", "damaged"];
 const strengths = [.7, .75, .8, .85, .9, .95];
 // Per-device conveniences: the last condition, photo size and match strength carry over between cards and batches.
@@ -331,10 +333,10 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     observation_id: region.id, expected_version: region.version, printing_id: printing.id, finish,
   }]), (updated) => advanceReview(updated, region.id));
   const approveSelected = () => act(() => approve(selectedRegions.map((r) => ({
-    observation_id: r.id, expected_version: r.version, printing_id: r.candidates[0].printing_id, finish: bulkFinish === "keep" ? r.finish : bulkFinish,
+    observation_id: r.id, expected_version: r.version, printing_id: reviewPrinting(r).id, finish: bulkFinish === "keep" ? r.finish : bulkFinish,
   })), bulkBinder, bulkCondition), (updated) => { for (const item of selectedRegions) drafts.current.delete(item.id); if (region && selectedRegions.some((r) => r.id === region.id)) advanceReview(updated, region.id); });
   const approveStrong = () => act(() => approve(strong.map((r) => ({
-    observation_id: r.id, expected_version: r.version, printing_id: r.candidates[0].printing_id, finish: r.finish,
+    observation_id: r.id, expected_version: r.version, printing_id: reviewPrinting(r).id, finish: r.finish,
   }))), (updated) => { for (const item of strong) drafts.current.delete(item.id); if (region && strong.some((r) => r.id === region.id)) advanceReview(updated, region.id); });
   const undoApproval = () => undo && act(async () => {
     const ids = undo.ids; setUndo(null);
@@ -447,7 +449,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
           </button></div>;
       })}</div>
       {selectedRegions.length > 0 && <div className="scan-bulk"><strong>{selectedRegions.length} suggested {selectedRegions.length === 1 ? "card" : "cards"} selected</strong><p>Check their suggested printings before approving. These settings apply to every selected card.</p>
-        <div className="form-grid"><label>Selected cards finish<select value={bulkFinish} onChange={(e) => setBulkFinish(e.target.value)}><option value="keep">Keep each card’s finish</option><option value="unknown">Unknown for all</option>{["nonfoil", "foil", "etched"].filter((value) => selectedRegions.every((r) => r.candidates[0].printing.finishes.includes(value))).map((value) => <option key={value} value={value}>{value === "nonfoil" ? "Nonfoil" : value === "foil" ? "Foil" : "Etched"}</option>)}</select></label>
+        <div className="form-grid"><label>Selected cards finish<select value={bulkFinish} onChange={(e) => setBulkFinish(e.target.value)}><option value="keep">Keep each card’s finish</option><option value="unknown">Unknown for all</option>{["nonfoil", "foil", "etched"].filter((value) => selectedRegions.every((r) => reviewPrinting(r).finishes.includes(value))).map((value) => <option key={value} value={value}>{value === "nonfoil" ? "Nonfoil" : value === "foil" ? "Foil" : "Etched"}</option>)}</select></label>
         {!deckOnly && <label>Selected cards condition<select value={bulkCondition} onChange={(e) => setBulkCondition(e.target.value)}>{conditions.map((value) => <option key={value}>{value}</option>)}</select></label>}</div>
         {!deckOnly && <label>Selected cards location<input value={bulkBinder} maxLength={255} onChange={(e) => setBulkBinder(e.target.value)} /></label>}
         <button className="button primary" disabled={busy || !bulkBinder.trim()} onClick={() => void approveSelected()}>{deckOnly ? "Approve" : "Import"} {selectedRegions.length} selected</button></div>}
