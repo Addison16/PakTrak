@@ -284,21 +284,100 @@ def test_manual_region_quota_validation_and_retry(clients):
     first = client.post(url, headers=headers, json={"polygon": polygon})
     assert first.status_code == 201, first.text
     assert client.post(url, headers=headers, json={"polygon": polygon}).json() == first.json()
-    assert client.post(url, headers=key(), json={"polygon": rows[0]["polygon"]}).status_code == 409
     assert (
         client.post(
             url,
             headers=key(),
             json={"polygon": [[0.3, 0.65], [0.5, 0.65], [0.5, 0.98], [0.3, 0.98]]},
         ).status_code
-        == 403  # Exhausted account allowance; duplicate geometry remains a 409 above.
+        == 403  # Exhausted account allowance.
     )
+    # Redrawing a card that already has a region replaces it without a new charge.
+    assert client.post(url, headers=key(), json={"polygon": rows[0]["polygon"]}).status_code == 201
     assert (
         client.post(url, headers=key(), json={"polygon": [[0, 0], [1], [1, 1], [0, 1]]}).status_code
         == 422
     )
     with session_factory()() as db:
         assert db.get(User, owner).scan_cards_used == 100
+
+
+def test_manual_outline_replaces_a_region_that_missed_the_card(clients, catalog):
+    client, owner = clients()
+    scan_id, _, rows = prepared(client)
+    wrong = rows[0]["polygon"]
+    xs, ys = [p[0] for p in wrong], [p[1] for p in wrong]
+    # The detected region only covers part of the card; outline the whole card around it.
+    pad = 0.02
+    polygon = [
+        [min(xs) - pad, min(ys) - pad],
+        [max(xs) + pad, min(ys) - pad],
+        [max(xs) + pad, max(ys) + pad],
+        [min(xs) - pad, max(ys) + pad],
+    ]
+    url = f"/api/v1/scans/{scan_id}/observations"
+    headers = key()
+    response = client.post(url, headers=headers, json={"polygon": polygon})
+    assert response.status_code == 201, response.text
+    # The outline takes over the region that missed, so the batch does not grow.
+    assert response.json()["id"] == rows[0]["id"]
+    assert client.post(url, headers=headers, json={"polygon": polygon}).json() == response.json()
+    items = {item["id"]: item for item in client.get(url).json()["items"]}
+    assert len(items) == 2
+    assert items[rows[0]["id"]]["state"] == "NEEDS_REVIEW"
+    assert items[rows[0]["id"]]["polygon"] == polygon
+    assert items[rows[0]["id"]]["version"] == rows[0]["version"] + 1
+    with session_factory()() as db:
+        assert db.get(User, owner).scan_cards_used == 2
+
+    # A card already added to the collection is never silently replaced.
+    added = items[rows[1]["id"]]
+    assert approve(client, scan_id, [added], catalog[0]).status_code == 200
+    blocked = client.post(url, headers=key(), json={"polygon": added["polygon"]})
+    assert blocked.status_code == 409
+    assert "already saved" in blocked.json()["detail"]
+
+
+def test_manual_outline_over_regions_marked_not_a_card(clients):
+    client, _ = clients()
+    scan_id, _, rows = prepared(client)
+    for row in rows:
+        response = client.post(
+            f"/api/v1/scans/{scan_id}/observations/{row['id']}/decision",
+            headers=key(),
+            json={"expected_version": row["version"], "action": "ignore"},
+        )
+        assert response.status_code == 200, response.text
+    url = f"/api/v1/scans/{scan_id}/observations"
+    response = client.post(url, headers=key(), json={"polygon": rows[0]["polygon"]})
+    assert response.status_code == 201, response.text
+    items = {item["id"]: item for item in client.get(url).json()["items"]}
+    assert items[response.json()["id"]]["state"] == "NEEDS_REVIEW"
+    assert items[rows[0]["id"]]["state"] == "IGNORED"
+
+
+def test_moving_one_outline_over_another_box_on_the_same_card(clients):
+    # Detection boxed the text box and the art of one card separately; the
+    # person drags one outline out to the whole card, over the other box.
+    client, owner = clients()
+    scan_id, _, rows = prepared(client)
+    points = rows[0]["polygon"] + rows[1]["polygon"]
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    polygon = [[min(xs), min(ys)], [max(xs), min(ys)], [max(xs), max(ys)], [min(xs), max(ys)]]
+    response = client.put(
+        f"/api/v1/scans/{scan_id}/observations/{rows[0]['id']}/geometry",
+        headers=key(),
+        json={"polygon": polygon, "expected_version": rows[0]["version"]},
+    )
+    assert response.status_code == 200, response.text
+    items = {
+        item["id"]: item
+        for item in client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"]
+    }
+    assert items[rows[0]["id"]]["polygon"] == polygon
+    assert items[rows[1]["id"]]["state"] == "IGNORED"
+    with session_factory()() as db:
+        assert db.get(User, owner).scan_cards_used == 2
 
 
 def test_crop_edit_retry_survives_recognition_checkpoint(clients, monkeypatch):
