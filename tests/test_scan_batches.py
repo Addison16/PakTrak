@@ -356,6 +356,30 @@ def test_manual_outline_over_regions_marked_not_a_card(clients):
     assert items[rows[0]["id"]]["state"] == "IGNORED"
 
 
+def test_moving_one_outline_over_another_box_on_the_same_card(clients):
+    # Detection boxed the text box and the art of one card separately; the
+    # person drags one outline out to the whole card, over the other box.
+    client, owner = clients()
+    scan_id, _, rows = prepared(client)
+    points = rows[0]["polygon"] + rows[1]["polygon"]
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    polygon = [[min(xs), min(ys)], [max(xs), min(ys)], [max(xs), max(ys)], [min(xs), max(ys)]]
+    response = client.put(
+        f"/api/v1/scans/{scan_id}/observations/{rows[0]['id']}/geometry",
+        headers=key(),
+        json={"polygon": polygon, "expected_version": rows[0]["version"]},
+    )
+    assert response.status_code == 200, response.text
+    items = {
+        item["id"]: item
+        for item in client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"]
+    }
+    assert items[rows[0]["id"]]["polygon"] == polygon
+    assert items[rows[1]["id"]]["state"] == "IGNORED"
+    with session_factory()() as db:
+        assert db.get(User, owner).scan_cards_used == 2
+
+
 def test_crop_edit_retry_survives_recognition_checkpoint(clients, monkeypatch):
     client, owner = clients()
     scan_id, job_id, rows = prepared(client)
