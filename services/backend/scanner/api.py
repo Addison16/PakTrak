@@ -186,8 +186,10 @@ async def storage_error(request, exc):
     )
 
 
+# Async so it answers without waiting for a worker thread: the app shows itself
+# offline when this goes quiet, and a busy server is not an unreachable one.
 @app.get("/api/health/live", include_in_schema=False)
-def live():
+async def live():
     return {"status": "ok"}
 
 
@@ -544,6 +546,7 @@ def image(
     key = scan.thumbnail_key if kind == "thumbnail" else scan.prepared_key
     if not key or (scan.expires_at and scan.expires_at <= now()):
         raise HTTPException(404, "The photo is unavailable or has expired.")
+    db.rollback()  # Release the connection before streaming; see stream_object.
     obj = storage.get(key)
 
     def chunks():

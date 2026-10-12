@@ -74,7 +74,20 @@ def current_session(request: Request, db: Annotated[Session, Depends(get_db)]) -
             raise HTTPException(
                 403, "Your sign-in verification changed. Refresh sign-in and try the action again."
             )
+    release(db)
     return session
+
+
+def release(db: Session):
+    """Hands the connection back to the pool once a dependency has read what it needs.
+
+    Sync dependencies and the endpoint after them each wait for a worker thread.
+    A connection held in between can't be used by anyone, so a burst of requests
+    (a batch opening dozens of card pictures) could take every connection while
+    every thread waited for one, and the server stopped answering until the pool
+    timed out. Objects already loaded stay usable (expire_on_commit is off).
+    """
+    db.commit()
 
 
 DB = Annotated[Session, Depends(get_db)]
@@ -362,6 +375,7 @@ def require_admin(identity: Identity, db: DB):
     user = db.get(User, identity.owner_id)
     if user.role != "admin":
         raise HTTPException(403, "An administrator account is required.")
+    release(db)
     return user
 
 
