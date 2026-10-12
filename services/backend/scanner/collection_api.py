@@ -535,7 +535,12 @@ def acknowledge(export_id: uuid.UUID, key: Key, identity: Identity, db: DB):
     return export_json(export)
 
 
-def stream_object(key, content_type, disposition):
+def stream_object(db, key, content_type, disposition):
+    # Give the database connection back before the bytes go out. Each chunk of a
+    # stream needs a worker thread; a batch opening dozens of card pictures at
+    # once could otherwise hold every connection while new requests hold every
+    # thread waiting for one, and the server stops answering for half a minute.
+    db.rollback()
     obj = storage.get(key)
 
     def chunks():
@@ -557,6 +562,7 @@ def download(export_id: uuid.UUID, identity: Identity, db: DB):
     if export.format == "manabox" and not export.losses_acknowledged:
         raise HTTPException(409, "Review and acknowledge this older export's omitted fields first.")
     return stream_object(
+        db,
         export.object_key,
         "text/plain" if export.format == "text" else "text/csv",
         f'attachment; filename="collection-{export.id}.{"txt" if export.format == "text" else "csv"}"',
@@ -1061,7 +1067,9 @@ def crop(scan_id: uuid.UUID, observation_id: uuid.UUID, identity: Identity, db: 
         raise HTTPException(404, "Card crop has expired or is unavailable.")
     rotation = display_rotation(row.recognition)
     if rotation:
-        obj = storage.get(row.crop_key)
+        key = row.crop_key
+        db.rollback()  # Release the connection before slow work; see stream_object.
+        obj = storage.get(key)
         try:
             data = obj["Body"].read()
         finally:
@@ -1071,7 +1079,7 @@ def crop(scan_id: uuid.UUID, observation_id: uuid.UUID, identity: Identity, db: 
             media_type="image/jpeg",
             headers={"Content-Disposition": "inline"},
         )
-    return stream_object(row.crop_key, "image/jpeg", "inline")
+    return stream_object(db, row.crop_key, "image/jpeg", "inline")
 
 
 class Decision(StrictModel):
