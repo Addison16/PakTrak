@@ -56,11 +56,13 @@ async function fixture(page: Page, count = 15, pending = 0, imported: number[] =
       expect(req.headers()["x-csrf-token"]).toBe("csrf-fixture");
       for (const item of body.items) { const row = rows.find((r) => r.id === item.observation_id)!; row.state = "COMMITTED"; row.version++;
         row.finish = item.finish;
-        row.lot = { id: "lot-" + row.id, version: 1, printing: row.candidates[0].printing, finish: item.finish, condition: body.condition, quantity: 1, binder: body.binder }; }
+        row.lot = { id: "lot-" + row.id, version: 1, printing: rows.flatMap((r: any) => [r.confirmed_printing, ...r.candidates.map((c: any) => c.printing)]).find((p: any) => p?.id === item.printing_id), finish: item.finish, condition: body.condition, quantity: 1, binder: body.binder }; }
       json = { imported: body.items.length };
     } else if (path === base + "/finishes") {
       foilCount = body.foil_count;
-      for (const row of rows) { row.finish = body.foil_ids.includes(row.id) ? "foil" : "nonfoil"; row.version++; if (row.lot) { row.lot.finish = row.finish; row.lot.version++; } }
+      for (const row of rows as any[]) { row.finish = body.foil_ids.includes(row.id) ? "foil" : "nonfoil"; row.version++; if (row.lot) { row.lot.finish = row.finish; row.lot.version++; }
+        const version = row.foil_versions?.find((v: any) => v.printing_id === body.printing_ids?.[row.id]);
+        if (version) row.confirmed_printing = { ...row.candidates[0].printing, id: version.printing_id, collector_number: version.collector_number, finishes: ["foil"], foil_type: version.foil_type }; }
       json = { foil_cards: foilCount, nonfoil_cards: rows.length - foilCount };
     } else if (path === base + "/deletion-preview") json = { copies: summary().imported, token: "a".repeat(64), warning: "Removes every remaining collection copy added by this scan, including copies moved to another binder. Copies from other batches stay. Guest scan allowance is not restored." };
     else if (path === base && method === "DELETE") { deleted = true; json = { deleted: true, copies_removed: summary().imported }; }
@@ -952,4 +954,21 @@ test("a foil card offers its special foil versions with prices and saves the cho
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
   await expect.poll(() => mock.calls.find((c) => c.path.endsWith("/finishes"))?.body).toMatchObject({ foil_ids: ["region-0", "region-1"], printing_ids: { "region-0": "printing-galaxy" } });
+});
+
+test("strong match approval keeps a special foil chosen in the foil step", async ({ page }) => {
+  const mock = await fixture(page, 2, 0, [], 0, 1);
+  Object.assign(mock.rows[0], { finish_prices: { nonfoil: "1.00", foil: "2.50" }, foil_versions: [{ printing_id: "printing-fracture", foil_type: "fracture", collector_number: "417", price: "178.83" }] });
+  await page.reload();
+  const panel = page.getByRole("region", { name: "Foil cards", exact: true });
+  await panel.getByRole("button", { name: "Select foil cards", exact: true }).click();
+  await panel.getByRole("button", { name: "Foil card 1: Fixture Card 1", exact: true }).click();
+  await panel.getByRole("combobox", { name: "Foil type", exact: true }).selectOption({ label: "Fracture foil · $178.83" });
+  await panel.getByRole("button", { name: "Confirm card finishes", exact: true }).click();
+  await expect(panel.getByRole("heading", { name: "1 foil · 1 nonfoil", exact: true })).toBeVisible();
+  const strong = page.getByRole("group", { name: "Strong matches", exact: true });
+  await strong.getByRole("button", { name: "Approve 2 strong matches", exact: true }).click();
+  const approved = mock.calls.find((call) => call.path.endsWith("/approve"))!.body.items;
+  expect(approved.find((item: any) => item.observation_id === "region-0")).toMatchObject({ printing_id: "printing-fracture", finish: "foil" });
+  expect(approved.find((item: any) => item.observation_id === "region-1").printing_id).toBe("printing-1");
 });
