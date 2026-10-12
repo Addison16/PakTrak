@@ -275,6 +275,28 @@ def test_crop_edit_fences_old_recognition_without_charging_again(clients, catalo
         assert db.get(User, owner).scan_cards_used == 2
 
 
+def test_new_recognition_drops_a_printing_saved_for_the_old_match(clients, catalog, monkeypatch):
+    client, _ = clients()
+    scan_id, job_id, rows = prepared(client)
+    weak = {
+        **result(catalog[0]),
+        "candidates": [{**result(catalog[0])["candidates"][0], "match_score": 0.5}],
+    }
+    monkeypatch.setattr(recognition, "recognize", lambda *args, **kwargs: weak)
+    while client.get(f"/api/v1/scans/{scan_id}").json()["job"]["state"] != "SUCCEEDED":
+        process_job(job_id)
+    with session_factory()() as db:
+        db.get(Observation, uuid.UUID(rows[0]["id"])).confirmed_printing_id = uuid.UUID(catalog[1])
+        db.commit()
+    response = client.post(f"/api/v1/scans/{scan_id}/identify", headers=key(), json={})
+    assert response.status_code == 202, response.text
+    while client.get(f"/api/v1/scans/{scan_id}").json()["job"]["state"] != "SUCCEEDED":
+        process_job(job_id)
+    item = client.get(f"/api/v1/scans/{scan_id}/observations").json()["items"][0]
+    assert item["state"] == "NEEDS_REVIEW" and item["confirmed_printing"] is None
+    assert item["candidates"][0]["printing_id"] == catalog[0]
+
+
 def test_manual_region_quota_validation_and_retry(clients):
     client, owner = clients(scan_cards_used=97)
     scan_id, _, rows = prepared(client)

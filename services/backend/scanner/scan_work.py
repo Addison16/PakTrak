@@ -260,6 +260,9 @@ def recognize_one(claimed):
             and row.state == "NEEDS_REVIEW"
         ):
             row.recognition = {**reset_recognition(row.recognition), **result}
+            # A printing saved for the old match (such as a special foil chosen in the
+            # foil step) may belong to another card now, so the new suggestion leads.
+            row.confirmed_printing_id = None
             row.version += 1
             if may_auto_import(result):
                 candidate = result["candidates"][0]
