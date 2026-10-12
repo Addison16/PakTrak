@@ -40,6 +40,9 @@
 .crop-viewport { max-height: min(65vh, 760px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--control-border); border-radius: 12px; background: var(--surface-muted); }
 .crop-viewport .crop-canvas { max-width: none; margin: 0; border: 0; border-radius: 0; }
 .crop-canvas svg { touch-action: pan-x pan-y; pointer-events: none; }
+/* Cards already found are dimmed behind a dashed outline, so the missed card is the brightest one left. */
+.crop-canvas polygon.crop-found { fill: #00000038; stroke: #ffffffc0; stroke-width: 1.5px; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.crop-found-number { position: absolute; transform: translate(-50%, -50%); color: #fff; font-size: 13px; font-weight: 700; line-height: 1; text-shadow: 0 0 3px #000, 0 1px 2px #000c; opacity: .85; pointer-events: none; }
 /* A finger-sized target around a small, precise corner marker. */
 .crop-handle { position: absolute; z-index: 1; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: move; touch-action: none; -webkit-tap-highlight-color: transparent; }
 .crop-handle::before { content: ""; position: absolute; inset: 13px; border: 2px solid var(--forest); border-radius: 50%; background: #ffffffa8; box-shadow: 0 1px 4px #0006; }
@@ -53,6 +56,7 @@
 .crop-loupe-content svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .crop-loupe-content polygon { fill: none; stroke: #ffe090; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
 .crop-loupe-content polygon.halo { stroke: #000a; stroke-width: 4px; }
+.crop-loupe-content polygon.found { fill: none; stroke: #ffffffa0; stroke-width: 1px; stroke-dasharray: 4 3; }
 /* Crosshair marking the exact corner position. */
 .crop-loupe::before, .crop-loupe::after { content: ""; position: absolute; z-index: 1; left: 50%; top: 50%; background: var(--copper); box-shadow: 0 0 0 1px #fff9; }
 .crop-loupe::before { width: 26px; height: 2px; margin: -1px 0 0 -13px; }

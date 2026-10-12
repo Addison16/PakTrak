@@ -276,6 +276,31 @@ test("a failed photo flip retries the same request and prevents closing during s
   await expect(page.getByAltText("Your scanned card", { exact: true })).toHaveAttribute("src", /\?v=2$/);
 });
 
+test("outlining a missed card shows the cards already found, read-only", async ({ page }) => {
+  const mock = await fixture(page, 3);
+  mock.rows[0].polygon = [[.05,.05],[.30,.05],[.30,.40],[.05,.40]];
+  mock.rows[1].polygon = [[.35,.05],[.60,.05],[.60,.40],[.35,.40]];
+  mock.rows[1].state = "IGNORED";
+  mock.rows[2].polygon = [[.65,.05],[.90,.05],[.90,.40],[.65,.40]];
+  await page.reload();
+  await page.getByRole("button", { name: "Add a missed card", exact: true }).click();
+  await expect(page.getByText(/missed card is the one without an outline/)).toBeVisible();
+  // Regions marked "Not a card" are left out; the others keep their batch numbers.
+  await expect(page.locator(".crop-canvas polygon.crop-found")).toHaveCount(2);
+  await expect(page.locator(".crop-found-number")).toHaveText(["1", "3"]);
+  // Tapping inside a found outline still places a corner instead of selecting it.
+  const canvas = page.locator(".crop-canvas"), box = (await canvas.boundingBox())!;
+  await page.locator(".crop-found-number").first().click({ force: true });
+  await expect(page.locator(".crop-handle")).toHaveCount(1);
+  expect((await page.locator(".crop-handle").first().boundingBox())!.x).toBeLessThan(box.x + box.width * .3);
+  await page.getByRole("button", { name: "Cancel outline", exact: true }).click();
+  // Adjusting a card's own outline shows the other found cards, not a duplicate of itself.
+  await page.getByRole("button", { name: /Fixture Card 1/ }).first().click();
+  await page.getByRole("button", { name: "Adjust crop", exact: true }).click();
+  await expect(page.locator(".crop-found-number")).toHaveText(["3"]);
+  await expect(page.getByText(/missed card is the one without an outline/)).toHaveCount(0);
+});
+
 test("a missed card can be outlined starting at its bottom right corner", async ({ page }) => {
   const mock = await fixture(page, 1);
   await page.getByRole("button", { name: "Add a missed card", exact: true }).click();

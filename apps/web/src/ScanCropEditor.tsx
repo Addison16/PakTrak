@@ -24,8 +24,13 @@ function isCropDraft(value: CropDraft | null): value is CropDraft {
     && (value.version === undefined || Number.isInteger(value.version));
 }
 
-export default function ScanCropEditor({ scanId, session, region, onCancel, onSaved, onStateChange }: {
-  scanId: string; session: Session; region: { id: string; polygon: number[][]; version: number } | null;
+// Cards already found on this photo, numbered as in the batch, drawn read-only behind the outline being edited.
+type FoundCard = { id: string; number: number; polygon: number[][] };
+const pointList = (polygon: number[][]) => polygon.map((p) => p.join(",")).join(" ");
+const middle = (polygon: number[][]) => [0, 1].map((axis) => polygon.reduce((sum, p) => sum + p[axis], 0) / polygon.length);
+
+export default function ScanCropEditor({ scanId, session, region, found = [], onCancel, onSaved, onStateChange }: {
+  scanId: string; session: Session; region: { id: string; polygon: number[][]; version: number } | null; found?: FoundCard[];
   onCancel: () => void; onSaved: (id: string) => void;
   onStateChange: (state: ReviewState) => void;
 }) {
@@ -188,6 +193,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     finally { setBusy(false); }
   }
   return <section ref={root} className="scan-crop-editor" aria-label="Card outline editor"><h3>{region ? "Adjust this card’s outline" : "Outline a missed card"}</h3>
+    {!region && found.length > 0 && <p>Cards already found are outlined and numbered, so the missed card is the one without an outline.</p>}
     <p>Tap around the four corners in either direction, starting at any corner. Drag a corner to refine it; a magnifier shows the spot under your finger. Use arrow keys when a corner is focused; hold Shift for larger adjustments.</p>
     {recovery && <div className="scan-recovery" aria-label="Recovered outline draft"><div><strong>Your unfinished outline is available</strong><p>Restore your corners, then check the photo before saving.</p></div><div className="actions"><button className="button primary" disabled={busy} onClick={() => { setPoints(recovery.points); setSavedUncertain(!!region && recovery.version !== region.version); setVersion(region?.version); setRecovery(null); }}>Restore outline</button><button className="text-button" disabled={busy} onClick={() => { removeDraft(recoveryKey); setRecovery(null); }}>Discard outline draft</button></div></div>}
     <div className="crop-precision-tools" role="group" aria-label="Crop magnification"><button className="button secondary" disabled={busy || zoom <= 1} onClick={() => setZoom((value) => Math.max(1, Math.ceil(value) - 1))}>− Zoom out</button><span aria-live="polite">{Math.round(zoom * 10) / 10}×</span><button className="button secondary" disabled={busy || zoom >= 4} onClick={() => setZoom((value) => Math.min(4, Math.floor(value) + 1))}>+ Zoom in</button><button className="text-button" disabled={busy} onClick={() => { setZoom(1); canvas.current?.parentElement?.scrollTo(0, 0); }}>Fit photo</button></div>
@@ -196,7 +202,8 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
     <div className="crop-canvas" ref={canvas} onPointerDown={start} onPointerMove={move} onPointerUp={(e) => { fingers.current.delete(e.pointerId); stop(false); }} onPointerCancel={(e) => { fingers.current.delete(e.pointerId); stop(true); }}
       style={{ width: `${zoom * 100}%`, touchAction: "pan-x pan-y" }}>
       <img src={photo} alt="Tap around one card in your photo" draggable={false} onLoad={center} />
-      <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon points={points.map((p) => p.join(",")).join(" ")} /></svg>
+      <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">{found.map((card) => <polygon key={card.id} className="crop-found" points={pointList(card.polygon)} />)}<polygon points={pointList(points)} /></svg>
+      {found.map((card) => { const [x, y] = middle(card.polygon); return <span key={card.id} className="crop-found-number" aria-hidden="true" style={{ left: `${x * 100}%`, top: `${y * 100}%` }}>{card.number}</span>; })}
       {points.map((p, i) => <button type="button" key={i} className="crop-handle" data-corner={i} data-x={p[0]} data-y={p[1]} data-active={loupe?.index === i || undefined}
         style={{ left: `${p[0] * 100}%`, top: `${p[1] * 100}%` }} aria-label={`Corner ${i + 1}; use arrow keys to adjust`}
         onKeyDown={(e) => nudge(e, i)} onBlur={() => { if (!dragging.current) setLoupe(null); }}><span>{i + 1}</span></button>)}
@@ -209,7 +216,7 @@ export default function ScanCropEditor({ scanId, session, region, onCancel, onSa
         return <div className="crop-loupe-content" style={{ width: loupe.width * scale, height: loupe.height * scale,
           transform: `translate(${LOUPE_SIZE / 2 - point[0] * loupe.width * scale}px, ${LOUPE_SIZE / 2 - point[1] * loupe.height * scale}px)` }}>
           <img src={photo} alt="" draggable={false} />
-          <svg viewBox="0 0 1 1" preserveAspectRatio="none">{["halo", "edge"].map((kind) => <polygon key={kind} className={kind} points={points.map((p) => p.join(",")).join(" ")} />)}</svg>
+          <svg viewBox="0 0 1 1" preserveAspectRatio="none">{found.map((card) => <polygon key={card.id} className="found" points={pointList(card.polygon)} />)}{["halo", "edge"].map((kind) => <polygon key={kind} className={kind} points={points.map((p) => p.join(",")).join(" ")} />)}</svg>
         </div>;
       })()}
     </div>}

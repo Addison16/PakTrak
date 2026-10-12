@@ -407,6 +407,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     {summary && expected !== "" && summary.cards !== expected && <p className="message">{summary.cards} of {expected} expected cards found. Check the outlines, add a missed card or ignore an extra region.</p>}
     {photo && !cropEditor && <details className="scan-photo-details"><summary>View photo and card outlines</summary><div className="region-photo"><img src={photo} alt="Your complete uploaded batch" /><svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">{regions.map((item, i) => <g key={item.id}><polygon points={item.polygon.map((p) => p.join(",")).join(" ")} className={item.id === region?.id ? "active" : ""} /><text x={item.polygon.reduce((v, p) => v + p[0], 0) / 4} y={item.polygon.reduce((v, p) => v + p[1], 0) / 4}>{i + 1}</text></g>)}</svg></div></details>}
     {cropEditor && <CropEditor key={cropEditor === "new" ? "new" : cropEditor.id} scanId={scanId} session={session} region={cropEditor === "new" ? null : cropEditor} onStateChange={setCropState}
+      found={regions.flatMap((item, i) => item.state === "IGNORED" || (cropEditor !== "new" && item.id === cropEditor.id) ? [] : [{ id: item.id, number: i + 1, polygon: item.polygon }])}
       onCancel={() => setCropEditor(null)} onSaved={(id) => {
         setCropEditor(null);
         // Keep the outgoing card's unfinished choices, as chooseRegion does, so the new card does not inherit them.
