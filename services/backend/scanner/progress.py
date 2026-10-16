@@ -13,18 +13,20 @@ class Progress:
     def __init__(self, save):
         self.save = save
         self.phase = None
+        self.base = 0
         self.start = self.last = time.monotonic()
 
     def __call__(self, phase, done=0, total=None, unit="rows", force=False):
         current = time.monotonic()
         if phase != self.phase:
-            self.phase, self.start, self.last = phase, current, 0
+            # A continued job resumes part way; estimate from the rows done in this task.
+            self.phase, self.start, self.last, self.base = phase, current, 0, done
         if not force and current - self.last < 1:
             return
         elapsed = current - self.start
         eta = (
-            math.ceil(elapsed * (total - done) / done)
-            if total and 0 < done < total and elapsed >= 1
+            math.ceil(elapsed * (total - done) / (done - self.base))
+            if total and self.base < done < total and elapsed >= 1
             else None
         )
         self.save(
@@ -50,7 +52,8 @@ def job_progress(claimed):
                 Job.lease_token == claimed["token"],
                 Job.state == "RUNNING",
             )
-            .values(token=claimed["token"], data={})
+            # A continued job keeps showing its progress while the next task starts.
+            .values(token=claimed["token"], **({} if claimed.get("continued") else {"data": {}}))
         )
 
     def save(data):

@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import tempfile
+import time
 import uuid
 from datetime import timedelta
 from decimal import Decimal
@@ -153,14 +154,86 @@ def active(db, claimed):
     return job
 
 
+# Celery stops a task after 45 seconds and rolls back its open transaction. Long
+# imports commit small chunks and hand the rest to a fresh task well before that.
+TASK_BUDGET_SECONDS = 25
+CHUNK_SECONDS = 3
+CHUNK_ROWS = 25
+
+
+def hand_off(db, job, stage):
+    """Queue the rest of this job; finished chunks stay saved, so it is not a retry."""
+    job.state, job.stage, job.attempts = "QUEUED", stage, 0
+    job.lease_token = job.lease_until = None
+    job.result = {**(job.result or {}), "continued": True}
+    outbox = db.get(Outbox, job.id)
+    outbox.available_at, outbox.last_sent_at = now(), None
+
+
+def lock_active_jobs(db, import_id):
+    """Lock in the worker's order (job, then import) so a cancel cannot deadlock it."""
+    return db.scalars(
+        select(Job)
+        .where(Job.import_id == import_id, Job.state.in_(["QUEUED", "RUNNING"]))
+        .with_for_update()
+    ).all()
+
+
+def cancel_jobs(jobs):
+    for job in jobs:
+        job.state, job.stage = "FAILED", "Cancelled"
+        job.error_code, job.error_message = "CANCELLED", None
+        job.lease_token = job.lease_until = None
+        job.completed_at = now()
+
+
 def complete(job, message):
     job.state, job.stage, job.completed_at = "SUCCEEDED", message, now()
     job.lease_token = job.lease_until = None
 
 
+def preview_row(db, batch, index, raw, mapping, options, fmt):
+    normalized, printing, error, state = {}, None, None, "INVALID"
+    try:
+        normalized = formats.normalize(raw, mapping, options, fmt)
+        if normalized["binder_type"] in {"list", "wishlist", "wish list", "deck"}:
+            state, error = (
+                "SKIPPED",
+                "Non-owned list excluded. No copies will be added.",
+            )
+            if normalized["binder_type"] != "deck":
+                # Matched so the wanted cards can go to the wishlist instead.
+                try:
+                    printing, _ = formats.resolve(db, normalized)
+                except ValueError:
+                    printing = None
+        elif normalized["binder_type"] not in {"", "binder", "collection"}:
+            state, error = (
+                "UNRESOLVED",
+                "Unknown binder/list type. Confirm these are owned cards.",
+            )
+        else:
+            printing, error = formats.resolve(db, normalized)
+            state = "READY" if printing else "UNRESOLVED"
+    except ValueError as exc:
+        error = str(exc)
+    return ImportRow(
+        id=uuid.uuid5(batch.id, str(index)),
+        import_id=batch.id,
+        row_number=index,
+        raw_fields=raw,
+        normalized=normalized,
+        printing_id=printing.id if printing else None,
+        quantity=normalized.get("quantity"),
+        state=state,
+        error=error,
+    )
+
+
 def preview(claimed):
     progress = job_progress(claimed)
-    progress("Reading saved file", force=True)
+    if not claimed.get("continued"):
+        progress("Reading saved file", force=True)
     with session_factory()() as db:
         batch = db.get(ImportBatch, claimed["import_id"])
         if batch.state != "PREVIEWING":
@@ -199,65 +272,62 @@ def preview(claimed):
         mapping = mapping or guessed
         if any(column not in headers for column in mapping.values()):
             raise ValueError("A mapped column is absent from this file.")
-        with session_factory()() as db, db.begin():
-            job = active(db, claimed)
-            if not job:
-                return
-            batch = db.scalar(
-                select(ImportBatch).where(ImportBatch.id == claimed["import_id"]).with_for_update()
-            )
-            if batch.state != "PREVIEWING" or batch.revision != revision:
-                return
-            db.execute(delete(ImportRow).where(ImportRow.import_id == batch.id))
-            progress("Matching card rows", 0, len(raw_rows), force=True)
-            for index, raw in enumerate(raw_rows, start=2):
-                normalized, printing, error, state = {}, None, None, "INVALID"
-                try:
-                    normalized = formats.normalize(raw, mapping, options, fmt)
-                    if normalized["binder_type"] in {"list", "wishlist", "wish list", "deck"}:
-                        state, error = (
-                            "SKIPPED",
-                            "Non-owned list excluded. No copies will be added.",
-                        )
-                        if normalized["binder_type"] != "deck":
-                            # Matched so the wanted cards can go to the wishlist instead.
-                            try:
-                                printing, _ = formats.resolve(db, normalized)
-                            except ValueError:
-                                printing = None
-                    elif normalized["binder_type"] not in {"", "binder", "collection"}:
-                        state, error = (
-                            "UNRESOLVED",
-                            "Unknown binder/list type. Confirm these are owned cards.",
-                        )
-                    else:
-                        printing, error = formats.resolve(db, normalized)
-                        state = "READY" if printing else "UNRESOLVED"
-                except ValueError as exc:
-                    error = str(exc)
-                db.add(
-                    ImportRow(
-                        id=uuid.uuid5(batch.id, str(index)),
-                        import_id=batch.id,
-                        row_number=index,
-                        raw_fields=raw,
-                        normalized=normalized,
-                        printing_id=printing.id if printing else None,
-                        quantity=normalized.get("quantity"),
-                        state=state,
-                        error=error,
-                    )
+        started = time.monotonic()
+        total = len(raw_rows)
+        while True:
+            with session_factory()() as db, db.begin():
+                job = active(db, claimed)
+                if not job:
+                    return
+                batch = db.scalar(
+                    select(ImportBatch)
+                    .where(ImportBatch.id == claimed["import_id"])
+                    .with_for_update()
                 )
-                if index % 50 == 0:
-                    progress("Matching card rows", index - 1, len(raw_rows))
-            batch.format, batch.mapping, batch.headers = fmt, mapping, headers
-            batch.options = {**options, "delimiter": delimiter}
-            batch.state, batch.error = "REVIEW", None
-            batch.expires_at = now() + timedelta(days=7)
-            db.flush()
-            batch.summary = summary(db, batch)
-            complete(job, "File preview saved; review before adding copies")
-            progress("Preview ready", len(raw_rows), len(raw_rows), force=True)
+                if batch.state != "PREVIEWING" or batch.revision != revision:
+                    return
+                if batch.options.get("preview_rows_revision") != revision:
+                    # Rows from an earlier mapping are replaced; later tasks resume after them.
+                    db.execute(delete(ImportRow).where(ImportRow.import_id == batch.id))
+                    batch.options = {**batch.options, "preview_rows_revision": revision}
+                    done = 0
+                else:
+                    done = (
+                        db.scalar(
+                            select(func.max(ImportRow.row_number)).where(
+                                ImportRow.import_id == batch.id
+                            )
+                        )
+                        or 1
+                    ) - 1
+                progress("Matching card rows", done, total, force=True)
+                chunk_started = time.monotonic()
+                for index in range(done + 2, total + 2):
+                    db.add(
+                        preview_row(db, batch, index, raw_rows[index - 2], mapping, options, fmt)
+                    )
+                    done += 1
+                    if done % CHUNK_ROWS == 0 or time.monotonic() - chunk_started >= CHUNK_SECONDS:
+                        break
+                if done >= total:
+                    batch.format, batch.mapping, batch.headers = fmt, mapping, headers
+                    batch.options = {
+                        key: value
+                        for key, value in {**options, "delimiter": delimiter}.items()
+                        if key != "preview_rows_revision"
+                    }
+                    batch.state, batch.error = "REVIEW", None
+                    batch.expires_at = now() + timedelta(days=7)
+                    db.flush()
+                    batch.summary = summary(db, batch)
+                    complete(job, "File preview saved; review before adding copies")
+                    progress("Preview ready", total, total, force=True)
+                    return
+                if time.monotonic() - started >= TASK_BUDGET_SECONDS:
+                    hand_off(db, job, f"Matched {done} of {total} rows; continuing")
+                    progress("Matching card rows", done, total, force=True)
+                    return
+            progress("Matching card rows", done, total)
     except ValueError as exc:
         raise TransferRejected(str(exc)) from exc
 
@@ -265,6 +335,7 @@ def preview(claimed):
 def commit_import(claimed):
     progress = job_progress(claimed)
     done, total = 0, None
+    started = time.monotonic()
     while True:
         with session_factory()() as db, db.begin():
             job = active(db, claimed)
@@ -277,12 +348,17 @@ def commit_import(claimed):
                 complete(job, "Import stopped by an undo request")
                 return
             if total is None:
-                total = db.scalar(
+                done = db.scalar(
+                    select(func.count())
+                    .select_from(ImportRow)
+                    .where(ImportRow.import_id == batch.id, ImportRow.state == "COMMITTED")
+                )
+                total = done + db.scalar(
                     select(func.count())
                     .select_from(ImportRow)
                     .where(ImportRow.import_id == batch.id, ImportRow.state == "READY")
                 )
-                progress("Adding card rows", 0, total, force=True)
+                progress("Adding card rows", done, total, force=True)
             rows = db.scalars(
                 select(ImportRow)
                 .where(ImportRow.import_id == batch.id, ImportRow.state == "READY")
@@ -312,11 +388,15 @@ def commit_import(claimed):
             db.flush()
             batch.summary = summary(db, batch)
             job.stage = f"Added {batch.summary['committed_copies']} copies"
+            if time.monotonic() - started >= TASK_BUDGET_SECONDS:
+                hand_off(db, job, job.stage + "; continuing")
+                return
         done += len(rows)
         progress("Adding card rows", done, total)
 
 
 def undo_import(claimed):
+    started = time.monotonic()
     while True:
         with session_factory()() as db, db.begin():
             job = active(db, claimed)
@@ -364,6 +444,9 @@ def undo_import(claimed):
                 )
                 lot.quantity_remaining = 0
                 lot.version += 1
+            if time.monotonic() - started >= TASK_BUDGET_SECONDS:
+                hand_off(db, job, "Removing imported copies; continuing")
+                return
 
 
 def export_collection(claimed):

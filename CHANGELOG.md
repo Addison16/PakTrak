@@ -1,5 +1,13 @@
 # Changelog
 
+## Cancel a collection import — October 16, 2026
+
+- Long text and CSV imports no longer stall. Before, a list of card names without set codes could take longer than the server allows for one step; the work was thrown away and started over, and after three tries the import failed with "The server will retry this processing step." The server now saves matched rows as it goes and picks up where it left off, so large lists finish.
+- Rows that name a card with several printings and no set are recognized as needing a printing choice much faster.
+- **Import / export** shows **Cancel import** while a preview is being prepared. Nothing is added to your collection, the import no longer counts toward the two that can run at once, and you can choose the same file again.
+- While copies are being added, **Cancel import** asks first, then stops and removes the copies that import already added. Cards from scans and other imports stay.
+- If a step is interrupted and the server is trying again, the import says so.
+
 ## Special foil prices after a scan — October 12, 2026
 
 - Approving strong matches or importing selected cards in a batch now keeps the special foil (fracture, galaxy, surge and the rest) you chose in the foil step. Before, those quick approvals saved the regular printing instead, so the card was valued at the regular foil price.
