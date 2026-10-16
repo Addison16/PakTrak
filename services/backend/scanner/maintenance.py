@@ -52,7 +52,7 @@ def cleanup():
             .where(
                 ImportBatch.source_key.is_not(None),
                 ImportBatch.expires_at < now(),
-                ImportBatch.state.in_(["REVIEW", "COMPLETED", "UNDONE", "FAILED"]),
+                ImportBatch.state.in_(["REVIEW", "COMPLETED", "UNDONE", "FAILED", "CANCELLED"]),
             )
             .limit(50)
             .with_for_update(skip_locked=True)

@@ -34,7 +34,7 @@ from scanner.models import (
     WorkProgress,
     now,
 )
-from scanner.transfers import add_lot, enqueue, summary
+from scanner.transfers import add_lot, cancel_jobs, enqueue, lock_active_jobs, summary
 
 router = APIRouter(prefix="/api/v1", tags=["collection"])
 Key = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=128)]
@@ -97,11 +97,10 @@ def owned(db, model, resource_id, owner_id, lock=False):
 
 def progress_for_job(db, job):
     progress = db.get(WorkProgress, job.id)
-    return (
-        progress.data
-        if progress and progress.token == job.lease_token and job.state == "RUNNING"
-        else None
-    )
+    running = job.state == "RUNNING" and progress and progress.token == job.lease_token
+    # Between chunks a long job is briefly queued again; keep its last progress on screen.
+    continuing = job.state == "QUEUED" and (job.result or {}).get("continued")
+    return progress.data if progress and (running or continuing) else None
 
 
 def import_json(db, batch):
@@ -167,7 +166,11 @@ async def upload_csv(
         return import_json(db, existing)
     duplicate = db.scalar(
         select(ImportBatch)
-        .where(ImportBatch.owner_id == identity.owner_id, ImportBatch.checksum == checksum)
+        .where(
+            ImportBatch.owner_id == identity.owner_id,
+            ImportBatch.checksum == checksum,
+            ImportBatch.state != "CANCELLED",
+        )
         .order_by(ImportBatch.created_at.desc())
         .limit(1)
     )
@@ -407,6 +410,26 @@ def undo(import_id: uuid.UUID, data: Revision, key: Key, identity: Identity, db:
     batch.options = {**batch.options, "undo_requested": True}
     batch.revision += 1
     enqueue(db, "IMPORT_UNDO", import_id=batch.id)
+    db.commit()
+    return import_json(db, batch)
+
+
+@router.post("/imports/{import_id}/cancel")
+def cancel(import_id: uuid.UUID, key: Key, identity: Identity, db: DB):
+    """Stop a preview that is still being prepared. Nothing has been added yet."""
+    owned(db, ImportBatch, import_id, identity.owner_id)
+    jobs = lock_active_jobs(db, import_id)
+    batch = owned(db, ImportBatch, import_id, identity.owner_id, True)
+    if batch.state == "CANCELLED":
+        return import_json(db, batch)
+    if batch.state != "PREVIEWING":
+        raise HTTPException(
+            409, "This import is no longer being prepared. Refresh to see where it is."
+        )
+    cancel_jobs(jobs)
+    batch.state, batch.error = "CANCELLED", None
+    batch.revision += 1
+    batch.expires_at = now()  # The saved upload is removed by the next cleanup.
     db.commit()
     return import_json(db, batch)
 

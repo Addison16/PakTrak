@@ -398,9 +398,15 @@ def resolve(db, values):
             query = query.where(Printing.language == values["language"])
         if values["collector_number"]:
             query = query.where(Printing.collector_number == values["collector_number"])
+        matches = []
         if values["name"]:
+            # Alternate names are checked by reading every catalog record, which is slow
+            # for a name with no set. Two printings under the exact name already make the
+            # row ambiguous, so the indexed lookup answers most of those rows.
+            matches = db.scalars(query.where(Printing.name == values["name"]).limit(2)).all()
             query = query.where(card_name_matches(values["name"], exact=True))
-        matches = db.scalars(query.limit(2)).all()
+        if len(matches) < 2:
+            matches = db.scalars(query.limit(2)).all()
         if len(matches) != 1:
             return (
                 None,

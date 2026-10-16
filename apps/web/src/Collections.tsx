@@ -20,7 +20,7 @@ type Row = { id: string; row_number: number; state: string; error: string | null
 type Export = { id: string; format: string; state: string; snapshot_at: string | null; expires_at: string | null; requires_acknowledgment: boolean; download_url: string | null; report: { copies?: number; excluded_copies?: number; metadata_loss_copies?: number; warnings?: string[] } };
 const formatNames: Record<string, string> = { auto: "Automatic", canonical: "Full CSV", csv: "CSV", generic: "CSV", text: "Text list" };
 const fields: Record<string, string> = { scryfall_id: "Scryfall ID", name: "Card name", set_code: "Set code", collector_number: "Collector number", quantity: "Quantity", language: "Language", finish: "Finish / foil", condition: "Condition", binder: "Binder name", binder_type: "Binder or list type", notes: "Notes", purchase_price: "Purchase price", purchase_currency: "Purchase currency", misprint: "Misprint", altered: "Altered", source_metadata_json: "Source metadata JSON" };
-const stateNames: Record<string, string> = { PREVIEWING: "Preparing preview", REVIEW: "Ready to review", COMMITTING: "Adding copies", COMPLETED: "Import complete", UNDOING: "Undo in progress", UNDONE: "Import undone", FAILED: "Needs attention", QUEUED: "Queued", PROCESSING: "Preparing export", READY: "Ready", EXPIRED: "Expired" };
+const stateNames: Record<string, string> = { PREVIEWING: "Preparing preview", REVIEW: "Ready to review", COMMITTING: "Adding copies", COMPLETED: "Import complete", UNDOING: "Undo in progress", UNDONE: "Import undone", CANCELLED: "Import cancelled", FAILED: "Needs attention", QUEUED: "Queued", PROCESSING: "Preparing export", READY: "Ready", EXPIRED: "Expired" };
 
 function Mapping({ batch, session, open, onToggle, onChange, onError }: { batch: Import; session: Session; open: boolean; onToggle: (open: boolean) => void; onChange: (value: Import) => void; onError: (message: string) => void }) {
   const [mapping, setMapping] = useState(batch.mapping);
@@ -172,6 +172,17 @@ function CollectionTransfers({ session }: { session: Session }) {
     setSelected(await request<Import>("/api/v1/imports/" + selected.id + "/confirm", mutation(session, { expected_revision: selected.revision, owned_cards: owned, accept_partial: partial })));
     setNotice("Import confirmed and saved. The server will add the reviewed copies even if you close this page.");
   }
+  async function cancelImport() {
+    if (!selected) return;
+    if (selected.state === "COMMITTING") {
+      if (!window.confirm("Cancel this import?\n\nCopies it has already added will be removed from your collection. Cards from scans and other imports stay.")) return;
+      setSelected(await request<Import>("/api/v1/imports/" + selected.id + "/undo", mutation(session, { expected_revision: selected.revision })));
+      setNotice("Import cancelled. The server is removing the copies it added.");
+      return;
+    }
+    setSelected(await request<Import>("/api/v1/imports/" + selected.id + "/cancel", mutation(session)));
+    setNotice("");
+  }
   const binderSelect = <label>Storage location<select value={binder} onChange={(e) => { setBinder(e.target.value); }}><option value="">All locations</option>{binders.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>;
   return <>
     {backgroundError.error && <ErrorNotice error={backgroundError.error} onDismiss={backgroundError.dismiss} />}
@@ -198,16 +209,18 @@ function CollectionTransfers({ session }: { session: Session }) {
         {selected.summary.rows !== undefined && <div className="stat-grid"><div><strong>{selected.summary.rows}</strong><span>source rows</span></div><div><strong>{selected.summary.ready_copies}</strong><span>copies ready</span></div><div><strong>{selected.summary.committed_copies}</strong><span>copies added</span></div></div>}
         {selected.state === "UNDONE" && <p className="saved">Removed {selected.summary.undone_copies} remaining copies from this import. {selected.summary.previously_removed_copies || 0} copies had already been removed.</p>}
         {["PREVIEWING", "COMMITTING", "UNDOING"].includes(selected.state) && <p className="saved" role="status">Saved on the server. You can close this page.</p>}
-        {selected.jobs.filter((job) => ["QUEUED", "RUNNING"].includes(job.state)).map((job) => <ProgressView key={job.id} value={job.progress} />)}
+        {selected.state === "CANCELLED" && <p className="saved">Cancelled. Nothing from this file was added to your collection.</p>}
+        {selected.jobs.filter((job) => ["QUEUED", "RUNNING"].includes(job.state)).map((job) => <div key={job.id}><ProgressView value={job.progress} />{job.state === "QUEUED" && job.error && <p className="fine" role="status">The last try didn’t finish. The server is trying again.</p>}</div>)}
+        {["PREVIEWING", "COMMITTING"].includes(selected.state) && <button className="button secondary" disabled={busy} onClick={() => void act(cancelImport)}>Cancel import</button>}
         {["REVIEW", "FAILED"].includes(selected.state) && <Mapping key={selected.id + ":" + selected.revision} batch={selected} session={session} open={mappingOpen} onToggle={setMappingOpen} onChange={setSelected} onError={setError} />}
-        <div className="import-attention-toolbar"><label className="checkbox"><input type="checkbox" checked={attentionOnly} onChange={(event) => { setAttentionOnly(event.target.checked); setRowOffset(0); setFocusRow(null); }} />Needs attention only · {issues.count}</label><button className="text-button" disabled={issues.previous === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.previous); setRowOffset(0); }}>Previous issue</button><button className="text-button" disabled={issues.next === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.next); setRowOffset(0); }}>Next issue</button>{focusRow && <button className="text-button" onClick={() => { setFocusRow(null); setRowOffset(Math.floor((focusRow - 1) / 40) * 40); }}>Show surrounding rows</button>}</div>
+        {selected.state !== "CANCELLED" && <><div className="import-attention-toolbar"><label className="checkbox"><input type="checkbox" checked={attentionOnly} onChange={(event) => { setAttentionOnly(event.target.checked); setRowOffset(0); setFocusRow(null); }} />Needs attention only · {issues.count}</label><button className="text-button" disabled={issues.previous === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.previous); setRowOffset(0); }}>Previous issue</button><button className="text-button" disabled={issues.next === null} onClick={() => { setAttentionOnly(false); setFocusRow(issues.next); setRowOffset(0); }}>Next issue</button>{focusRow && <button className="text-button" onClick={() => { setFocusRow(null); setRowOffset(Math.floor((focusRow - 1) / 40) * 40); }}>Show surrounding rows</button>}</div>
         {!rows.length && attentionOnly && <p className="saved" role="status">No rows need attention in this import.</p>}
         {rows.length > 0 && <details open><summary>Review source rows</summary><ul className="plain-list import-rows">{rows.map((row) => <li key={row.id}>
           <div className="holding-title"><strong>{row.normalized.name || Object.values(row.raw_fields)[0] || "Unresolved card"}</strong><span className="badge">{row.state.toLowerCase()}</span></div>
           <p className="fine">Row {row.row_number} · {row.normalized.quantity ?? "?"} copies{row.normalized.set_code ? " · " + row.normalized.set_code.toUpperCase() : ""}{row.normalized.collector_number ? " #" + row.normalized.collector_number : ""}{row.normalized.language ? " · " + row.normalized.language : ""}{row.normalized.binder ? " · " + row.normalized.binder : ""} · {row.normalized.finish || "unknown finish"}</p>
           {row.error && <p className="row-error">{row.error}</p>}
           {selected.state === "REVIEW" && <RepairRow key={row.id + selected.revision} row={row} batch={selected} session={session} onChange={setSelected} onError={setError} />}
-        </li>)}</ul><div className="pagination">{rowOffset > 0 && <button className="text-button" onClick={() => setRowOffset(Math.max(0, rowOffset - 40))}>Previous rows</button>}{rowNext !== null && <button className="text-button" onClick={() => setRowOffset(rowNext)}>More rows</button>}</div></details>}
+        </li>)}</ul><div className="pagination">{rowOffset > 0 && <button className="text-button" onClick={() => setRowOffset(Math.max(0, rowOffset - 40))}>Previous rows</button>}{rowNext !== null && <button className="text-button" onClick={() => setRowOffset(rowNext)}>More rows</button>}</div></details>}</>}
         {!!selected.summary.wishlist_rows && !["PREVIEWING", "UNDOING"].includes(selected.state) && <p className="fine">{selected.summary.wishlist_rows} {selected.summary.wishlist_rows === 1 ? "row is" : "rows are"} from a wishlist or list, so {selected.summary.wishlist_rows === 1 ? "it isn’t" : "they aren’t"} added to your collection. <button type="button" className="text-button" disabled={busy} onClick={() => void act(async () => {
           const result = await request<{ added: number }>(`/api/v1/wishlist/from-import/${selected.id}`, { ...mutation(session), action: "Add to wishlist" });
           setNotice(`Added ${result.added} ${result.added === 1 ? "card" : "cards"} to your wishlist.`);

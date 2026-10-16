@@ -75,6 +75,7 @@ def claim(job_id):
             "redetect": bool((job.result or {}).get("redetect")),
             "import_id": job.import_id,
             "export_id": job.export_id,
+            "continued": bool((job.result or {}).get("continued")),
             "token": token,
         }
 
@@ -119,7 +120,9 @@ def record_failure(claimed, *, permanent, message):
                 ("INVALID_IMAGE" if scan else "INVALID_INPUT")
                 if permanent
                 else "PROCESSING_UNAVAILABLE",
-                message,
+                message
+                if permanent
+                else "The server could not finish this step after several tries.",
                 db=db,
             )
         else:
