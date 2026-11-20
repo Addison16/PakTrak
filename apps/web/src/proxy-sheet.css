@@ -1,0 +1,23 @@
+.proxy-sheet { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); border: 0; background: var(--paper); color: inherit; overflow: auto; }
+.proxy-sheet-bar { max-width: 720px; margin: 0 auto 20px; }
+.proxy-sheet-bar h2 { margin: 0 0 4px; }
+.proxy-sheet-bar .actions { margin: 12px 0; }
+/* On screen the pages shrink to fit; on paper each card is exactly 63 × 88 mm. */
+.proxy-page { display: grid; grid-template-columns: repeat(3, 63mm); gap: 0; width: 189mm; max-width: 100%; margin: 0 auto 16px; zoom: var(--proxy-zoom, 1); }
+.proxy-card { width: 63mm; height: 88mm; overflow: hidden; outline: .2mm dashed #999; outline-offset: -.1mm; background: #fff; }
+.proxy-card img { display: block; width: 100%; height: 100%; object-fit: fill; }
+.proxy-card-text { display: flex; flex-direction: column; gap: 3mm; height: 100%; padding: 6mm; color: #000; font-size: 11pt; }
+.proxy-card-text small { margin-top: auto; font-size: 8pt; }
+@media screen and (max-width: 760px) { .proxy-page { --proxy-zoom: .45; } }
+@media screen and (min-width: 761px) and (max-width: 1000px) { .proxy-page { --proxy-zoom: .8; } }
+@media print {
+  @page { size: auto; margin: 10mm; }
+  html[data-printing="proxies"], html[data-printing="proxies"] body { background: #fff !important; }
+  html[data-printing="proxies"] body > *:not(.proxy-sheet) { display: none !important; }
+  html[data-printing="proxies"] .proxy-sheet { position: static; display: block; width: auto; height: auto; padding: 0; overflow: visible; background: #fff; }
+  html[data-printing="proxies"] .proxy-sheet::backdrop { display: none; }
+  .proxy-sheet-bar { display: none; }
+  .proxy-page { zoom: 1; max-width: none; margin: 0 auto; break-after: page; break-inside: avoid; }
+  .proxy-page:last-child { break-after: auto; }
+  .proxy-card img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
