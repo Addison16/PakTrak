@@ -17,8 +17,8 @@ export function foilName(printing: Pick<Printing, "foil_type">, fallback = "Foil
   return (printing.foil_type && foilTypes[printing.foil_type]) || fallback;
 }
 export type WantedFinish = Finish | "any";
-export type WishlistItem = { id: string; printing: Printing; finish: WantedFinish; quantity: number; notes?: string; price_finish: Finish | null; unit_amount: string | null; owned: number };
-export type Wishlist = { provider: PriceSource; items: WishlistItem[]; copies: number; priced_copies: number; amount: string | null };
+export type WishlistItem = { id: string; printing: Printing; finish: WantedFinish; quantity: number; notes?: string; price_finish: Finish | null; unit_amount: string | null; target_price?: string | null; at_target?: boolean; owned: number };
+export type Wishlist = { provider: PriceSource; items: WishlistItem[]; copies: number; priced_copies: number; amount: string | null; at_target?: number };
 export type OfferCard = { printing: Printing; finish: Finish; quantity: number; unit_amount: string | null };
 export type TradeOffer = { id: string; direction: "incoming" | "outgoing"; friend: { id: string | null; name: string }; state: "pending" | "accepted" | "declined" | "cancelled"; message: string; created_at: string; responded_at: string | null; applied: boolean; attention: null | "respond" | "apply" | "declined" | "cancelled"; give: OfferCard[]; get: OfferCard[]; give_amount: string | null; get_amount: string | null; give_unpriced: number; get_unpriced: number; provider: PriceSource };
 // server is the address of the friend's own PakTrak when it isn't this one.
