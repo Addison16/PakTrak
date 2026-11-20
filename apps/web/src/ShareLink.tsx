@@ -5,6 +5,12 @@ import ErrorNotice from "./ErrorNotice";
 type Link = { id: string; kind: "deck" | "wishlist"; deck_id: string | null; token: string };
 export const shareAddress = (token: string) => `${location.origin}/#/shared/${token}`;
 
+/** The folded share section; it asks the server about a link only once it is opened. */
+export function ShareSection({ summary, className, ...props }: { summary: string; className: string; session: Session; kind: "deck" | "wishlist"; deckId?: string }) {
+  const [open, setOpen] = useState(false);
+  return <details className={className} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>{summary}</summary>{open && <ShareLink {...props} />}</details>;
+}
+
 /** Create, copy and turn off the read-only link for one deck or for the wishlist. */
 export default function ShareLink({ session, kind, deckId }: { session: Session; kind: "deck" | "wishlist"; deckId?: string }) {
   const [link, setLink] = useState<Link | null | undefined>(undefined);

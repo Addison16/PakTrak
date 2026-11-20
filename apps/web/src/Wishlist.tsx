@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { money, mutation, providers, request, type Printing, type Session, type WantedFinish, type Wishlist as WishlistData, type WishlistItem } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import PrintingPicker from "./PrintingPicker";
-import ShareLink from "./ShareLink";
+import { ShareSection } from "./ShareLink";
 import StoreButtons, { ReferralNote } from "./StoreButtons";
 import "./trade-value.css";
 import "./social.css";
@@ -102,7 +102,7 @@ export default function Wishlist({ session, active }: { session: Session; active
       <button className="button primary" disabled={busy || !pasted.trim()}>Add to wishlist</button>
     </form>}
 
-    {data && <details className="value-history"><summary>Share your wishlist</summary><ShareLink session={session} kind="wishlist" /></details>}
+    {data && <ShareSection className="value-history" summary="Share your wishlist" session={session} kind="wishlist" />}
 
     {items.length > 0 && <div className="social-stores">
       <h3>Buy your wishlist</h3>
