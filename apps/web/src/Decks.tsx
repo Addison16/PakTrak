@@ -176,7 +176,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   }
   useEffect(() => {
     if (!active) return;
-    void list().catch((e: Error) => setError(e));
+    // A failed page stops the placeholders; dismissing the error then shows what is on screen.
+    void list().catch((e: Error) => { setListedOffset(offset); setError(e); });
   }, [active, offset]);
   const dirtyNow = useRef(dirty);
   dirtyNow.current = dirty;
@@ -354,7 +355,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
     {error && <ErrorNotice error={error} onDismiss={() => setError("")}>{saveConflict && deck && <button className="text-button" disabled={busy} onClick={() => void act(async () => { setConflictSaved(await request<Deck>("/api/v1/decks/" + deck.id)); })}>Reload saved deck for comparison</button>}</ErrorNotice>}
     {notice && <p className="message success" role="status">{notice}</p>}
     {active && route.deck && !deckIsCurrent && <section className="panel"><button className="button secondary" onClick={closeDeck}>← Back to decks</button>{!error && <p><LoadingNote slow="Big decks can take a moment.">Opening deck…</LoadingNote></p>}</section>}
-    {active && !route.deck && !importing && !scanning && <DeckList ownerId={session.owner_id} decks={decks} loading={listedOffset !== offset && !error} busy={busy} creating={creating} newName={newName} offset={offset} next={next} onName={setNewName} onCreating={setCreating} onImport={startImport} onScan={() => navigation.go({ page: "decks", view: "scan" })} onPage={setOffset}
+    {active && !route.deck && !importing && !scanning && <DeckList ownerId={session.owner_id} decks={decks} loading={listedOffset !== offset} busy={busy} creating={creating} newName={newName} offset={offset} next={next} onName={setNewName} onCreating={setCreating} onImport={startImport} onScan={() => navigation.go({ page: "decks", view: "scan" })} onPage={setOffset}
       onCreate={() => void act(async () => {
         const value = await request<Deck>("/api/v1/decks", mutation(session, { name: newName.trim(), format: "casual", notes: "" }));
         fill(value); navigation.go({ page: "decks", deck: value.id, view: "edit" }, { force: true });
