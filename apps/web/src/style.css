@@ -627,8 +627,8 @@ html[data-motion="off"] .falling-cards { display: none; }
 #deck-title:focus, #decks-title:focus, #deck-import-title:focus { outline: none; }
 .deck-overview-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 14px 0; }
 .deck-overview-actions p { flex: 1 1 160px; margin: 0; }
-.deck-shopping > summary, .deck-export > summary, .deck-archive > summary { min-height: 44px; padding: 12px 0; color: var(--forest); font-size: 13px; cursor: pointer; }
-.deck-shopping, .deck-export { margin-top: 12px; border-bottom: 1px solid var(--line); }
+.deck-shopping > summary, .deck-export > summary, .deck-share > summary, .deck-archive > summary { min-height: 44px; padding: 12px 0; color: var(--forest); font-size: 13px; cursor: pointer; }
+.deck-shopping, .deck-export, .deck-share { margin-top: 12px; border-bottom: 1px solid var(--line); }
 .deck-shopping .deck-buy-list { margin: 4px 0 18px; }
 .deck-edit-fields, .deck-card-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
 .deck-edit-fields { padding-top: 14px; margin: 28px 0; }
