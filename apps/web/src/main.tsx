@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ApiError, mutation, request, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
+import Shortcuts, { showShortcuts } from "./Shortcuts";
 import { Icon } from "./Icon";
 import Onboarding from "./Onboarding";
 import MembershipWelcome from "./MembershipWelcome";
@@ -146,6 +147,7 @@ function Navigation({ session, page, offerCount, onNavigate, onLogout, onReplayT
       </nav>
       <div className="menu-account">
         <button type="button" className="menu-tour" onClick={() => { afterClose.current = onReplayTour; close(); }}><Icon name="spark" />Quick tour</button>
+        <button type="button" className="menu-tour menu-shortcuts" onClick={() => { afterClose.current = () => window.dispatchEvent(new Event(showShortcuts)); close(); }}>Keyboard shortcuts</button>
         <p><strong>{session.display_name}</strong><span>{session.role === "admin" ? "Administrator" : session.role === "guest" ? "Guest account" : "Member"}</span></p>
         <button type="button" className="menu-sign-out" onClick={() => { afterClose.current = onLogout; close(); }}>Sign out <Icon name="arrow" /></button>
       </div>
@@ -638,7 +640,7 @@ function App() {
     {fallingCards && <FallingCards />}
     <header className="topbar">
       <a className="brand" href="/" aria-label="PakTrak home" onClick={(event) => { if (session && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate("scan"); } }}><img src="/brand/paktrak-mark.svg" width="42" height="42" alt="" /><span className="brand-wordmark"><strong>Pak<span>Trak</span></strong><small>Every card. In reach.</small></span></a>
-      {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /></div>}
+      {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /><Shortcuts onNavigate={navigate} /></div>}
     </header>
     {session && <PullToRefresh enabled={pullEnabled} />}
     <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : ["wishlist", "friends", "offers", "sets"].includes(page) ? " social-view" : page === "account" || page === "admin" || page === "queue" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
