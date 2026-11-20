@@ -537,3 +537,37 @@ def test_card_art_shows_for_wishlist_offers_and_shared_friends(clients, cards, m
     assert alice.post("/api/v1/trade-offers", json=offer, headers=key()).status_code == 201
     assert bob.get(art[cards[3]]).status_code == 200  # Offered to Bob.
     assert alice.get(art[cards[1]]).status_code == 200  # Asked from Bob.
+
+
+def test_wishlist_target_price_marks_reached_cards_and_stays_private(clients, cards):
+    alice, alice_id = clients()
+    bob, _ = clients()
+    alice.post("/api/v1/wishlist", json={"items": [{"printing_id": cards[0]}]})
+
+    def owl(client=alice, path="/api/v1/wishlist"):
+        data = client.get(path).json()
+        return data, data["items"][0]
+
+    data, item = owl()
+    assert (item["unit_amount"], item["target_price"], item["at_target"]) == ("2.00", None, False)
+    assert data["at_target"] == 0
+    edit = {"quantity": 1, "finish": "any", "notes": ""}
+    url = f"/api/v1/wishlist/{item['id']}"
+    assert alice.post(url, json={**edit, "target_price": "1.99"}).status_code == 200
+    assert owl()[1]["at_target"] is False
+    assert alice.post(url, json={**edit, "target_price": "2.00"}).status_code == 200
+    data, item = owl()
+    assert (item["target_price"], item["at_target"], data["at_target"]) == ("2.00", True, 1)
+    # An edit that leaves the target out, such as a quantity tap, keeps it.
+    assert alice.post(url, json={**edit, "quantity": 2}).status_code == 200
+    assert owl()[1]["target_price"] == "2.00"
+    for bad in ("0", "-1", "1.999", "abc"):
+        assert alice.post(url, json={**edit, "target_price": bad}).status_code == 422
+
+    befriend(alice, bob)
+    shared, theirs = owl(bob, f"/api/v1/friends/{alice_id}/wishlist")
+    assert theirs["target_price"] is None and theirs["at_target"] is False
+    assert shared["at_target"] == 0 and "2.00" in str(theirs["unit_amount"])
+
+    assert alice.post(url, json={**edit, "target_price": None}).status_code == 200
+    assert owl()[1]["target_price"] is None

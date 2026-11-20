@@ -450,6 +450,8 @@ class CollectionBody(Strict):
     q: str = Field("", max_length=255)
     sort: Literal["name", "price_desc", "price_asc", "newest"] = "name"
     provider: Literal["tcgplayer", "cardkingdom", "manapool"] = "tcgplayer"
+    # Servers from before trade marks ignore this and answer with the whole collection.
+    for_trade: bool = False
 
 
 class MatchesBody(Strict):
@@ -705,11 +707,14 @@ def remote_collection(request: Request, db: DB, signed: Signed = Depends(signed_
         finish="",
         sort=data.sort,
         seed="",
+        for_trade=data.for_trade,
     )
     # Storage locations and notes stay private to the owner.
     for item in result["items"]:
         item["locations"], item["location_count"] = [], 0
-    return {**sharing(person), **result}
+    from scanner.social import trade_list
+
+    return {**sharing(person), "trade_list": trade_list(db, person.id), **result}
 
 
 @protocol.post("/friends/wishlist")

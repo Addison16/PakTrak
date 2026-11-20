@@ -2,7 +2,7 @@
 
 import uuid
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import Field
@@ -34,10 +34,15 @@ class WantedCards(StrictModel):
     items: list[WantedCard] = Field(min_length=1, max_length=300)
 
 
+Target = Annotated[Decimal, Field(gt=0, le=1_000_000, max_digits=9, decimal_places=2)]
+
+
 class WantedEdit(StrictModel):
     quantity: int = Field(ge=1, le=999, strict=True)
     finish: WantedFinish
     notes: str = Field(default="", max_length=500)
+    # Left out, the saved target stays; null clears it.
+    target_price: Target | None = None
 
 
 class WantedList(StrictModel):
@@ -54,10 +59,14 @@ def wishlist_json(db, owner_id, provider, viewer_id=None):
     ).all()
     prices = finish_prices(db, provider, {printing.id for _, printing in rows})
     have = owned_by_name(db, viewer_id or owner_id, {printing.name for _, printing in rows})
-    items, total, priced, copies = [], Decimal(0), 0, 0
+    items, total, priced, copies, reached = [], Decimal(0), 0, 0, 0
     for item, printing in rows:
         finish, amount = unit_price(prices, printing, item.finish)
         copies += item.quantity
+        # What someone would pay is theirs alone; a friend never sees it.
+        target = None if viewer_id else item.target_price
+        at_target = target is not None and amount is not None and amount <= target
+        reached += at_target
         if amount is not None:
             total += amount * item.quantity
             priced += item.quantity
@@ -70,6 +79,8 @@ def wishlist_json(db, owner_id, provider, viewer_id=None):
                 "notes": item.notes,
                 "price_finish": finish,
                 "unit_amount": money(amount),
+                "target_price": money(target),
+                "at_target": at_target,
                 "owned": have[printing.name.lower()],
                 "created_at": item.created_at,
             }
@@ -80,6 +91,7 @@ def wishlist_json(db, owner_id, provider, viewer_id=None):
         "copies": copies,
         "priced_copies": priced,
         "amount": money(total) if priced or not copies else None,
+        "at_target": reached,
     }
 
 
@@ -223,9 +235,15 @@ def edit_item(item_id: uuid.UUID, data: WantedEdit, identity: Identity, db: DB):
         # Changing to a finish already listed combines the two entries.
         twin.quantity = min(999, twin.quantity + data.quantity)
         twin.notes = data.notes or twin.notes
+        if "target_price" in data.model_fields_set:
+            twin.target_price = data.target_price
+        elif twin.target_price is None:
+            twin.target_price = item.target_price
         db.delete(item)
     else:
         item.quantity, item.finish, item.notes = data.quantity, data.finish, data.notes
+        if "target_price" in data.model_fields_set:
+            item.target_price = data.target_price
     db.commit()
     return {"id": str((twin or item).id)}
 

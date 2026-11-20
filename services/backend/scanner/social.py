@@ -340,8 +340,7 @@ def friend_collection(
     for_trade: bool = False,
 ):
     if remote := federation.remote_link(db, identity.owner_id, user_id, "accepted"):
-        # Servers don't exchange trade marks yet, so a remote friend's whole collection shows.
-        return remote_collection(db, identity.owner_id, remote, offset, q, sort)
+        return remote_collection(db, identity.owner_id, remote, offset, q, sort, for_trade)
     person = friend(db, identity.owner_id, user_id)
     if not person.share_collection:
         raise HTTPException(403, f"{account_name(person)} isn’t sharing their collection.")
@@ -512,14 +511,19 @@ def remote_items(answer):
     return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
-def remote_collection(db, owner_id, remote, offset, q, sort):
+def remote_collection(db, owner_id, remote, offset, q, sort, for_trade=False):
     provider = preferred_provider(db, owner_id)
     answer = federation.ask(
         db,
         *remote,
         "/friends/collection",
-        {"offset": offset, "q": q, "sort": sort, "provider": provider},
+        {"offset": offset, "q": q, "sort": sort, "provider": provider, "for_trade": for_trade},
     )
+    if for_trade and "trade_list" not in answer:
+        # An older server ignores the request and would answer with every card.
+        raise HTTPException(
+            409, "Their server runs an older PakTrak that can’t list cards for trade yet."
+        )
     rows = remote_items(answer)[:40]
     printings = local_printings(
         db,
@@ -568,6 +572,7 @@ def remote_collection(db, owner_id, remote, offset, q, sort):
     next_offset = answer.get("next_offset")
     return {
         "name": remote[0].remote_name or "Friend",
+        "trade_list": answer.get("trade_list") is True,
         "copies": count(answer.get("copies")),
         "cards": count(answer.get("cards")),
         "items": items,

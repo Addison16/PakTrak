@@ -428,3 +428,73 @@ def test_details_receipts_keep_the_pre_upgrade_fingerprint(clients, catalog):
         )
         assert event.detail["request_hash"] == fingerprint(body)
     assert client.post(path, headers=receipt, json=body).json() == response.json()
+
+
+def test_bulk_labels_and_trade_marks_change_only_what_differs(clients, catalog):
+    client, owner = clients()
+    commit(
+        client,
+        preview(
+            client,
+            [
+                {"Scryfall ID": catalog[0], "Quantity": "3", "Binder Name": "Red binder"},
+                {"Scryfall ID": catalog[1], "Quantity": "4", "Binder Name": "Red binder"},
+            ],
+        ),
+    )
+
+    def run(change, expected):
+        body = {"printing_ids": catalog, **change}
+        plan = client.post("/api/v1/collection/bulk/preview", json=body)
+        assert plan.status_code == 200, plan.text
+        assert plan.json()["copies"] == expected
+        done = client.post(
+            "/api/v1/collection/bulk/apply",
+            json={**body, "token": plan.json()["token"]},
+            headers=key(),
+        )
+        assert done.status_code == 200, done.text
+        assert done.json()["copies_changed"] == expected
+
+    def lots():
+        with session_factory()() as db:
+            return {
+                str(lot.printing_id): (lot.labels, lot.for_trade)
+                for lot in db.scalars(select(InventoryLot).where(InventoryLot.owner_id == owner))
+            }
+
+    run({"action": "label_add", "label": "Cube"}, 7)
+    # The same label in other capitals is the same label, so nothing is left to change.
+    run({"action": "label_add", "label": "cube"}, 0)
+    run({"action": "trade", "for_trade": True}, 7)
+    assert lots() == {catalog[0]: (["Cube"], True), catalog[1]: (["Cube"], True)}
+    run({"action": "label_remove", "label": "CUBE"}, 7)
+    run({"action": "trade", "for_trade": False}, 0 + 7)
+    assert lots() == {catalog[0]: ([], False), catalog[1]: ([], False)}
+    for bad in (
+        {"action": "label_add"},
+        {"action": "label_add", "label": "a,b"},
+        {"action": "trade"},
+    ):
+        response = client.post(
+            "/api/v1/collection/bulk/preview", json={"printing_ids": catalog, **bad}
+        )
+        assert response.status_code == 422, response.text
+
+
+def test_bulk_receipts_from_before_labels_still_match():
+    from scanner.collection_bulk import BulkApply, request_fields
+
+    move = BulkApply(
+        printing_ids=[uuid.uuid4()], action="move", binder_id=uuid.uuid4(), token="a" * 64
+    )
+    assert set(request_fields(move)) == {
+        "printing_ids",
+        "source_binder_id",
+        "action",
+        "binder_id",
+        "finish",
+        "token",
+    }
+    trade = BulkApply(printing_ids=[uuid.uuid4()], action="trade", for_trade=False, token="a" * 64)
+    assert request_fields(trade)["for_trade"] is False and "label" not in request_fields(trade)

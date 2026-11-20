@@ -1,5 +1,12 @@
 # Changelog
 
+## Labels in bulk, wishlist prices and shortcuts — November 20, 2026
+
+- **Label many cards at once.** **Collection → Select cards → Organize selected** can now add a label, remove a label, or mark the selected cards as available for trade (or not), alongside moving them and setting their finish. The preview shows exactly which copies will change before anything is saved.
+- **Pay up to.** Each card on your wishlist has a **Pay up to** box for the most you'd pay for one copy. When today's price is at or under it, the card says **At your price** and the top of the wishlist counts how many are there. Only you see the amount; friends and share links never do. Clear the box to forget it.
+- **For trade across servers.** **Only cards they've marked for trade** now works for friends on a connected PakTrak server too, once both servers run this version. A friend's server that hasn't updated simply doesn't offer the checkbox.
+- **Keyboard shortcuts** for a computer: **/** searches the page you're on (or opens your collection's search), **G** then a letter jumps to a page (**C** Collection, **D** Decks, **W** Wishlist, **U** Upload photo, **B** Batches, **S** Set completion, **T** Trade value, **F** Friends), and **?** lists them all. They never fire while you're typing in a box. On a computer the menu has a **Keyboard shortcuts** entry.
+
 ## Quality-of-life pass — November 19, 2026
 
 - **Collection → Add a card** adds a card without a photo or an import file. Search for it, pick the printing, then choose its finish, condition, storage location and how many copies. The search clears after each card so the next one can be typed right away, and the storage location is remembered.
@@ -8,7 +15,7 @@
 - **Collection → Collection breakdown** shows where your cards and their value sit: by color, rarity, card type, set or storage location. Below it are your ten most valuable cards (tap one to open it) and, once any copies have a recorded price, what you paid for them next to what they're worth today.
 - **Print proxies.** A deck's buy list has a **Print proxies** button that lays out the cards you're missing at real card size, nine to a page with cut lines, ready for your browser's Print. Use them to try a deck before buying; they aren't for sanctioned events.
 - **Labels.** Give copies your own labels (for example "Signed" or "Cube") under **Manage copies → Edit card details**, then find them with **Collection → Filters → Label**. Only you see your labels.
-- **For trade.** Tick **Available for trade** on copies you'd part with. **Filters → Label → For trade** lists them, and a friend you share your collection with can tick **Only cards they've marked for trade** on your page. Friends on other servers still see the whole shared collection for now.
+- **For trade.** Tick **Available for trade** on copies you'd part with. **Filters → Label → For trade** lists them, and a friend you share your collection with can tick **Only cards they've marked for trade** on your page.
 - **Price jumps in decks.** Deck value notes when cards in the deck have jumped over the last month, and the card list marks each one, for example "Up 67% since Oct 21 (was $6.00)". A move counts at 20% and $1 per copy. PakTrak now saves daily prices for deck cards too, so the notes appear for a deck's cards a day or two after updating.
 - **ARM64 images.** Releases now also publish images for ARM64 computers (a Raspberry Pi 4 or 5 with a 64-bit system, and other ARM servers), under the same tags. The single-container image is built and started on an ARM machine for every change. If an ARM64 build ever fails, the amd64 images still publish.
 - **Share links.** **Share this deck** on a deck, and **Share your wishlist** on the wishlist, make a read-only link for someone without a PakTrak account. Nothing is shared until you create a link. The page shows card names, quantities and pictures only: never your name, notes, prices, storage locations or the rest of your collection. **Turn off link** ends it at once, and a new link gets a new address. The link uses your server's address, so it opens only where your server can be reached.

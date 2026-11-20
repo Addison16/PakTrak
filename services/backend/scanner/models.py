@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -572,6 +573,9 @@ class WishlistItem(Base):
         CheckConstraint(
             "finish IN ('any','nonfoil','foil','etched')", name="wishlist_finish_valid"
         ),
+        CheckConstraint(
+            "target_price IS NULL OR target_price > 0", name="wishlist_target_price_valid"
+        ),
     )
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(
@@ -583,6 +587,8 @@ class WishlistItem(Base):
     finish: Mapped[str] = mapped_column(String(16), default="any", server_default="any")
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     notes: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # The most the owner wants to pay for one copy, in US dollars. Private to the owner.
+    target_price: Mapped[Decimal | None] = mapped_column(Numeric(9, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
