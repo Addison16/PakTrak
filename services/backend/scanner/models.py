@@ -757,3 +757,21 @@ class RemoteFriendship(Base):
     shares_wishlist: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ShareLink(Base):
+    """A read-only link its owner made for one deck or for their wishlist."""
+
+    __tablename__ = "share_links"
+    __table_args__ = (
+        CheckConstraint("kind IN ('deck','wishlist')", name="share_link_kind_valid"),
+        CheckConstraint("(kind = 'deck') = (deck_id IS NOT NULL)", name="share_link_deck_only"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    deck_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("decks.id", ondelete="CASCADE"))
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

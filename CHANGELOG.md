@@ -11,6 +11,7 @@
 - **For trade.** Tick **Available for trade** on copies you'd part with. **Filters → Label → For trade** lists them, and a friend you share your collection with can tick **Only cards they've marked for trade** on your page. Friends on other servers still see the whole shared collection for now.
 - **Price jumps in decks.** Deck value notes when cards in the deck have jumped over the last month, and the card list marks each one, for example "Up 67% since Oct 21 (was $6.00)". A move counts at 20% and $1 per copy. PakTrak now saves daily prices for deck cards too, so the notes appear for a deck's cards a day or two after updating.
 - **ARM64 images.** Releases now also publish images for ARM64 computers (a Raspberry Pi 4 or 5 with a 64-bit system, and other ARM servers), under the same tags. The single-container image is built and started on an ARM machine for every change. If an ARM64 build ever fails, the amd64 images still publish.
+- **Share links.** **Share this deck** on a deck, and **Share your wishlist** on the wishlist, make a read-only link for someone without a PakTrak account. Nothing is shared until you create a link. The page shows card names, quantities and pictures only: never your name, notes, prices, storage locations or the rest of your collection. **Turn off link** ends it at once, and a new link gets a new address. The link uses your server's address, so it opens only where your server can be reached.
 
 ## Cancel a collection import — October 16, 2026
 

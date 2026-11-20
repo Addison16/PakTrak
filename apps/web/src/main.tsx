@@ -15,7 +15,7 @@ import "./style.css";
 import "./qol.css";
 import "./offline.css";
 import { readPendingPhoto, savePendingPhoto, removePendingPhoto, type PendingPhoto } from "./pendingPhoto";
-import { navigation, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
+import { navigation, openedSharedLink, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
 import ConnectionStatus from "./ConnectionStatus";
 import { useConnection } from "./offline";
 import { adoptOfflineOwner, clearOfflineData, connection, forgetResponse, onReconnect, queuedActions, setOfflineOwner } from "./offline";
@@ -767,4 +767,11 @@ addEventListener("keydown", () => { delete document.documentElement.dataset.poin
 
 loadMotionPreference();
 registerServiceWorker();
-createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
+const SharedPage = lazy(() => import("./SharedPage"));
+
+/** A shared link opens its read-only page without signing in; everything else is the app. */
+function Root() {
+  return openedSharedLink ? <Suspense fallback={<p role="status">Opening the shared list…</p>}><SharedPage token={openedSharedLink} /></Suspense> : <App />;
+}
+
+createRoot(document.getElementById("root")!).render(<React.StrictMode><Root /></React.StrictMode>);

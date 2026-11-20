@@ -68,7 +68,10 @@ let travelling = false;
 let scrollTarget: number | null = null;
 let scrollFrame = 0;
 history.scrollRestoration = "manual";
-history.replaceState(current, "", location.pathname + location.search + hash(current.route));
+/** The token of a read-only shared link, when the page was opened from one. Its address is left as it is. */
+export const sharedLinkToken = () => /^#\/shared\/([A-Za-z0-9_-]{20,64})$/.exec(location.hash)?.[1];
+export const openedSharedLink = sharedLinkToken();
+if (!openedSharedLink) history.replaceState(current, "", location.pathname + location.search + hash(current.route));
 
 function allowed(to: Route) { return [...guards].every((guard) => guard(current.route, to)); }
 function rememberScroll() {
@@ -117,6 +120,8 @@ window.addEventListener("popstate", (event: PopStateEvent) => {
   if (!stored) {
     // An address-bar hash change is a normal new destination, not a trap at
     // the beginning of history. Cross-document Back remains browser-owned.
+    // A shared link typed or pasted over the app loads its own read-only page.
+    if (openedSharedLink || sharedLinkToken()) { location.reload(); return; }
     const route = parse();
     if (!allowed(route)) { history.replaceState(current, "", location.pathname + hash(current.route)); return; }
     const entry: Entry = { ...current, index: current.index + 1, route, y: 0 };
