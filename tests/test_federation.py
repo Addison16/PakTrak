@@ -15,6 +15,7 @@ from scanner.db import session_factory
 from scanner.models import (
     FederationNonce,
     FederationPeer,
+    InventoryLot,
     RemoteFriendship,
     ServerFederation,
     User,
@@ -259,6 +260,19 @@ def test_a_remote_friend_sees_only_what_is_shared(clients, peer, cards):  # noqa
 
     shared = peer.post("/friends/collection", {"link_id": link}).json()
     assert shared["copies"] == 2 and shared["items"][0]["locations"] == []
+    assert shared["trade_list"] is False
+    lot = alice.get("/api/v1/collection").json()["items"][0]
+    with session_factory()() as db, db.begin():
+        db.execute(
+            update(InventoryLot)
+            .where(InventoryLot.id == uuid.UUID(lot["id"]))
+            .values(for_trade=True)
+        )
+    own(alice, cards[2], 1)
+    listed = peer.post("/friends/collection", {"link_id": link, "for_trade": True}).json()
+    assert listed["trade_list"] is True and listed["copies"] == 2
+    assert [item["printing"]["id"] for item in listed["items"]] == [cards[1]]
+    assert peer.post("/friends/collection", {"link_id": link}).json()["copies"] == 3
     assert "Secret shoebox" not in json.dumps(shared)
     wishlist = peer.post("/friends/wishlist", {"link_id": link}).json()
     assert len(wishlist["items"]) == 1 and "private" not in json.dumps(wishlist)
@@ -355,6 +369,13 @@ def test_viewing_a_friend_on_another_server(clients, peer, cards):  # noqa: F811
     owl = collection["items"][0]
     assert (owl["price_min"], owl["price_max"], owl["value"]) == ("2.0000", "6.0000", "8.0000")
     assert peer.received[-1][1]["provider"] == "tcgplayer"
+    # A server from before trade marks would answer with every card, so that is refused.
+    assert collection["trade_list"] is False
+    assert bob.get(base + "/collection?for_trade=true").status_code == 409
+    peer.answers["/friends/collection"][1]["trade_list"] = True
+    marked = bob.get(base + "/collection?for_trade=true")
+    assert marked.status_code == 200 and marked.json()["trade_list"] is True
+    assert peer.received[-1][1]["for_trade"] is True
 
     peer.answers["/friends/wishlist"] = (
         200,
