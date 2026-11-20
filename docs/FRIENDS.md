@@ -23,7 +23,7 @@ Your friends are listed by name, each with what they share with you; **Find a fr
 
 When your administrator has connected this PakTrak to another PakTrak server (see [connecting to other PakTrak servers](OPERATIONS.md#connecting-to-other-paktrak-servers)), you can be friends with people there too. Enter their code with their server's address after an `@`, for example `ABCDE-23456@cards.example.net`. The Friends page shows your own code in that form for people on other servers.
 
-Everything else works the same way: they decide whether to accept, a wrong code gets the same answer, and you see their name only after they accept. Friends on other servers show their server's address under their name. Their collection and wishlist follow their own sharing switches, and storage locations and notes are never shared. Trade offers are only between people on the same server for now.
+Everything else works the same way: they decide whether to accept, a wrong code gets the same answer, and you see their name only after they accept. Friends on other servers show their server's address under their name. Their collection and wishlist follow their own sharing switches, and storage locations and notes are never shared. When both servers are up to date, you can also list only the cards they've marked for trade. Trade offers are only between people on the same server for now.
 
 ## Trade offers
 

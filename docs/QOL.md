@@ -28,6 +28,12 @@ Deck quantity buttons and **Undo last edit** make adjustments easier. Ownership 
 
 Deck import previews offer quantity and section corrections, issue filtering, printing selection and exclusion. Reviewed choices survive rebuilding the preview and reloading, including when the source text has changed. Existing decks keep their collection-matching preference. Collection imports have **Needs attention only**, **Previous issue** and **Next issue** controls with original source row numbers.
 
+To change many cards together, choose **Select cards**, tick them, then **Organize selected**: move them, set their finish, add or remove a label, or mark them available for trade. A preview lists the exact copies before you confirm.
+
+On the **Wishlist**, **Pay up to** records the most you'd pay for one copy of a card. Cards priced at or under it say **At your price**. The amount is private.
+
+On a computer, press **/** to search, **G** then a letter to change page (**C** Collection, **D** Decks, **W** Wishlist, **U** Upload photo, **B** Batches, **S** Set completion, **T** Trade value, **F** Friends) and **?** for the list.
+
 ## Share and print
 
 **Share this deck** and **Share your wishlist** create a read-only link for someone without an account. A link exists only after you create it and shows card names, quantities and pictures: never your name, notes, prices, storage locations or collection. **Turn off link** ends it immediately; a suspended account's links stop working. Links use the server's own address.
