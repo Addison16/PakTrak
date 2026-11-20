@@ -7,6 +7,7 @@ import { openTrade } from "./TradeValue";
 import "./trade-value.css";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
+import { LoadingNote } from "./Loading";
 
 type FriendsData = { code: string | null; address?: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string; server?: string | null }[]; outgoing: { id: string; created_at: string; server?: string | null }[] };
 type Match = { printing: Printing; finish: Finish; finish_recorded: boolean; quantity: number; wanted: number; unit_amount: string | null };
@@ -71,7 +72,7 @@ export default function Friends({ session, active, friendId }: { session: Sessio
     <p className="social-intro">See each other’s cards and wishlists, and send trade offers. You add someone only with the code they give you, so no one can look up who has an account here.</p>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
     {notice && <p className="message success" role="status">{notice}</p>}
-    {!data ? !error && <p role="status">Loading friends…</p> : <>
+    {!data ? !error && <p><LoadingNote>Loading friends…</LoadingNote></p> : <>
       {data.incoming.length > 0 && <div className="social-block" aria-label="Friend requests">
         <h3 className="friends-heading">Friend requests<span>{data.incoming.length}</span></h3>
         <ul className="plain-list friend-list">{data.incoming.map((request, index) => <li key={request.id} className="friend-request" style={{ "--row": Math.min(index, 8) } as CSSProperties}>
@@ -212,7 +213,7 @@ function FriendView({ session, friend, reload, busy, onRemove }: { session: Sess
       <h3>Their collection{cards ? ` · ${cards.copies} cards` : ""}</h3>
       <label>Search their cards<input type="search" value={query} maxLength={255} onChange={(event) => { setQuery(event.target.value); setOffset(0); }} placeholder="Card name" /></label>
       {(cards?.trade_list || tradeOnly) && <label className="checkbox"><input type="checkbox" checked={tradeOnly} onChange={(event) => { setTradeOnly(event.target.checked); setOffset(0); }} />Only cards they’ve marked for trade</label>}
-      {!cards ? <p role="status">Loading their cards…</p> : cards.items.length === 0 ? <p className="fine">No cards match.</p>
+      {!cards ? <p><LoadingNote>Loading their cards…</LoadingNote></p> : cards.items.length === 0 ? <p className="fine">No cards match.</p>
         : <ul className="plain-list social-rows">{cards.items.map((card) => <li key={card.printing.id}>
           <div><strong>{card.quantity} × {card.printing.display_name || card.printing.name}</strong><small>{card.printing.set_code.toUpperCase()} #{card.printing.collector_number}{card.finish_counts?.foil ? ` · ${card.finish_counts.foil} foil` : ""}</small></div>
           <span>{money(card.price_max)}</span>

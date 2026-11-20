@@ -7,6 +7,7 @@ import StoreButtons, { ReferralNote } from "./StoreButtons";
 import "./trade-value.css";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
+import { LoadingNote } from "./Loading";
 
 const finishNames: Record<WantedFinish, string> = { any: "Any finish", nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 const finishOptions = (printing: Printing): WantedFinish[] => ["any", ...(["nonfoil", "foil", "etched"] as const).filter((finish) => printing.finishes.includes(finish))];
@@ -82,7 +83,7 @@ export default function Wishlist({ session, active }: { session: Session; active
 
     {!!data?.at_target && <p className="wish-reached-note" role="status">{data.at_target === 1 ? "1 card is" : `${data.at_target} cards are`} at or under the price you set.</p>}
 
-    {!data && !error ? <p role="status">Loading your wishlist…</p> : items.length === 0 ? <p className="fine">Your wishlist is empty. Add cards below, paste a list, or use “Add missing cards to wishlist” on a deck.</p>
+    {!data && !error ? <p><LoadingNote>Loading your wishlist…</LoadingNote></p> : items.length === 0 ? <p className="fine">Your wishlist is empty. Add cards below, paste a list, or use “Add missing cards to wishlist” on a deck.</p>
       : <ul className="plain-list trade-cards">{items.map((item) => <li key={item.id} className="trade-card">
         {item.printing.image_url ? <img src={item.printing.image_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /> : <span className="printing-art-placeholder" aria-hidden="true" />}
         <div className="trade-card-body">

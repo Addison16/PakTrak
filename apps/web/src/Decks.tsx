@@ -29,6 +29,7 @@ import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./deck-qol.css";
 import "./deck-studio.css";
 import { usePullRefresh } from "./pullRefresh";
+import { LoadingNote } from "./Loading";
 import { reducedMotion } from "./motion";
 
 type EditableCard = Card & { quantityInput?: string };
@@ -108,6 +109,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   }, [deckIsCurrent, route.deck, route.view, route.card, cardFlight]);
   const returnTo = useRef<{ id: string; y: number } | null>(null);
   const listSequence = useRef(0);
+  // The offset whose page of decks is on screen; null until the first page arrives.
+  const [listedOffset, setListedOffset] = useState<number | null>(null);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const working = useRef(false);
   const saveReceipt = useRef<{ body: string; key: string } | null>(null);
@@ -160,7 +163,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   async function list(pageOffset = offset) {
     const sequence = ++listSequence.current;
     const result = await request<{ items: DeckSummary[]; next_offset: number | null }>("/api/v1/decks?offset=" + pageOffset);
-    if (sequence === listSequence.current) { setDecks(result.items); setNext(result.next_offset); }
+    if (sequence === listSequence.current) { setDecks(result.items); setNext(result.next_offset); setListedOffset(pageOffset); }
   }
   function fill(value: Deck, clearStored = false) {
     setDeck(value); setName(value.name); setFormat(value.format); setNotes(value.notes); setCards(value.cards); setMatchMode(value.match_mode); setOnlyMissing(false); setCardFilter("");
@@ -350,8 +353,8 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
   return <>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")}>{saveConflict && deck && <button className="text-button" disabled={busy} onClick={() => void act(async () => { setConflictSaved(await request<Deck>("/api/v1/decks/" + deck.id)); })}>Reload saved deck for comparison</button>}</ErrorNotice>}
     {notice && <p className="message success" role="status">{notice}</p>}
-    {active && route.deck && !deckIsCurrent && <section className="panel"><button className="button secondary" onClick={closeDeck}>← Back to decks</button>{!error && <p role="status">Opening deck…</p>}</section>}
-    {active && !route.deck && !importing && !scanning && <DeckList ownerId={session.owner_id} decks={decks} busy={busy} creating={creating} newName={newName} offset={offset} next={next} onName={setNewName} onCreating={setCreating} onImport={startImport} onScan={() => navigation.go({ page: "decks", view: "scan" })} onPage={setOffset}
+    {active && route.deck && !deckIsCurrent && <section className="panel"><button className="button secondary" onClick={closeDeck}>← Back to decks</button>{!error && <p><LoadingNote slow="Big decks can take a moment.">Opening deck…</LoadingNote></p>}</section>}
+    {active && !route.deck && !importing && !scanning && <DeckList ownerId={session.owner_id} decks={decks} loading={listedOffset !== offset && !error} busy={busy} creating={creating} newName={newName} offset={offset} next={next} onName={setNewName} onCreating={setCreating} onImport={startImport} onScan={() => navigation.go({ page: "decks", view: "scan" })} onPage={setOffset}
       onCreate={() => void act(async () => {
         const value = await request<Deck>("/api/v1/decks", mutation(session, { name: newName.trim(), format: "casual", notes: "" }));
         fill(value); navigation.go({ page: "decks", deck: value.id, view: "edit" }, { force: true });
