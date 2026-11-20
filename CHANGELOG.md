@@ -1,5 +1,10 @@
 # Changelog
 
+## Add a card by name — November 19, 2026
+
+- **Collection → Add a card** adds a card without a photo or an import file. Search for it, pick the printing, then choose its finish, condition, storage location and how many copies. The search clears after each card so the next one can be typed right away, and the storage location is remembered.
+- The first card can name a new storage location on the spot, and **New location…** does the same later.
+
 ## Cancel a collection import — October 16, 2026
 
 - Long text and CSV imports no longer stall. Before, a list of card names without set codes could take longer than the server allows for one step; the work was thrown away and started over, and after three tries the import failed with "The server will retry this processing step." The server now saves matched rows as it goes and picks up where it left off, so large lists finish.

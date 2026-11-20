@@ -944,6 +944,76 @@ def edit_quantity(lot_id: uuid.UUID, data: LotEdit, key: Key, identity: Identity
     return {"id": str(lot.id), "quantity": lot.quantity_remaining, "version": lot.version}
 
 
+class AddCopies(StrictModel):
+    printing_id: uuid.UUID
+    binder_id: uuid.UUID
+    quantity: int = Field(default=1, ge=1, le=999)
+    finish: Literal["unknown", "nonfoil", "foil", "etched"]
+    condition: Literal["ungraded", "NM", "LP", "MP", "HP", "damaged"] = "ungraded"
+    notes: str = Field(default="", max_length=4096)
+
+
+@router.post("/collection/add", status_code=201)
+def add_copies(data: AddCopies, key: Key, identity: Identity, db: DB):
+    """Add copies picked from the catalog, with no photo or import file behind them."""
+    # The account lock makes a repeated request wait for the first one's receipt.
+    db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
+    receipt = hashlib.sha256(f"{identity.owner_id}:{key}".encode()).hexdigest()[:40]
+    operation_key = f"add:manual:{receipt}"
+    digest = fingerprint(data.model_dump())
+    previous = db.scalar(
+        select(InventoryEvent).where(InventoryEvent.operation_key == operation_key)
+    )
+    if previous:
+        if previous.detail.get("request_hash") != digest:
+            raise HTTPException(409, "Request key belongs to a different card.")
+        return previous.detail["result"]
+    owned(db, Binder, data.binder_id, identity.owner_id)
+    printing = db.get(Printing, data.printing_id)
+    if printing is None:
+        raise HTTPException(404, "Printing not found in this server's catalog.")
+    if data.finish != "unknown" and data.finish not in printing.finishes:
+        raise HTTPException(
+            422, "That finish is not available for this printing. Choose its finish."
+        )
+    lot = InventoryLot(
+        owner_id=identity.owner_id,
+        printing_id=printing.id,
+        binder_id=data.binder_id,
+        quantity_remaining=data.quantity,
+        finish=data.finish,
+        condition=data.condition,
+        notes=data.notes,
+        source_metadata={},
+    )
+    db.add(lot)
+    db.flush()
+    result = {
+        "id": str(lot.id),
+        "printing_id": str(printing.id),
+        "quantity": lot.quantity_remaining,
+        "finish": lot.finish,
+        "version": lot.version,
+    }
+    db.add(
+        InventoryEvent(
+            lot_id=lot.id,
+            operation_key=operation_key,
+            kind="ADD_MANUAL",
+            delta=lot.quantity_remaining,
+            detail={
+                "request_hash": digest,
+                "printing_id": str(printing.id),
+                "finish": lot.finish,
+                "condition": lot.condition,
+                "result": result,
+            },
+        )
+    )
+    db.commit()
+    return result
+
+
 class MoveLot(StrictModel):
     binder_id: uuid.UUID
     expected_version: int = Field(ge=1)

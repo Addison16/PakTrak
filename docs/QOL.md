@@ -10,6 +10,8 @@ Open scan images in the enlarged viewer, switch between the crop and suggested a
 
 ## Organize your collection
 
+Choose **Add a card** to add copies by searching the catalog: pick the printing, finish, condition, storage location and quantity. No photo or import file is needed.
+
 Search, filters, sort and gallery/list layout are remembered on this device and included in the page URL. Save named views or bookmark the URL. Card links load independently of the current gallery page.
 
 Choose **Select cards**, select up to 100 printings across pages, and use **Organize selected**. Preview the exact copies before moving them or setting their finish. A storage-location filter limits the operation to that location.
