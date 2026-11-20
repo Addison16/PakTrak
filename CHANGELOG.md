@@ -9,6 +9,7 @@
 - **Print proxies.** A deck's buy list has a **Print proxies** button that lays out the cards you're missing at real card size, nine to a page with cut lines, ready for your browser's Print. Use them to try a deck before buying; they aren't for sanctioned events.
 - **Labels.** Give copies your own labels (for example "Signed" or "Cube") under **Manage copies → Edit card details**, then find them with **Collection → Filters → Label**. Only you see your labels.
 - **For trade.** Tick **Available for trade** on copies you'd part with. **Filters → Label → For trade** lists them, and a friend you share your collection with can tick **Only cards they've marked for trade** on your page. Friends on other servers still see the whole shared collection for now.
+- **Price jumps in decks.** Deck value notes when cards in the deck have jumped over the last month, and the card list marks each one, for example "Up 67% since Oct 21 (was $6.00)". A move counts at 20% and $1 per copy. PakTrak now saves daily prices for deck cards too, so the notes appear for a deck's cards a day or two after updating.
 
 ## Cancel a collection import — October 16, 2026
 

@@ -4,11 +4,11 @@ import { noPriceAlerts } from "./price-alert-fixture";
 
 const printings = ["Captain", "Island", "Shield", "No quote"].map((name, i) => ({ id: "value-card-" + i, name, set_code: "val", collector_number: String(i), language: "en", finishes: i === 2 ? ["nonfoil"] : ["nonfoil", "foil"], image_url: null }));
 async function fixture(page: Page) {
-  const state = { source: "tcgplayer", calls: [] as any[], failPrices: 0, failPreference: 0, noPrices: false, stale: false, hold: null as null | { promise: Promise<void>; release: () => void } };
+  const state = { source: "tcgplayer", calls: [] as any[], failPrices: 0, failPreference: 0, noPrices: false, stale: false, earlier: {} as Record<number, string>, hold: null as null | { promise: Promise<void>; release: () => void } };
   const deck: any = { id: "priced-deck", name: "Friday deck", format: "commander", version: 1, notes: "", match_mode: "any", cards: [{ printing_id: printings[0].id, quantity: 1, section: "commander" }, { printing_id: printings[1].id, quantity: 4, section: "main" }, { printing_id: printings[2].id, quantity: 2, section: "sideboard" }, { printing_id: printings[3].id, quantity: 2, section: "main" }] };
   function valuation(cards = deck.cards, provider = state.source, finish = "nonfoil") {
     const rates = finish === "foil" ? [15, 1, 3, null] : [10, .25, 3, null]; const factor = provider === "cardkingdom" ? 2 : provider === "manapool" ? 3 : 1;
-    const items = cards.map((card: any) => { const index = printings.findIndex(p => p.id === card.printing_id), value = state.noPrices ? null : rates[index]; return { ...card, ...printings[index], printing_id: card.printing_id, finish: index === 2 ? "nonfoil" : finish, finish_fallback: index === 2 && finish !== "nonfoil", unit_amount: value === null ? null : String(value * factor), amount: value === null ? null : String(value * factor * card.quantity), unpriced_reason: value === null ? "missing_price" : null }; });
+    const items = cards.map((card: any) => { const index = printings.findIndex(p => p.id === card.printing_id), value = state.noPrices ? null : rates[index]; return { ...card, ...printings[index], printing_id: card.printing_id, finish: index === 2 ? "nonfoil" : finish, finish_fallback: index === 2 && finish !== "nonfoil", unit_amount: value === null ? null : String(value * factor), amount: value === null ? null : String(value * factor * card.quantity), unpriced_reason: value === null ? "missing_price" : null, earlier_amount: value === null ? null : state.earlier[index] ?? null, earlier_day: value !== null && state.earlier[index] ? "2026-09-01" : null }; });
     function total(rows: any[]) { const copies = rows.reduce((n, r) => n + r.quantity, 0), priced_copies = rows.reduce((n, r) => n + (r.amount === null ? 0 : r.quantity), 0); return { copies, priced_copies, unpriced_copies: copies - priced_copies, amount: copies && !priced_copies ? null : String(rows.reduce((n, r) => n + Number(r.amount), 0)) }; }
     return { ...total(items), provider, currency: "USD", price_kind: "Fixture reference price", finish_preference: finish, fallback_copies: items.filter((i: any) => i.finish_fallback).reduce((n: number, r: any) => n + r.quantity, 0), sections: Object.fromEntries(["commander", "main", "sideboard"].map(section => [section, total(items.filter((r: any) => r.section === section))])), items, checked_at: "2026-09-22T16:00:00Z", feed: { name: provider === "tcgplayer" ? "scryfall" : provider, state: state.stale ? "ERROR" : "READY", progress: {}, stale: state.stale, error: state.stale ? "Temporary feed outage" : null, updated_at: state.stale ? "2026-09-18T16:00:00Z" : "2026-09-22T16:00:00Z" } };
   }
@@ -76,6 +76,18 @@ test("switching decks hides the previous value while the next deck loads", async
   await page.getByRole("button", { name: "Close deck", exact: true }).click();
   await expect(panel).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Your decks", exact: true })).toBeVisible();
+});
+
+test("cards that jumped in price over the last month are pointed out", async ({ page }) => {
+  const { state, panel } = await fixture(page);
+  // Captain rose from $6 to $10; Island moved by cents and Shield by under 20%, so neither counts.
+  state.earlier = { 0: "6.00", 1: "0.10", 2: "2.80" };
+  await page.reload();
+  await expect(panel.locator(".deck-value-jumps")).toHaveText("1 card has jumped in price over the last month. Open the breakdown to see which.");
+  await panel.locator(".deck-value-options > summary").click();
+  await panel.locator(".deck-value-breakdown > summary").click();
+  await expect(panel.locator(".deck-value-move")).toHaveText([/^Up 67% since .+ \(was \$6\.00\)$/]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("the value breakdown omits empty deck sections", async ({ page }) => {
