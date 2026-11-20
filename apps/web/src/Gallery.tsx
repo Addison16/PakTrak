@@ -13,6 +13,7 @@ import Locations from "./Locations";
 import { Icon } from "./Icon";
 import BulkCollection from "./BulkCollection";
 import AddCard from "./AddCard";
+import CollectionBreakdown from "./CollectionBreakdown";
 import CountUp from "./CountUp";
 import "./collection-qol.css";
 import "./card-foil.css";
@@ -241,6 +242,7 @@ function AccountGallery({ session }: { session: Session }) {
     {preferenceError && <p className="message error" role="alert">{preferenceError} <button className="text-button" disabled={sourceSaving} onClick={() => void retrySave()}>{retry ? "Retry saving price source" : "Retry loading price source"}</button></p>}
     <p className="fine value-note">{value ? `${value.priced_copies.toLocaleString()} priced · ${value.unpriced_copies.toLocaleString()} unpriced copies` : "Loading your library…"}{value?.feed?.updated_at ? ` · ${value.feed.stale ? "Older prices · " : "Updated "}${new Date(value.feed.updated_at).toLocaleDateString()}` : " · Prices update daily"}. {filterCount || search ? "Totals match your filters." : ""}</p>
     {active && sourceReady && <ValueOverTime provider={provider} />}
+    {active && sourceReady && <CollectionBreakdown provider={provider} onOpen={(id) => setSelected(id)} />}
     {value?.pricing_issues && value.unpriced_copies > 0 && <details className="pricing-help"><summary>Why are some copies unpriced?</summary>
       {value.pricing_issues.unknown_finish > 0 && <p className="fine">{value.pricing_issues.unknown_finish.toLocaleString()} copies have no recorded finish. Normal, foil and etched copies have different prices. <button className="text-button" onClick={() => { filter("finish", "unknown"); setFiltersOpen(true); }}>Show copies needing a finish</button></p>}
       {value.pricing_issues.missing_price > 0 && <p className="fine">{value.pricing_issues.missing_price.toLocaleString()} copies have no {providers[shownProvider]} quote for their printing and finish. Another price source may have one.</p>}

@@ -14,6 +14,7 @@ from scanner.catalog import printing_json
 from scanner.deck_lists import deck_usage
 from scanner.gallery import Provider
 from scanner.models import (
+    Binder,
     CardPrice,
     CardPriceHistory,
     CollectionValueHistory,
@@ -103,6 +104,180 @@ def value_history(
             }
         )
     return {"provider": provider, "days": days, "points": points, "change": change(points)}
+
+
+COLOR_NAMES = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+COLOR_ORDER = ["White", "Blue", "Black", "Red", "Green", "Multicolor", "Colorless"]
+RARITY_ORDER = ["mythic", "rare", "uncommon", "common", "special", "bonus"]
+# A card with several types counts once, under the first of these on its type line.
+TYPE_ORDER = [
+    "Land",
+    "Creature",
+    "Planeswalker",
+    "Battle",
+    "Instant",
+    "Sorcery",
+    "Artifact",
+    "Enchantment",
+]
+
+
+def color_group(identity):
+    colors = [color for color in identity or [] if color in COLOR_NAMES]
+    if len(colors) > 1:
+        return "Multicolor"
+    return COLOR_NAMES[colors[0]] if colors else "Colorless"
+
+
+def type_group(type_line):
+    front = (type_line or "").split("//")[0]
+    return next((name for name in TYPE_ORDER if name in front), "Other")
+
+
+class Tally:
+    """Copies and value per group, in the order a group was first seen."""
+
+    def __init__(self):
+        self.rows = {}
+
+    def add(self, key, label, copies, value):
+        row = self.rows.setdefault(key, {"key": key, "label": label, "copies": 0, "value": None})
+        row["copies"] += copies
+        if value is not None:
+            row["value"] = (row["value"] or Decimal(0)) + value
+
+    def listed(self, order=None, limit=None):
+        rows = list(self.rows.values())
+        if order:
+            rows.sort(key=lambda row: order.index(row["key"]) if row["key"] in order else 99)
+        else:
+            rows.sort(key=lambda row: (-(row["value"] or 0), -row["copies"], row["label"]))
+        if limit and len(rows) > limit:
+            rest = rows[limit:]
+            values = [row["value"] for row in rest if row["value"] is not None]
+            rows = rows[:limit] + [
+                {
+                    "key": "",
+                    "label": f"{len(rest)} more",
+                    "copies": sum(row["copies"] for row in rest),
+                    "value": sum(values, Decimal(0)) if values else None,
+                }
+            ]
+        return [{**row, "value": money(row["value"])} for row in rows]
+
+
+@router.get("/breakdown")
+def breakdown(identity: Identity, db: DB, provider: Provider | None = None):
+    """Where the collection's cards and value sit: by color, rarity, type, set and location."""
+    provider = provider or preferred_provider(db, identity.owner_id)
+    raw = Printing.source_json
+    rows = db.execute(
+        select(
+            InventoryLot.printing_id,
+            InventoryLot.finish,
+            InventoryLot.quantity_remaining,
+            InventoryLot.misprint,
+            InventoryLot.altered,
+            InventoryLot.purchase_price,
+            InventoryLot.purchase_currency,
+            CardPrice.amount,
+            Binder.id,
+            Binder.name,
+            Printing.set_code,
+            raw["set_name"].astext,
+            raw["color_identity"],
+            raw["rarity"].astext,
+            raw["type_line"].astext,
+        )
+        .select_from(InventoryLot)
+        .join(Printing, Printing.id == InventoryLot.printing_id)
+        .join(Binder, Binder.id == InventoryLot.binder_id)
+        .outerjoin(
+            CardPrice,
+            and_(
+                CardPrice.printing_id == InventoryLot.printing_id,
+                CardPrice.finish == InventoryLot.finish,
+                CardPrice.provider == provider,
+            ),
+        )
+        .where(InventoryLot.owner_id == identity.owner_id, InventoryLot.quantity_remaining > 0)
+    ).all()
+    colors, rarities, types, sets, locations = Tally(), Tally(), Tally(), Tally(), Tally()
+    copies, total = 0, Decimal(0)
+    best = {}
+    paid_copies, paid, paid_now, paid_unpriced = 0, Decimal(0), Decimal(0), 0
+    for (
+        printing_id,
+        finish,
+        quantity,
+        misprint,
+        altered,
+        purchase,
+        currency,
+        amount,
+        binder_id,
+        binder,
+        set_code,
+        set_name,
+        identity_colors,
+        rarity,
+        type_line,
+    ) in rows:
+        unit = None if amount is None or misprint or altered else Decimal(amount)
+        value = None if unit is None else unit * quantity
+        copies += quantity
+        total += value or 0
+        color = color_group(identity_colors)
+        colors.add(color, color, quantity, value)
+        rarities.add(rarity or "", (rarity or "unknown").capitalize(), quantity, value)
+        kind = type_group(type_line)
+        types.add(kind, kind, quantity, value)
+        sets.add(set_code, set_name or set_code.upper(), quantity, value)
+        locations.add(str(binder_id), binder, quantity, value)
+        if unit is not None:
+            entry = best.setdefault((printing_id, finish), [unit, 0])
+            entry[1] += quantity
+        # Only dollar prices can be compared with today's dollar prices.
+        if purchase is not None and (currency or "USD") == "USD" and not (misprint or altered):
+            if unit is None:
+                paid_unpriced += quantity
+            else:
+                paid_copies += quantity
+                paid += Decimal(purchase) * quantity
+                paid_now += value
+    top = sorted(best.items(), key=lambda item: (-item[1][0], str(item[0][0])))[:10]
+    printings = {
+        card.id: card
+        for card in db.scalars(select(Printing).where(Printing.id.in_([key[0] for key, _ in top])))
+    }
+    return {
+        "provider": provider,
+        "copies": copies,
+        "value": money(total),
+        "colors": colors.listed(COLOR_ORDER),
+        "rarities": rarities.listed(RARITY_ORDER),
+        "types": types.listed([*TYPE_ORDER, "Other"]),
+        "sets": sets.listed(limit=12),
+        "locations": locations.listed(limit=12),
+        "top_cards": [
+            {
+                "printing": printing_json(printings[printing_id]),
+                "finish": finish,
+                "quantity": quantity,
+                "amount": money(unit),
+            }
+            for (printing_id, finish), (unit, quantity) in top
+        ],
+        "paid": {
+            "copies": paid_copies,
+            "unpriced_copies": paid_unpriced,
+            "paid": money(paid),
+            "value": money(paid_now),
+            "change": money(paid_now - paid),
+        }
+        if paid_copies
+        else None,
+    }
 
 
 @router.get("/printings/{printing_id}/price-history")

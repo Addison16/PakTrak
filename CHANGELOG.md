@@ -5,6 +5,7 @@
 - **Collection → Add a card** adds a card without a photo or an import file. Search for it, pick the printing, then choose its finish, condition, storage location and how many copies. The search clears after each card so the next one can be typed right away, and the storage location is remembered.
 - The first card can name a new storage location on the spot, and **New location…** does the same later.
 - **What you paid.** Each group of copies can record what you paid per copy, in **Add a card** and under **Manage copies → Edit card details**. Prices that came in with an import file now show too. Next to it PakTrak shows today's price for that finish and how far it is up or down, for example "Paid $2.00 each · now $3.50 (up $1.50)". Clear the box to forget a price.
+- **Collection → Collection breakdown** shows where your cards and their value sit: by color, rarity, card type, set or storage location. Below it are your ten most valuable cards (tap one to open it) and, once any copies have a recorded price, what you paid for them next to what they're worth today.
 
 ## Cancel a collection import — October 16, 2026
 
