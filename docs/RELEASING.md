@@ -18,7 +18,7 @@ ghcr.io/addison16/paktrak:0.1.0
 
 All images also receive `sha-FULL_COMMIT_SHA` tags. After every versioned image publishes, stable releases promote each `latest` tag. `paktrak` is the [single-container image](UNRAID.md), built from [infra/allinone](../infra/allinone/Dockerfile). Prereleases receive version/commit tags and never change `latest`. The updater pins both application images to the same release version; infrastructure images retain their separately pinned upstream digests.
 
-The workflow uses its repository-scoped `GITHUB_TOKEN` with `packages: write`; no separate Docker Hub account or registry token is needed. Actions are pinned to commits. The first published platform is **linux/amd64**; ARM64 is not yet qualified.
+The workflow uses its repository-scoped `GITHUB_TOKEN` with `packages: write`; no separate Docker Hub account or registry token is needed. Actions are pinned to commits. Images are published for **linux/amd64** and **linux/arm64**. The ARM64 images are built on an ARM runner and pushed as `VERSION-arm64`, then joined with the amd64 image under the plain `VERSION` tag. If the ARM64 build fails, the version and `latest` tags stay amd64-only and the release still goes out; rerun the failed jobs to add ARM64. The single-container image is built, started and restarted on both processor types for every pull request.
 
 ## Make the packages publicly pullable
 

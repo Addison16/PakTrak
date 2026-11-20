@@ -12,6 +12,10 @@ Open scan images in the enlarged viewer, switch between the crop and suggested a
 
 Choose **Add a card** to add copies by searching the catalog: pick the printing, finish, condition, storage location and quantity. No photo or import file is needed.
 
+Under **Manage copies → Edit card details**, record what you paid per copy, add your own labels (separated by commas) and tick **Available for trade**. What you paid shows beside today's price for that finish. **Filters → Label** lists labeled cards and the cards marked for trade. Labels are private; a friend you share your collection with can list just your cards for trade.
+
+Open **Collection breakdown** for copies and value by color, rarity, card type, set or storage location, your ten most valuable cards, and what you paid against today's value.
+
 Search, filters, sort and gallery/list layout are remembered on this device and included in the page URL. Save named views or bookmark the URL. Card links load independently of the current gallery page.
 
 Choose **Select cards**, select up to 100 printings across pages, and use **Organize selected**. Preview the exact copies before moving them or setting their finish. A storage-location filter limits the operation to that location.
@@ -23,6 +27,12 @@ Within **Manage copies**, move a chosen quantity, update condition and notes, or
 Deck quantity buttons and **Undo last edit** make adjustments easier. Ownership and missing-copy counts are recalculated while editing; loading and failure states stay explicit. Recover unfinished edits after reload. Conflicts keep your draft and show the latest saved deck before you choose to save again. Duplicate a saved deck to try another build or copy its complete list.
 
 Deck import previews offer quantity and section corrections, issue filtering, printing selection and exclusion. Reviewed choices survive rebuilding the preview and reloading, including when the source text has changed. Existing decks keep their collection-matching preference. Collection imports have **Needs attention only**, **Previous issue** and **Next issue** controls with original source row numbers.
+
+## Share and print
+
+**Share this deck** and **Share your wishlist** create a read-only link for someone without an account. A link exists only after you create it and shows card names, quantities and pictures: never your name, notes, prices, storage locations or collection. **Turn off link** ends it immediately; a suspended account's links stop working. Links use the server's own address.
+
+A deck's buy list has **Print proxies**: the missing cards at real size (63 × 88 mm), nine to a page. Print at 100% scale. Deck value marks cards whose price moved at least 20% and $1 over the last month.
 
 ## Back up and restore
 

@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -709,6 +709,8 @@ def collection_cards(
     set_code: str = Query("", max_length=16),
     finish: Literal["", "unknown", "nonfoil", "foil", "etched"] = "",
     foil_type: str = Query("", max_length=32),
+    label: str = Query("", max_length=32),
+    for_trade: bool = False,
     min_price: Decimal | None = Query(None, ge=0, max_digits=16, decimal_places=4),
     max_price: Decimal | None = Query(None, ge=0, max_digits=16, decimal_places=4),
     sort: gallery.Sort = "name",
@@ -731,6 +733,8 @@ def collection_cards(
         set_code=set_code,
         finish=finish,
         foil_type=foil_type,
+        label=label,
+        for_trade=for_trade,
         min_price=min_price,
         max_price=max_price,
         sort=sort,
@@ -789,6 +793,8 @@ def collection(
                 "binder_id": str(binder.id),
                 "binder_kind": binder.kind,
                 "notes": lot.notes,
+                "labels": lot.labels or [],
+                "for_trade": bool(lot.for_trade),
                 "purchase_price": money_text(lot.purchase_price),
                 "market_price": money_text(market.get((lot.printing_id, lot.finish)))
                 if lot.purchase_price is not None
@@ -819,6 +825,22 @@ def money_text(value):
 
 
 Paid = Annotated[Decimal, Field(ge=0, le=1_000_000, max_digits=9, decimal_places=2)]
+LabelName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=32, pattern=r"^[^\x00-\x1f\x7f,]+$"
+    ),
+]
+
+
+def clean_labels(labels):
+    """One of each label, whatever its capitals, in the order given."""
+    seen, kept = set(), []
+    for label in labels:
+        if label.casefold() not in seen:
+            seen.add(label.casefold())
+            kept.append(label)
+    return kept
 
 
 def lock_scan_source(db, lot, owner_id):
@@ -842,6 +864,8 @@ class CardCorrection(StrictModel):
     notes: str | None = Field(default=None, max_length=4096)
     # Per copy, in US dollars. Left out: unchanged. Null: forget what was paid.
     purchase_price: Paid | None = None
+    labels: Annotated[list[LabelName], Field(max_length=8)] | None = None
+    for_trade: bool | None = None
 
 
 @router.post("/collection/{lot_id}/details")
@@ -900,6 +924,10 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         lot.condition = data.condition
     if data.notes is not None:
         lot.notes = data.notes
+    if data.labels is not None:
+        lot.labels = clean_labels(data.labels)
+    if data.for_trade is not None:
+        lot.for_trade = data.for_trade
     if "purchase_price" in data.model_fields_set:
         lot.purchase_price = data.purchase_price
         lot.purchase_currency = None if data.purchase_price is None else "USD"
@@ -917,6 +945,8 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         "condition": lot.condition,
         "notes": lot.notes,
         "purchase_price": money_text(lot.purchase_price),
+        "labels": lot.labels or [],
+        "for_trade": bool(lot.for_trade),
     }
     db.add(
         InventoryEvent(
@@ -1093,6 +1123,8 @@ def relocate_lot(db, lot, destination, quantity, operation_key):
             purchase_currency=lot.purchase_currency,
             misprint=lot.misprint,
             altered=lot.altered,
+            labels=list(lot.labels or []),
+            for_trade=lot.for_trade,
             source_metadata=dict(lot.source_metadata or {}),
             source_import_row_id=lot.source_import_row_id,
             source_observation_id=lot.source_observation_id,

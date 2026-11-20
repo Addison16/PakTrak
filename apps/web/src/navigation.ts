@@ -68,7 +68,10 @@ let travelling = false;
 let scrollTarget: number | null = null;
 let scrollFrame = 0;
 history.scrollRestoration = "manual";
-history.replaceState(current, "", location.pathname + location.search + hash(current.route));
+/** The token of a read-only shared link, when the page was opened from one. Its address is left as it is. */
+export const sharedLinkToken = () => /^#\/shared\/([A-Za-z0-9_-]{20,64})$/.exec(location.hash)?.[1];
+export const openedSharedLink = sharedLinkToken();
+if (!openedSharedLink) history.replaceState(current, "", location.pathname + location.search + hash(current.route));
 
 function allowed(to: Route) { return [...guards].every((guard) => guard(current.route, to)); }
 function rememberScroll() {
@@ -113,6 +116,9 @@ window.addEventListener("scroll", () => {
 window.addEventListener("pagehide", () => { if (!travelling) rememberScroll(); });
 
 window.addEventListener("popstate", (event: PopStateEvent) => {
+  // Moving between the app and a shared link's read-only page, by a pasted
+  // address or by Back and Forward, loads the other page afresh.
+  if (openedSharedLink !== sharedLinkToken()) { location.reload(); return; }
   const stored = isEntry(event.state) && event.state.chain === current.chain ? event.state : null;
   if (!stored) {
     // An address-bar hash change is a normal new destination, not a trap at

@@ -17,5 +17,5 @@ export const sections: Record<Section, string> = { main: "Mainboard", sideboard:
 
 export type FinishPreference = "nonfoil" | "foil" | "etched";
 export type ValueTotal = { amount: string | null; copies: number; priced_copies: number; unpriced_copies: number };
-export type DeckValueItem = { printing_id: string; name: string; set_code: string; collector_number: string; section: Section; quantity: number; finish: FinishPreference | null; finish_fallback: boolean; unit_amount: string | null; amount: string | null; unpriced_reason: "missing_price" | "unknown_finish" | null };
+export type DeckValueItem = { printing_id: string; name: string; set_code: string; collector_number: string; section: Section; quantity: number; finish: FinishPreference | null; finish_fallback: boolean; unit_amount: string | null; amount: string | null; unpriced_reason: "missing_price" | "unknown_finish" | null; earlier_amount?: string | null; earlier_day?: string | null };
 export type DeckValuation = ValueTotal & { provider: PriceSource; currency: "USD"; price_kind: string; finish_preference: FinishPreference; fallback_copies: number; sections: Record<Section, ValueTotal>; items: DeckValueItem[]; feed: DataFeed | null; checked_at: string };

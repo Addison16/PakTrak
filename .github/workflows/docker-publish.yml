@@ -93,6 +93,44 @@ jobs:
         if: failure()
         run: docker logs --tail 200 paktrak
 
+  # The same check on an ARM machine. Only the ARM64 images wait for it, so a
+  # problem here never holds back an amd64 release.
+  verify-single-container-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the single-container image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/allinone/Dockerfile
+          load: true
+          tags: paktrak:verify
+          cache-from: type=gha,scope=paktrak-allinone-arm64
+          cache-to: type=gha,mode=max,scope=paktrak-allinone-arm64
+      - name: Start it, restart it and check the app answers
+        run: |
+          data=$(mktemp -d)
+          docker run -d --name paktrak -p 127.0.0.1:8095:8095 -e APP_URL=http://localhost:8095 -v "$data:/data" paktrak:verify
+          for attempt in 1 2; do
+            for i in $(seq 1 120); do
+              [ "$(docker logs paktrak 2>&1 | grep -c 'PakTrak is running')" -ge "$attempt" ] && break
+              docker logs paktrak 2>&1 | grep -q 'Startup stopped' && exit 1
+              sleep 3
+            done
+            curl --fail --silent --show-error http://localhost:8095/api/health/ready
+            curl --fail --silent --show-error -o /dev/null http://localhost:8095/
+            curl --fail --silent --show-error -o /dev/null http://localhost:8095/identity/realms/scanner/.well-known/openid-configuration
+            [ "$attempt" = 2 ] || docker restart -t 120 paktrak
+          done
+      - name: Back up, restore and move to a fresh data folder
+        run: sh scripts/test-single-container-backups.sh paktrak:verify
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs --tail 200 paktrak
+
   publish:
     if: github.event_name == 'release'
     needs: [verify, verify-single-container]
@@ -145,9 +183,87 @@ jobs:
           cache-from: type=gha,scope=paktrak-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=paktrak-${{ matrix.component }}
 
+  # ARM64 builds run on an ARM machine and publish under their own tag first, so a
+  # problem there can never hold back the amd64 images above.
+  publish-arm64:
+    if: github.event_name == 'release'
+    needs: [verify, verify-single-container-arm64]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            image: paktrak-backend
+            dockerfile: services/backend/Dockerfile
+          - component: web
+            image: paktrak-web
+            dockerfile: apps/web/Dockerfile
+          - component: allinone
+            image: paktrak
+            dockerfile: infra/allinone/Dockerfile
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish the ARM64 image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: runtime
+          platforms: linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ghcr.io/addison16/${{ matrix.image }}:${{ needs.verify.outputs.version }}-arm64
+          labels: |
+            org.opencontainers.image.title=PakTrak ${{ matrix.component }}
+            org.opencontainers.image.source=https://github.com/Addison16/PakTrak
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          cache-from: type=gha,scope=paktrak-${{ matrix.component }}-arm64
+          cache-to: type=gha,mode=max,scope=paktrak-${{ matrix.component }}-arm64
+
+  # Makes each version tag answer for both processor types. If the ARM64 build
+  # failed, the version tags stay amd64-only and the release still goes out.
+  multi-arch:
+    if: github.event_name == 'release'
+    needs: [verify, publish, publish-arm64]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Join the amd64 and ARM64 images under the version tag
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          for name in paktrak-backend paktrak-web paktrak; do
+            image="ghcr.io/addison16/$name"
+            docker buildx imagetools create --tag "$image:$RELEASE_VERSION" \
+              "$image:sha-$GITHUB_SHA" "$image:$RELEASE_VERSION-arm64"
+          done
+
   promote-latest:
-    if: github.event_name == 'release' && needs.verify.outputs.latest == 'true'
-    needs: [verify, publish]
+    # Runs whether or not the ARM64 images made it, as long as the amd64 ones did.
+    if: always() && github.event_name == 'release' && needs.publish.result == 'success' && needs.verify.outputs.latest == 'true'
+    needs: [verify, publish, multi-arch]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

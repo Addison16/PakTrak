@@ -6,7 +6,7 @@ KEEP_DAYS = 400
 
 
 def record_history(db, provider):
-    """Save today's prices for owned or wanted printings and each account's total.
+    """Save today's prices for owned, wanted or deck printings and each account's total.
 
     Called inside the price replacement transaction, so history and the price
     cache always change together. Repeated updates on one day keep the latest.
@@ -21,6 +21,7 @@ def record_history(db, provider):
             WHERE price.provider = :provider AND price.printing_id IN (
                 SELECT printing_id FROM inventory_lots WHERE quantity_remaining > 0
                 UNION SELECT printing_id FROM wishlist_items
+                UNION SELECT printing_id FROM deck_cards
             )
             ON CONFLICT (printing_id, provider, finish, day)
             DO UPDATE SET amount = excluded.amount

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { money, mutation, providers, request, type Printing, type Session, type WantedFinish, type Wishlist as WishlistData, type WishlistItem } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import PrintingPicker from "./PrintingPicker";
+import { ShareSection } from "./ShareLink";
 import StoreButtons, { ReferralNote } from "./StoreButtons";
 import "./trade-value.css";
 import "./social.css";
@@ -100,6 +101,8 @@ export default function Wishlist({ session, active }: { session: Session; active
       <label>One card per line, like “2 Lightning Bolt” or “1 Sol Ring (C21) 263”<textarea rows={6} value={pasted} onChange={(event) => setPasted(event.target.value)} /></label>
       <button className="button primary" disabled={busy || !pasted.trim()}>Add to wishlist</button>
     </form>}
+
+    {data && <ShareSection className="value-history" summary="Share your wishlist" session={session} kind="wishlist" />}
 
     {items.length > 0 && <div className="social-stores">
       <h3>Buy your wishlist</h3>

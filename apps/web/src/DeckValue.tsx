@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
 import { money, mutation, providers, request, type PriceSource, type Session } from "./api";
 import usePriceSource from "./usePriceSource";
-import { sections, type DeckValuation, type FinishPreference, type Section } from "./deckTypes";
+import { sections, type DeckValuation, type DeckValueItem, type FinishPreference, type Section } from "./deckTypes";
 import "./deck-value.css";
 
 const finishes = { nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
 type Choice = { printing_id: string; section: Section; quantity: number };
+/** A price move worth pointing out: at least 20% and $1 per copy against the oldest price of the last month. */
+export function priceMove(item: Pick<DeckValueItem, "unit_amount" | "earlier_amount" | "earlier_day">) {
+  if (item.unit_amount == null || item.earlier_amount == null || !item.earlier_day) return null;
+  const now = Number(item.unit_amount), before = Number(item.earlier_amount);
+  if (!(before > 0) || Math.abs(now - before) < 1 || Math.abs(now - before) / before < 0.2) return null;
+  return { percent: Math.round((now - before) / before * 100), before, day: item.earlier_day };
+}
+function moveText(item: DeckValueItem) {
+  const move = priceMove(item);
+  if (!move) return "";
+  const since = new Date(move.day + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${move.percent > 0 ? "Up" : "Down"} ${Math.abs(move.percent)}% since ${since} (was ${money(move.before)})`;
+}
+
 export default function DeckValue({ session, cards, saved, live, paused, busy, onCard, compact = false }: {
   session: Session; cards: Choice[]; saved: DeckValuation; live: boolean; paused: boolean; busy: boolean;
   onCard: (id: string, section: Section) => void; compact?: boolean;
@@ -31,6 +45,7 @@ export default function DeckValue({ session, cards, saved, live, paused, busy, o
   const error = !paused && preference.ready && needsRequest && answer?.key === key ? answer.error : undefined;
   const reload = () => { setAnswer(null); setRetry(value => value + 1); };
   const rows = report?.items.filter(item => !onlyUnpriced || item.unit_amount === null) || [];
+  const jumps = report?.items.filter(item => (priceMove(item)?.percent || 0) > 0).length || 0;
   const controls = <>
     <div className="deck-value-heading"><div><span className="eyebrow">EVERY COPY COUNTS</span><h3>Deck value</h3></div><button className="text-button" disabled={busy || paused || !preference.ready || !!needsRequest && !report && !error} onClick={reload}>Refresh value</button></div>
     <div className="deck-value-controls">
@@ -43,6 +58,7 @@ export default function DeckValue({ session, cards, saved, live, paused, busy, o
     {paused ? <p role="status">Finish entering card quantities to update this estimate.</p> : error ? <p className="message error" role="status">Deck value unavailable. {error} <button className="text-button" onClick={reload}>Retry deck value</button></p> : !report ? <p role="status">Calculating deck value…</p> : <>
       <div className="deck-value-total"><strong aria-label="Estimated deck value">{money(report.amount)}</strong><span>{report.copies === 0 ? "Add cards to see your deck’s value" : report.priced_copies === 0 ? "No prices available" : report.unpriced_copies ? "Partial estimate · USD" : "Estimated value · USD"}</span></div>
       <p className="deck-value-coverage" role="status">{report.priced_copies} of {report.copies} copies priced{report.unpriced_copies > 0 && ` · ${report.unpriced_copies} unpriced`}{live && " · Unsaved deck changes"}</p>
+      {jumps > 0 && <p className="fine deck-value-jumps">{jumps} {jumps === 1 ? "card has" : "cards have"} jumped in price over the last month. Open the breakdown to see which.</p>}
     </>}
   </>;
   const breakdown = report && <>
@@ -54,7 +70,7 @@ export default function DeckValue({ session, cards, saved, live, paused, busy, o
         <p className="fine">Prices use the editions saved in this deck and include every requested copy, whether or not it is in your collection.</p>
         <label className="checkbox"><input type="checkbox" checked={onlyUnpriced} onChange={event => setOnlyUnpriced(event.target.checked)} />Only unpriced cards</label>
         <ul className="plain-list">{rows.map(item => <li key={item.printing_id + item.section}>
-          <div><button className="text-button" onClick={() => onCard(item.printing_id, item.section)}>{item.name}</button><small>{item.set_code.toUpperCase()} #{item.collector_number} · {sections[item.section]} · {item.finish ? finishes[item.finish] : "Finish unavailable"}</small><small>{item.unit_amount === null ? item.unpriced_reason === "unknown_finish" ? "No supported finish recorded for this edition" : "No quote for this edition and finish" : `${item.quantity} × ${money(item.unit_amount)}`}</small></div>
+          <div><button className="text-button" onClick={() => onCard(item.printing_id, item.section)}>{item.name}</button><small>{item.set_code.toUpperCase()} #{item.collector_number} · {sections[item.section]} · {item.finish ? finishes[item.finish] : "Finish unavailable"}</small><small>{item.unit_amount === null ? item.unpriced_reason === "unknown_finish" ? "No supported finish recorded for this edition" : "No quote for this edition and finish" : `${item.quantity} × ${money(item.unit_amount)}`}</small>{moveText(item) && <small className="deck-value-move">{moveText(item)}</small>}</div>
           <strong>{item.amount === null ? "Unpriced" : money(item.amount)}</strong>
         </li>)}</ul>
         {rows.length === 0 && <p className="fine">{onlyUnpriced && report.copies ? "Every card has a price for this estimate." : "No cards to show."}</p>}

@@ -1,6 +1,7 @@
 """Reference values for exact deck printings, using only the local price cache."""
 
 from collections import defaultdict
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -8,10 +9,38 @@ from sqlalchemy import select
 
 from scanner.data_sync import PROVIDERS
 from scanner.gallery import feed_json
-from scanner.models import CardPrice, DataFeed, now
+from scanner.models import CardPrice, CardPriceHistory, DataFeed, now
 
 FinishPreference = Literal["nonfoil", "foil", "etched"]
 FINISHES = ("nonfoil", "foil", "etched")
+# How far back a deck card's price is compared, to point out cards that jumped.
+COMPARE_DAYS = 30
+
+
+def earlier_prices(db, printing_ids, provider):
+    """The oldest saved price in the comparison window for each printing and finish."""
+    today = date.today()
+    earlier = {}
+    for row in db.scalars(
+        select(CardPriceHistory)
+        .where(
+            CardPriceHistory.printing_id.in_(printing_ids),
+            CardPriceHistory.provider == provider,
+            CardPriceHistory.day >= today - timedelta(days=COMPARE_DAYS),
+            CardPriceHistory.day < today,
+        )
+        .order_by(CardPriceHistory.day.desc())
+    ):
+        earlier[(row.printing_id, row.finish)] = (Decimal(row.amount), row.day)
+    return earlier
+
+
+def was(found):
+    amount, day = found or (None, None)
+    return {
+        "earlier_amount": str(amount) if amount is not None else None,
+        "earlier_day": day.isoformat() if day else None,
+    }
 
 
 def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
@@ -40,6 +69,7 @@ def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
             "amount": str(total) if priced or not copies else None,
         }
 
+    earlier = earlier_prices(db, {printing.id for _, printing in rows}, provider)
     items = []
     for choice, printing in rows:
         available = [finish for finish in FINISHES if finish in printing.finishes]
@@ -60,6 +90,7 @@ def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
                 "finish_fallback": finish is not None and finish != finish_preference,
                 "unit_amount": str(amount) if amount is not None else None,
                 "amount": str(amount * choice.quantity) if amount is not None else None,
+                **was(earlier.get((printing.id, finish)) if amount is not None else None),
                 "unpriced_reason": None
                 if amount is not None
                 else "missing_price"

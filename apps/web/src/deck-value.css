@@ -25,3 +25,5 @@
 .deck-detail .deck-availability span { display: inline-flex; align-items: baseline; gap: 5px; padding: 0; border: 0; border-radius: 0; font-size: 12px; }
 .deck-detail .deck-availability strong { font-size: 16px; font-weight: 600; }
 @media (max-width: 550px) { .deck-value { padding: 16px 12px; } .deck-value-controls { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+.deck-value-jumps { margin: -8px 0 16px; }
+.deck-value-move { color: var(--forest); font-weight: 600; }

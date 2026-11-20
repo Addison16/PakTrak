@@ -2,7 +2,7 @@
 
 ## First installation
 
-Run from a Git clone on a machine with Git, Docker Engine/Desktop and Compose 2.18 or newer. Published application images currently support Linux amd64:
+Run from a Git clone on a machine with Git, Docker Engine/Desktop and Compose 2.18 or newer. Published application images support Linux amd64 and, from the release after v0.3.1, Linux ARM64:
 
 ```sh
 sh scripts/setup.sh

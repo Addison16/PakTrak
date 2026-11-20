@@ -53,6 +53,8 @@ from scanner.recognition_policy import AUTO_IMPORT_THRESHOLD
 from scanner.scan_batches import batch_data
 from scanner.scan_batches import router as scan_batches_router
 from scanner.settings import get_settings
+from scanner.shares import public as public_shares_router
+from scanner.shares import router as shares_router
 from scanner.social import router as friends_router
 from scanner.social import trades as trade_offers_router
 from scanner.wishlist import router as wishlist_router
@@ -88,6 +90,8 @@ app.include_router(diagnostics_router)
 app.include_router(backups_router)
 app.include_router(servers_router)
 app.include_router(federation_router)
+app.include_router(shares_router)
+app.include_router(public_shares_router)
 
 
 @app.middleware("http")

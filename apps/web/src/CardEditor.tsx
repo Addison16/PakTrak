@@ -1,6 +1,6 @@
 import ErrorNotice from "./ErrorNotice";
 import { useRef, useState } from "react";
-import { foilName, isQueued, mutation, priceInput, queuedNotice, send, type Lot, type Printing, type Session } from "./api";
+import { foilName, isQueued, labelInput, mutation, priceInput, queuedNotice, send, type Lot, type Printing, type Session } from "./api";
 import PrintingPicker from "./PrintingPicker";
 
 const finishes: Record<string, string> = { nonfoil: "Normal / nonfoil", foil: "Foil", etched: "Etched foil", unknown: "Unknown finish" };
@@ -10,6 +10,11 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
   const [finish, setFinish] = useState(lot.finish);
   const [condition, setCondition] = useState(lot.condition);
   const [notes, setNotes] = useState(lot.notes);
+  const [labelText, setLabelText] = useState((lot.labels || []).join(", "));
+  const [forTrade, setForTrade] = useState(!!lot.for_trade);
+  const labels = labelInput(labelText);
+  const labelsChanged = labels.join("\n") !== (lot.labels || []).join("\n");
+  const tradeChanged = forTrade !== !!lot.for_trade;
   const was = lot.purchase_price || "";
   const [paid, setPaid] = useState(was);
   const price = priceInput(paid);
@@ -25,14 +30,14 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
   }
   async function save() {
     setBusy(true); setError("");
-    const data = { printing_id: printing.id, finish, condition, notes, expected_version: lot.version, ...(priceChanged ? { purchase_price: price || null } : {}) };
+    const data = { printing_id: printing.id, finish, condition, notes, expected_version: lot.version, ...(priceChanged ? { purchase_price: price || null } : {}), ...(labelsChanged ? { labels } : {}), ...(tradeChanged ? { for_trade: forTrade } : {}) };
     const body = JSON.stringify(data);
     if (attempt.current.body !== body) attempt.current = { body, key: crypto.randomUUID() };
     const changes = [printing.id !== lot.printing.id && `Printing: ${printing.set_code.toUpperCase()} #${printing.collector_number}`, finish !== lot.finish && `Finish: ${finish === "foil" ? foilName(printing) : finishes[finish] || finish}`,
-      condition !== lot.condition && `Condition: ${condition === "ungraded" ? "Ungraded" : condition}`, notes !== lot.notes && "Notes changed", priceChanged && (price ? `Paid: $${price} each` : "Paid price removed")].filter(Boolean).join(" · ");
+      condition !== lot.condition && `Condition: ${condition === "ungraded" ? "Ungraded" : condition}`, notes !== lot.notes && "Notes changed", priceChanged && (price ? `Paid: $${price} each` : "Paid price removed"), labelsChanged && (labels.length ? `Labels: ${labels.join(", ")}` : "Labels removed"), tradeChanged && (forTrade ? "Marked for trade" : "No longer for trade")].filter(Boolean).join(" · ");
     try {
       const result = await send(session, "/api/v1/collection/" + lot.id + "/details", mutation(session, data, attempt.current.key),
-        { label: `Edit ${lot.printing.name} in ${lot.binder}`, detail: changes, resource: "lot:" + lot.id, preview: { finish, condition, notes, ...(priceChanged ? { purchase_price: price || null, market_price: null } : {}) } });
+        { label: `Edit ${lot.printing.name} in ${lot.binder}`, detail: changes, resource: "lot:" + lot.id, preview: { finish, condition, notes, ...(priceChanged ? { purchase_price: price || null, market_price: null } : {}), ...(labelsChanged ? { labels } : {}), ...(tradeChanged ? { for_trade: forTrade } : {}) } });
       if (isQueued(result)) { setSaved("queued"); setBusy(false); return; }
       setSaved("saved");
     } catch (e) { setError(e as Error); setBusy(false); return; }
@@ -53,8 +58,12 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
       <label>Condition<select value={condition} onChange={(e) => setCondition(e.target.value)}>{["ungraded", "NM", "LP", "MP", "HP", "damaged"].map((value) => <option key={value} value={value}>{value === "ungraded" ? "Ungraded" : value}</option>)}</select></label>
       <label>Paid per copy (optional)<input inputMode="decimal" maxLength={12} placeholder="e.g. 3.50" value={paid} aria-invalid={price === null} onChange={(e) => setPaid(e.target.value)} /></label>
       {price === null && <p className="fine">Enter what you paid for one copy in dollars, like 3.50, or leave it empty.</p>}
+      <label>Labels (optional)<input value={labelText} maxLength={280} placeholder="e.g. Signed, Cube" onChange={(e) => setLabelText(e.target.value)} /></label>
+      <p className="fine">Your own tags, separated by commas. Find labeled cards with Filters in your collection. Only you see them.</p>
+      <label className="checkbox"><input type="checkbox" checked={forTrade} onChange={(e) => setForTrade(e.target.checked)} />Available for trade</label>
+      <p className="fine">Friends you share your collection with can list just your cards for trade.</p>
       <label>Copy notes<textarea rows={3} maxLength={4096} placeholder="Binder page, box divider, or anything useful for finding these copies" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-      <button type="button" className="button primary" disabled={!finish || price === null || (printing.id === lot.printing.id && finish === lot.finish && condition === lot.condition && notes === lot.notes && !priceChanged)} onClick={() => void save()}>{busy ? "Saving…" : saved === "queued" ? "Queued" : saved ? "Saved" : "Save card details"}</button>
+      <button type="button" className="button primary" disabled={!finish || price === null || (printing.id === lot.printing.id && finish === lot.finish && condition === lot.condition && notes === lot.notes && !priceChanged && !labelsChanged && !tradeChanged)} onClick={() => void save()}>{busy ? "Saving…" : saved === "queued" ? "Queued" : saved ? "Saved" : "Save card details"}</button>
     </fieldset>
     {saved === "queued" && <p className="message success" role="status">{queuedNotice}</p>}
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}

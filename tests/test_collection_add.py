@@ -135,3 +135,81 @@ def test_what_was_paid_is_saved_shown_with_todays_price_and_can_be_cleared(clien
     finally:
         with session_factory()() as db, db.begin():
             db.query(CardPrice).filter(CardPrice.printing_id == printing).delete()
+
+
+def test_labels_and_the_trade_list_filter_the_collection_and_a_friends_view(clients, catalog):
+    from scanner.models import Friendship
+
+    client, owner = clients()
+    friend, friend_id = clients()
+    binder = location(client, "Binder A")
+
+    def add(card, quantity):
+        body = {"printing_id": card, "binder_id": binder, "quantity": quantity, "finish": "nonfoil"}
+        return client.post(PATH, headers=key(), json=body).json()
+
+    first, second = add(catalog[0], 3), add(catalog[1], 1)
+    path = f"/api/v1/collection/{first['id']}/details"
+    edit = {"printing_id": catalog[0], "finish": "nonfoil", "expected_version": first["version"]}
+    saved = client.post(
+        path,
+        headers=key(),
+        json={**edit, "labels": [" Signed ", "signed", "Cube"], "for_trade": True},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["labels"] == ["Signed", "Cube"] and saved.json()["for_trade"] is True
+    edit["expected_version"] = saved.json()["version"]
+    assert client.post(path, headers=key(), json={**edit, "labels": ["a,b"]}).status_code == 422
+    assert client.post(path, headers=key(), json={**edit, "labels": ["x"] * 9}).status_code == 422
+    # Leaving both out keeps them; a partial move carries them along.
+    kept = client.post(path, headers=key(), json={**edit, "condition": "NM"}).json()
+    assert kept["labels"] == ["Signed", "Cube"] and kept["for_trade"] is True
+    moved = client.post(
+        f"/api/v1/collection/{first['id']}/move",
+        headers=key(),
+        json={
+            "binder_id": location(client, "Trade binder"),
+            "expected_version": kept["version"],
+            "quantity": 1,
+        },
+    )
+    assert moved.status_code == 200, moved.text
+    lots = client.get("/api/v1/collection").json()["items"]
+    assert sorted((lot["quantity"], lot["for_trade"], lot["labels"]) for lot in lots) == [
+        (1, False, []),
+        (1, True, ["Signed", "Cube"]),
+        (2, True, ["Signed", "Cube"]),
+    ]
+
+    def cards(who=client, **params):
+        url = "/api/v1/collection/cards"
+        return {
+            item["printing"]["id"]: item["quantity"]
+            for item in who.get(url, params=params).json()["items"]
+        }
+
+    assert cards() == {catalog[0]: 3, catalog[1]: 1}
+    assert cards(label="SIGNED") == {catalog[0]: 3}
+    assert cards(for_trade="true") == {catalog[0]: 3}
+    assert cards(label="nope") == {}
+    options = client.get("/api/v1/collection/filters").json()
+    assert options["labels"] == ["Cube", "Signed"] and options["for_trade"] is True
+    assert friend.get("/api/v1/collection/filters").json()["labels"] == []
+
+    # A friend sees the trade list, never the labels.
+    with session_factory()() as db, db.begin():
+        low, high = sorted([owner, friend_id])
+        db.add(Friendship(user_a=low, user_b=high, requested_by=low, state="accepted"))
+    shared = friend.get(f"/api/v1/friends/{owner}/collection", params={"for_trade": "true"})
+    assert shared.status_code == 200, shared.text
+    assert shared.json()["trade_list"] is True
+    assert [item["printing"]["id"] for item in shared.json()["items"]] == [catalog[0]]
+    assert "labels" not in json_text(shared.json())
+    everything = friend.get(f"/api/v1/friends/{owner}/collection").json()
+    assert len(everything["items"]) == 2 and second["id"]
+
+
+def json_text(value):
+    import json
+
+    return json.dumps(value)

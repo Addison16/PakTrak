@@ -3,7 +3,7 @@ import { checkConnection, connection, enqueue, markReachable, markSavedCopy, off
 export type PriceSource = "tcgplayer" | "cardkingdom" | "manapool";
 export type Session = { store_links?: StoreLinks; trade_offers_waiting?: number; scans_paused?: boolean; suspended?: boolean; scan_card_limit_override?: number | null; account_version?: number; membership_welcome?: boolean; approved_at?: string | null; tour_dismissed: boolean; preferred_price_source: PriceSource | null; owner_id: string; display_name: string; csrf_token: string; role: "admin" | "member" | "guest"; scan_cards_used: number; scan_card_limit: number | null; scan_cards_remaining: number | null };
 export type Location = { id: string; name: string; kind: "binder" | "box" | "other"; notes: string; version: number; copies: number };
-export type Lot = { id: string; printing: Printing; quantity: number; finish: string; condition: string; binder: string; binder_id: string; binder_kind: string; notes: string; version: number; purchase_price?: string | null; purchase_currency?: string; market_price?: string | null };
+export type Lot = { id: string; printing: Printing; quantity: number; finish: string; condition: string; binder: string; binder_id: string; binder_kind: string; notes: string; version: number; purchase_price?: string | null; purchase_currency?: string; market_price?: string | null; labels?: string[]; for_trade?: boolean };
 export type PricingIssues = { unknown_finish: number; custom_value: number; missing_price: number };
 export type CollectionCard = { printing: Printing; quantity: number; location_count: number; locations: { id: string; name: string; kind: string; quantity: number }[]; value: string | null; priced_copies: number; price_min: string | null; price_max: string | null; pricing_issues?: PricingIssues; finish_counts?: Partial<Record<"nonfoil" | "foil" | "etched" | "unknown", number>> };
 export type Printing = { id: string; name: string; display_name?: string; set_code: string; collector_number: string; language: string; finishes: string[]; set_name?: string; type_line?: string; mana_cost?: string; cmc?: number | null; produced_mana?: string[]; foil_type?: string; rarity?: string; colors?: string[]; image_url?: string | null };
@@ -30,6 +30,12 @@ export type DataFeed = { name: string; state: string; progress: Partial<WorkProg
 export const providers: Record<string, string> = { tcgplayer: "TCGplayer", cardkingdom: "Card Kingdom", manapool: "ManaPool" };
 export const isPriceSource = (value: unknown): value is PriceSource => typeof value === "string" && Object.hasOwn(providers, value);
 export const money = (value: string | number | null | undefined) => value == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+
+/** Labels typed as "Signed, Cube": trimmed, one of each, at most eight of 32 characters. */
+export function labelInput(value: string) {
+  const seen = new Set<string>();
+  return value.split(",").map((label) => label.trim().slice(0, 32)).filter((label) => label && !seen.has(label.toLowerCase()) && seen.add(label.toLowerCase())).slice(0, 8);
+}
 
 /** A typed price such as "3.50" as the server expects it; "" when empty, null when it isn't a price. */
 export function priceInput(value: string) {

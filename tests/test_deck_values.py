@@ -1,5 +1,6 @@
 import secrets
 import uuid
+from datetime import date, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -11,7 +12,7 @@ from test_collections import key
 from scanner.api import app
 from scanner.db import session_factory
 from scanner.deck_values import value_report
-from scanner.models import CardPrice, CatalogSnapshot, Deck, Printing
+from scanner.models import CardPrice, CardPriceHistory, CatalogSnapshot, Deck, Printing
 from scanner.settings import get_settings
 
 
@@ -269,8 +270,26 @@ def test_price_reads_are_batched_and_invalid_numeric_quotes_are_excluded(clients
             value = value_report(db, rows)
         finally:
             event.remove(engine, "before_cursor_execute", count)
-        assert len(queries) == 2
+        assert len(queries) == 3
         assert Decimal(value["amount"]) == Decimal("30030")
+        # With no saved history there is nothing to compare; the oldest price of the last
+        # month is reported once there is, and older or same-day prices are ignored.
+        assert value["items"][0]["earlier_amount"] is None
+        today = date.today()
+        for days, amount in ((45, 1), (20, 2), (5, 3), (0, 9)):
+            db.add(
+                CardPriceHistory(
+                    printing_id=printing.id,
+                    provider="tcgplayer",
+                    finish="nonfoil",
+                    day=today - timedelta(days=days),
+                    amount=amount,
+                )
+            )
+        db.flush()
+        item = value_report(db, rows)["items"][0]
+        assert Decimal(item["earlier_amount"]) == 2
+        assert item["earlier_day"] == (today - timedelta(days=20)).isoformat()
         quote = db.get(CardPrice, (printing.id, "tcgplayer", "nonfoil"))
         quote.amount = Decimal("NaN")
         db.flush()

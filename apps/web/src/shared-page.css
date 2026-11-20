@@ -1,0 +1,13 @@
+.shared-page { max-width: 720px; margin-inline: auto; }
+.shared-page h1 { margin: 4px 0 6px; font-size: clamp(26px, 6vw, 36px); overflow-wrap: anywhere; }
+.shared-page h2 { margin: 26px 0 4px; font-size: 16px; }
+.shared-page h2 small { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 500; }
+.shared-summary { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+.shared-cards li { display: grid; grid-template-columns: 34px 34px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.shared-cards img, .shared-cards .printing-art-placeholder { width: 34px; height: 47px; object-fit: contain; border-radius: 3px; background: var(--surface-muted); }
+.shared-quantity { font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.shared-name strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.shared-name small { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.shared-foot { margin-top: 28px; }
+.share-link { margin: 4px 0 16px; }
+.share-link input { font-size: 14px; }
