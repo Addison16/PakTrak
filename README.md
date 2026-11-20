@@ -87,7 +87,7 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 
 ## Install
 
-PakTrak runs in Docker on any Linux x86-64 (amd64) server. There is no default password; the first person to open it creates the administrator account.
+PakTrak runs in Docker on any Linux x86-64 (amd64) server, and on ARM64 computers such as a Raspberry Pi 4 or 5 with a 64-bit system. There is no default password; the first person to open it creates the administrator account.
 
 ### Try it with one command
 
