@@ -7,6 +7,8 @@
 - **What you paid.** Each group of copies can record what you paid per copy, in **Add a card** and under **Manage copies → Edit card details**. Prices that came in with an import file now show too. Next to it PakTrak shows today's price for that finish and how far it is up or down, for example "Paid $2.00 each · now $3.50 (up $1.50)". Clear the box to forget a price.
 - **Collection → Collection breakdown** shows where your cards and their value sit: by color, rarity, card type, set or storage location. Below it are your ten most valuable cards (tap one to open it) and, once any copies have a recorded price, what you paid for them next to what they're worth today.
 - **Print proxies.** A deck's buy list has a **Print proxies** button that lays out the cards you're missing at real card size, nine to a page with cut lines, ready for your browser's Print. Use them to try a deck before buying; they aren't for sanctioned events.
+- **Labels.** Give copies your own labels (for example "Signed" or "Cube") under **Manage copies → Edit card details**, then find them with **Collection → Filters → Label**. Only you see your labels.
+- **For trade.** Tick **Available for trade** on copies you'd part with. **Filters → Label → For trade** lists them, and a friend you share your collection with can tick **Only cards they've marked for trade** on your page. Friends on other servers still see the whole shared collection for now.
 
 ## Cancel a collection import — October 16, 2026
 

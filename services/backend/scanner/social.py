@@ -337,8 +337,10 @@ def friend_collection(
     offset: int = Query(0, ge=0),
     q: str = Query("", max_length=255),
     sort: Literal["name", "price_desc", "price_asc", "newest"] = "name",
+    for_trade: bool = False,
 ):
     if remote := federation.remote_link(db, identity.owner_id, user_id, "accepted"):
+        # Servers don't exchange trade marks yet, so a remote friend's whole collection shows.
         return remote_collection(db, identity.owner_id, remote, offset, q, sort)
     person = friend(db, identity.owner_id, user_id)
     if not person.share_collection:
@@ -358,11 +360,27 @@ def friend_collection(
         finish="",
         sort=sort,
         seed="",
+        for_trade=for_trade,
     )
     # Storage locations and notes stay private to the owner.
     for item in result["items"]:
         item["locations"], item["location_count"] = [], 0
-    return {"name": account_name(person), **result}
+    return {"name": account_name(person), "trade_list": trade_list(db, person.id), **result}
+
+
+def trade_list(db, owner_id):
+    """Whether this person has marked any copies as available for trade."""
+    return bool(
+        db.scalar(
+            select(InventoryLot.id)
+            .where(
+                InventoryLot.owner_id == owner_id,
+                InventoryLot.quantity_remaining > 0,
+                InventoryLot.for_trade.is_(True),
+            )
+            .limit(1)
+        )
+    )
 
 
 @router.get("/{user_id}/wishlist")

@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import String, and_, func, literal_column, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB
 
 from scanner.auth import DB, Identity
 from scanner.card_search import card_name_matches, split_collector_search
@@ -62,6 +63,8 @@ def collection_cards(
     sort,
     seed,
     foil_type="",
+    label="",
+    for_trade=False,
     min_price=None,
     max_price=None,
     printing_id=None,
@@ -113,6 +116,10 @@ def collection_cards(
         condition.append(InventoryLot.finish.in_(("foil", "etched")))
     elif foil_type:
         condition.append(owned_foil_type() == foil_type)
+    if label:
+        condition.append(lower_labels().contains([label.strip().lower()]))
+    if for_trade:
+        condition.append(InventoryLot.for_trade.is_(True))
     priced = and_(
         CardPrice.amount.is_not(None),
         InventoryLot.misprint.is_not(True),
@@ -333,6 +340,11 @@ def collection_cards(
     }
 
 
+def lower_labels():
+    """A copy's labels in lowercase, so "Signed" and "signed" are one label."""
+    return func.lower(InventoryLot.labels.cast(String)).cast(JSONB)
+
+
 @router.get("/collection/filters")
 def filters(identity: Identity, db: DB):
     sets = db.execute(
@@ -356,7 +368,31 @@ def filters(identity: Identity, db: DB):
             .group_by(kind)
         )
     )
+    used = {}
+    for labels in db.scalars(
+        select(InventoryLot.labels)
+        .where(
+            InventoryLot.owner_id == identity.owner_id,
+            InventoryLot.quantity_remaining > 0,
+            func.jsonb_array_length(InventoryLot.labels) > 0,
+        )
+        .distinct()
+    ):
+        for name in labels:
+            used.setdefault(name.casefold(), name)
     return {
+        "labels": sorted(used.values(), key=str.casefold),
+        "for_trade": bool(
+            db.scalar(
+                select(InventoryLot.id)
+                .where(
+                    InventoryLot.owner_id == identity.owner_id,
+                    InventoryLot.quantity_remaining > 0,
+                    InventoryLot.for_trade.is_(True),
+                )
+                .limit(1)
+            )
+        ),
         "sets": [{"code": code, "name": name or code.upper()} for code, name in sets],
         # Only the foil types this collection holds, in a stable order.
         "foil_types": [key for key in FOIL_TYPES if key in owned_foils],

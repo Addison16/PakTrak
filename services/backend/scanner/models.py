@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -503,6 +504,9 @@ class InventoryLot(Base):
     purchase_currency: Mapped[str | None] = mapped_column(String(3))
     misprint: Mapped[bool | None] = mapped_column(Boolean)
     altered: Mapped[bool | None] = mapped_column(Boolean)
+    # The owner's own tags for these copies, and whether friends see them as available.
+    labels: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    for_trade: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     source_metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
     source_import_row_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("import_rows.id"), index=True

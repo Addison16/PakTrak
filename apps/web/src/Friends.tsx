@@ -154,7 +154,8 @@ function MatchList({ items, label }: { items: Match[]; label: string }) {
 function FriendView({ session, friend, reload, busy, onRemove }: { session: Session; friend: Friend; reload: number; busy: boolean; onRemove: () => void }) {
   const [matches, setMatches] = useState<Matches | null>(null);
   const [wishlist, setWishlist] = useState<Wishlist | null>(null);
-  const [cards, setCards] = useState<{ items: CollectionCard[]; next_offset: number | null; copies: number } | null>(null);
+  const [cards, setCards] = useState<{ items: CollectionCard[]; next_offset: number | null; copies: number; trade_list?: boolean } | null>(null);
+  const [tradeOnly, setTradeOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<Error | string>("");
@@ -169,10 +170,10 @@ function FriendView({ session, friend, reload, busy, onRemove }: { session: Sess
   useEffect(() => {
     if (!friend.shares_collection) return;
     const controller = new AbortController();
-    const timer = window.setTimeout(() => request<{ items: CollectionCard[]; next_offset: number | null; copies: number }>(`${base}/collection?q=${encodeURIComponent(query.trim())}&offset=${offset}`, { signal: controller.signal })
+    const timer = window.setTimeout(() => request<{ items: CollectionCard[]; next_offset: number | null; copies: number; trade_list?: boolean }>(`${base}/collection?q=${encodeURIComponent(query.trim())}&offset=${offset}${tradeOnly ? "&for_trade=true" : ""}`, { signal: controller.signal })
       .then(setCards).catch((reason: Error) => { if (!controller.signal.aborted) setError(reason); }), 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [base, query, offset, reload]);
+  }, [base, query, offset, reload, tradeOnly]);
 
   const partner = { id: friend.user_id, name: friend.name };
   const remote = !!friend.server;
@@ -210,6 +211,7 @@ function FriendView({ session, friend, reload, busy, onRemove }: { session: Sess
     {friend.shares_collection ? <div className="social-block">
       <h3>Their collection{cards ? ` · ${cards.copies} cards` : ""}</h3>
       <label>Search their cards<input type="search" value={query} maxLength={255} onChange={(event) => { setQuery(event.target.value); setOffset(0); }} placeholder="Card name" /></label>
+      {(cards?.trade_list || tradeOnly) && <label className="checkbox"><input type="checkbox" checked={tradeOnly} onChange={(event) => { setTradeOnly(event.target.checked); setOffset(0); }} />Only cards they’ve marked for trade</label>}
       {!cards ? <p role="status">Loading their cards…</p> : cards.items.length === 0 ? <p className="fine">No cards match.</p>
         : <ul className="plain-list social-rows">{cards.items.map((card) => <li key={card.printing.id}>
           <div><strong>{card.quantity} × {card.printing.display_name || card.printing.name}</strong><small>{card.printing.set_code.toUpperCase()} #{card.printing.collector_number}{card.finish_counts?.foil ? ` · ${card.finish_counts.foil} foil` : ""}</small></div>

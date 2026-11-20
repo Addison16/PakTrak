@@ -69,6 +69,7 @@ export default function CollectionCard({ card, binder, locations, session, onSav
         {loading && lots.length === 0 ? <p role="status">Loading your copies…</p> : lots.length === 0 ? <p>No remaining copies on this page.</p> : <ul className="plain-list copy-groups">{lots.map((lot) => <li key={lot.id + ":" + lot.version + ":" + lot.quantity}>
           <div className="holding-title"><strong>{lot.binder}</strong><span className="badge">{lot.quantity.toLocaleString()} {lot.quantity === 1 ? "copy" : "copies"}</span></div>
           <p className="fine">{lot.finish === "foil" ? foilName(lot.printing) : finishes[lot.finish] || lot.finish} · {lot.condition === "ungraded" ? "Ungraded" : lot.condition}</p>
+          {(lot.for_trade || !!lot.labels?.length) && <p className="fine copy-labels">{[lot.for_trade && "For trade", ...(lot.labels || [])].filter(Boolean).join(" · ")}</p>}
           {lot.purchase_price != null && <p className="fine copy-paid">{paidLine(lot)}</p>}
           {lot.notes && <p className="fine">{lot.notes}</p>}
           <CardEditor lot={lot} session={session} onSaved={onCorrected} />
