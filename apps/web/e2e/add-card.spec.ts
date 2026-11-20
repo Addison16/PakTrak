@@ -47,11 +47,12 @@ for (const width of [390, 1280]) test(`a card found by name joins the collection
   await expect(page.getByLabel("Finish")).toHaveValue("nonfoil");
   await page.getByLabel("Finish").selectOption("foil");
   await page.getByLabel("Storage location").selectOption({ label: "Deck box" });
+  await page.getByLabel("Paid per copy (optional)").fill("$3.5");
   await page.getByRole("button", { name: "One more copy" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Add 2 copies" }).click();
   await expect(page.getByText("Added 2 foil copies of Fixture Bolt to Deck box.")).toBeVisible();
-  expect(adds(sent).map((item) => item.body)).toEqual([{ printing_id: "add-1", binder_id: "22222222-2222-4222-8222-222222222222", quantity: 2, finish: "foil", condition: "ungraded" }]);
+  expect(adds(sent).map((item) => item.body)).toEqual([{ printing_id: "add-1", binder_id: "22222222-2222-4222-8222-222222222222", quantity: 2, finish: "foil", condition: "ungraded", purchase_price: "3.50" }]);
   // The new card shows in the collection, and the search is ready for the next one.
   await expect(page.locator(".gallery-card")).toHaveCount(1);
   await expect(page.getByLabel("Find an exact printing")).toHaveValue("");

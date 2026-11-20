@@ -87,3 +87,51 @@ def test_add_refuses_unknown_cards_finishes_locations_and_amounts(clients, catal
     assert status(quantity=0) == 422 and status(quantity=1000) == 422
     assert status(finish="glossy") == 422
     assert client.get("/api/v1/collection").json()["items"] == []
+
+
+def test_what_was_paid_is_saved_shown_with_todays_price_and_can_be_cleared(clients, catalog):
+    from scanner.models import CardPrice
+
+    client, _ = clients()
+    binder = location(client, "Binder A")
+    printing = uuid.UUID(catalog[0])
+    with session_factory()() as db, db.begin():
+        db.add(CardPrice(printing_id=printing, provider="tcgplayer", finish="foil", amount=5))
+    try:
+        body = {
+            "printing_id": catalog[0],
+            "binder_id": binder,
+            "quantity": 2,
+            "finish": "foil",
+            "purchase_price": "3.25",
+        }
+        assert client.post(PATH, headers=key(), json=body).status_code == 201
+        assert (
+            client.post(PATH, headers=key(), json={**body, "purchase_price": "-1"}).status_code
+            == 422
+        )
+
+        def lot():
+            return client.get("/api/v1/collection").json()["items"][0]
+
+        first = lot()
+        assert (first["purchase_price"], first["market_price"]) == ("3.25", "5.00")
+        path = f"/api/v1/collection/{first['id']}/details"
+        edit = {"printing_id": catalog[0], "finish": "foil", "expected_version": first["version"]}
+        # Leaving the price out keeps it.
+        kept = client.post(path, headers=key(), json={**edit, "condition": "NM"})
+        assert kept.status_code == 200 and lot()["purchase_price"] == "3.25"
+        edit["expected_version"] = kept.json()["version"]
+        changed = client.post(path, headers=key(), json={**edit, "purchase_price": "4.5"})
+        assert changed.json()["purchase_price"] == "4.50"
+        edit["expected_version"] = changed.json()["version"]
+        receipt = key()
+        cleared = client.post(path, headers=receipt, json={**edit, "purchase_price": None})
+        assert cleared.status_code == 200 and cleared.json()["purchase_price"] is None
+        # The same key without the price is a different request.
+        assert client.post(path, headers=receipt, json=edit).status_code == 409
+        final = lot()
+        assert final["purchase_price"] is None and final["market_price"] is None
+    finally:
+        with session_factory()() as db, db.begin():
+            db.query(CardPrice).filter(CardPrice.printing_id == printing).delete()

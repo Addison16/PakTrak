@@ -21,6 +21,7 @@ from scanner.crop_orientation import display_rotation, oriented_crop
 from scanner.foil_types import FOIL_TYPES
 from scanner.models import (
     Binder,
+    CardPrice,
     ExportBatch,
     ImportBatch,
     ImportRow,
@@ -758,6 +759,19 @@ def collection(
         .offset(offset)
         .limit(41)
     ).all()
+    # Today's price for each copy's own finish, so what was paid can be compared with it.
+    paid = {lot.printing_id for lot, _, _ in rows if lot.purchase_price is not None}
+    market = {}
+    if paid:
+        source = db.get(User, identity.owner_id).preferred_price_source or "tcgplayer"
+        market = {
+            (price.printing_id, price.finish): price.amount
+            for price in db.scalars(
+                select(CardPrice).where(
+                    CardPrice.printing_id.in_(paid), CardPrice.provider == source
+                )
+            )
+        }
     return {
         "copies": db.scalar(
             select(func.coalesce(func.sum(InventoryLot.quantity_remaining), 0))
@@ -775,6 +789,13 @@ def collection(
                 "binder_id": str(binder.id),
                 "binder_kind": binder.kind,
                 "notes": lot.notes,
+                "purchase_price": money_text(lot.purchase_price),
+                "market_price": money_text(market.get((lot.printing_id, lot.finish)))
+                if lot.purchase_price is not None
+                and (lot.purchase_currency or "USD") == "USD"
+                and not (lot.misprint or lot.altered)
+                else None,
+                "purchase_currency": lot.purchase_currency or "USD",
                 "version": lot.version,
                 "source_import_row_id": str(lot.source_import_row_id)
                 if lot.source_import_row_id
@@ -787,6 +808,17 @@ def collection(
         ],
         "next_offset": offset + 40 if len(rows) > 40 else None,
     }
+
+
+def clears_price(data):
+    return "purchase_price" in data.model_fields_set and data.purchase_price is None
+
+
+def money_text(value):
+    return None if value is None else f"{Decimal(value):.2f}"
+
+
+Paid = Annotated[Decimal, Field(ge=0, le=1_000_000, max_digits=9, decimal_places=2)]
 
 
 def lock_scan_source(db, lot, owner_id):
@@ -808,6 +840,8 @@ class CardCorrection(StrictModel):
     finish: Literal["unknown", "nonfoil", "foil", "etched"]
     condition: Literal["ungraded", "NM", "LP", "MP", "HP", "damaged"] | None = None
     notes: str | None = Field(default=None, max_length=4096)
+    # Per copy, in US dollars. Left out: unchanged. Null: forget what was paid.
+    purchase_price: Paid | None = None
 
 
 @router.post("/collection/{lot_id}/details")
@@ -829,7 +863,12 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         raise HTTPException(404, "Collection resource not found.")
     # Optional condition/notes fields must not invalidate receipts created before
     # this API gained those fields.
-    digest = fingerprint(data.model_dump(exclude_none=True))
+    digest = fingerprint(
+        {
+            **data.model_dump(exclude_none=True),
+            **({"purchase_price": None} if clears_price(data) else {}),
+        }
+    )
     operation_key = f"details:{lot.id}:{hashlib.sha256(key.encode()).hexdigest()}"
     previous = db.scalar(
         select(InventoryEvent).where(InventoryEvent.operation_key == operation_key)
@@ -861,6 +900,9 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         lot.condition = data.condition
     if data.notes is not None:
         lot.notes = data.notes
+    if "purchase_price" in data.model_fields_set:
+        lot.purchase_price = data.purchase_price
+        lot.purchase_currency = None if data.purchase_price is None else "USD"
     lot.version += 1
     if lot.source_observation_id:
         row = db.get(Observation, lot.source_observation_id)
@@ -874,6 +916,7 @@ def correct_card(lot_id: uuid.UUID, data: CardCorrection, key: Key, identity: Id
         "version": lot.version,
         "condition": lot.condition,
         "notes": lot.notes,
+        "purchase_price": money_text(lot.purchase_price),
     }
     db.add(
         InventoryEvent(
@@ -951,6 +994,7 @@ class AddCopies(StrictModel):
     finish: Literal["unknown", "nonfoil", "foil", "etched"]
     condition: Literal["ungraded", "NM", "LP", "MP", "HP", "damaged"] = "ungraded"
     notes: str = Field(default="", max_length=4096)
+    purchase_price: Paid | None = None
 
 
 @router.post("/collection/add", status_code=201)
@@ -984,6 +1028,8 @@ def add_copies(data: AddCopies, key: Key, identity: Identity, db: DB):
         finish=data.finish,
         condition=data.condition,
         notes=data.notes,
+        purchase_price=data.purchase_price,
+        purchase_currency=None if data.purchase_price is None else "USD",
         source_metadata={},
     )
     db.add(lot)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { foilName, mutation, request, type Location, type Printing, type Session } from "./api";
+import { foilName, mutation, priceInput, request, type Location, type Printing, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import PrintingPicker from "./PrintingPicker";
 import { useConnection } from "./offline";
@@ -22,6 +22,8 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
   const [condition, setCondition] = useState("ungraded");
   const [location, setLocation] = useState(() => preferredLocation || lastLocation(locationKey));
   const [newLocation, setNewLocation] = useState("");
+  const [paid, setPaid] = useState("");
+  const price = priceInput(paid);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Error | string>("");
   const [notice, setNotice] = useState("");
@@ -37,7 +39,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
   useEffect(() => { if (printing) chosen.current?.focus(); }, [printing]);
 
   function choose(card: Printing) {
-    setPrinting(card); setQuantity(1); setCondition("ungraded"); setError(""); setNotice("");
+    setPrinting(card); setQuantity(1); setCondition("ungraded"); setPaid(""); setError(""); setNotice("");
     setFinish(card.finishes.includes("nonfoil") ? "nonfoil" : card.finishes[0] || "unknown");
     requestKey.current = crypto.randomUUID();
   }
@@ -46,6 +48,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
     if (!printing || busy) return;
     const name = newLocation.trim();
     if (naming && !name) { setError("Name the storage location for this card."); return; }
+    if (price === null) { setError("Enter what you paid for one copy in dollars, like 3.50, or leave it empty."); return; }
     setBusy(true); setError(""); setNotice("");
     try {
       let binderId = destination, binderName = locations.find((item) => item.id === destination)?.name || name;
@@ -56,7 +59,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
         if (!existing) setCreated((current) => [...current, { id: binderId, name }]);
         setLocation(binderId); setNewLocation("");
       }
-      await request("/api/v1/collection/add", { ...mutation(session, { printing_id: printing.id, binder_id: binderId, quantity, finish, condition }, requestKey.current), action: "Add card to collection" });
+      await request("/api/v1/collection/add", { ...mutation(session, { printing_id: printing.id, binder_id: binderId, quantity, finish, condition, ...(price ? { purchase_price: price } : {}) }, requestKey.current), action: "Add card to collection" });
       try { localStorage.setItem(locationKey, binderId); } catch { /* The choice is only a convenience. */ }
       const kind = finish === "nonfoil" ? "" : ` ${finishLabel(printing, finish).toLowerCase()}`;
       setNotice(`Added ${quantity}${kind} ${quantity === 1 ? "copy" : "copies"} of ${printing.display_name || printing.name} to ${binderName}.`);
@@ -85,6 +88,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
         <label>Condition<select value={condition} disabled={busy} onChange={(event) => setCondition(event.target.value)}>{conditions.map((value) => <option key={value} value={value}>{value === "ungraded" ? "Ungraded" : value === "damaged" ? "Damaged" : value}</option>)}</select></label>
         {locations.length > 0 && <label>Storage location<select value={destination} disabled={busy} onChange={(event) => setLocation(event.target.value)}>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}<option value={NEW_LOCATION}>New location…</option></select></label>}
         {naming && <label>{locations.length ? "New location name" : "Storage location"}<input value={newLocation} maxLength={255} disabled={busy} placeholder="e.g. Binder A" onChange={(event) => setNewLocation(event.target.value)} /></label>}
+        <label>Paid per copy (optional)<input inputMode="decimal" maxLength={12} placeholder="e.g. 3.50" value={paid} disabled={busy} aria-invalid={price === null} onChange={(event) => setPaid(event.target.value)} /></label>
       </div>
       <div className="add-card-submit">
         <div className="trade-quantity" role="group" aria-label="Copies to add">
