@@ -49,6 +49,16 @@ class BulkApply(BulkSelection):
 MAX_LABELS = 8
 
 
+def request_fields(data, **options):
+    """The request as it is fingerprinted. Fields newer than move and finish are left out
+    when unused, so a save retried across an update still matches its first receipt."""
+    fields = data.model_dump(mode="json", **options)
+    for name in ("label", "for_trade"):
+        if fields[name] is None:
+            del fields[name]
+    return fields
+
+
 def has_label(row, label):
     return label.casefold() in {item.casefold() for item in row.labels or []}
 
@@ -132,7 +142,7 @@ def selection(db, owner, data, lock=False):
                 422, "Selected finish is unavailable for: " + ", ".join(invalid[:5])
             )
     bins = {row.id: row.name for row in db.scalars(select(Binder).where(Binder.owner_id == owner))}
-    payload = data.model_dump(exclude={"token"}, mode="json")
+    payload = request_fields(data, exclude={"token"})
     groups = [
         {
             "id": str(row.id),
@@ -166,7 +176,7 @@ def preview(data: BulkSelection, identity: Identity, db: DB):
 def apply(data: BulkApply, key: Key, identity: Identity, db: DB):
     db.scalar(select(User).where(User.id == identity.owner_id).with_for_update())
     operation = "bulk:" + hashlib.sha256(f"{identity.owner_id}:{key}".encode()).hexdigest()
-    digest = fingerprint(data.model_dump(mode="json"))
+    digest = fingerprint(request_fields(data))
     previous = db.scalar(select(InventoryEvent).where(InventoryEvent.operation_key == operation))
     if previous:
         if previous.detail.get("request_hash") != digest:

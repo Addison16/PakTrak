@@ -480,3 +480,21 @@ def test_bulk_labels_and_trade_marks_change_only_what_differs(clients, catalog):
             "/api/v1/collection/bulk/preview", json={"printing_ids": catalog, **bad}
         )
         assert response.status_code == 422, response.text
+
+
+def test_bulk_receipts_from_before_labels_still_match():
+    from scanner.collection_bulk import BulkApply, request_fields
+
+    move = BulkApply(
+        printing_ids=[uuid.uuid4()], action="move", binder_id=uuid.uuid4(), token="a" * 64
+    )
+    assert set(request_fields(move)) == {
+        "printing_ids",
+        "source_binder_id",
+        "action",
+        "binder_id",
+        "finish",
+        "token",
+    }
+    trade = BulkApply(printing_ids=[uuid.uuid4()], action="trade", for_trade=False, token="a" * 64)
+    assert request_fields(trade)["for_trade"] is False and "label" not in request_fields(trade)
