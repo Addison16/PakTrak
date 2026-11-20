@@ -116,12 +116,13 @@ window.addEventListener("scroll", () => {
 window.addEventListener("pagehide", () => { if (!travelling) rememberScroll(); });
 
 window.addEventListener("popstate", (event: PopStateEvent) => {
+  // Moving between the app and a shared link's read-only page, by a pasted
+  // address or by Back and Forward, loads the other page afresh.
+  if (openedSharedLink !== sharedLinkToken()) { location.reload(); return; }
   const stored = isEntry(event.state) && event.state.chain === current.chain ? event.state : null;
   if (!stored) {
     // An address-bar hash change is a normal new destination, not a trap at
     // the beginning of history. Cross-document Back remains browser-owned.
-    // A shared link typed or pasted over the app loads its own read-only page.
-    if (openedSharedLink || sharedLinkToken()) { location.reload(); return; }
     const route = parse();
     if (!allowed(route)) { history.replaceState(current, "", location.pathname + hash(current.route)); return; }
     const entry: Entry = { ...current, index: current.index + 1, route, y: 0 };

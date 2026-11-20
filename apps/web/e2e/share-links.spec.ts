@@ -73,3 +73,16 @@ test("the wishlist link is made on request, copied, and turned off", async ({ pa
   expect(state.deleted).toEqual(["DELETE"]);
   await expect(page.getByRole("button", { name: "Create share link" })).toBeVisible();
 });
+
+test("Back and Forward switch between the app and a pasted shared link", async ({ page }) => {
+  await wishlist(page);
+  await page.route(`**/api/public/shares/${token}`, (route) => route.fulfill({ json: { kind: "wishlist", name: "Wishlist", format: null, copies: 0, cards: [] } }));
+  await page.evaluate((token) => { location.hash = `#/shared/${token}`; }, token);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Wishlist");
+  await expect(page.getByRole("button", { name: "Menu" })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Menu" })).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole("button", { name: "Menu" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Wishlist");
+});
