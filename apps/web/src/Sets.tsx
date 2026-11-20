@@ -5,6 +5,7 @@ import { navigation } from "./navigation";
 import { addToWishlist } from "./Wishlist";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
+import { LoadingNote } from "./Loading";
 
 type OwnedSet = { code: string; name: string; released_at: string | null; set_type: string | null; owned: number; total: number; copies: number };
 type SetCard = { printing: Printing; owned: number; price_finish: string | null; unit_amount: string | null };
@@ -35,7 +36,7 @@ function SetList() {
     <h2 id="sets-title">Sets you collect</h2>
     <p>How much of each set you own, counting one copy of each collector number. Open a set to see what’s missing and what it costs to finish.</p>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
-    {!sets ? !error && <p role="status">Loading your sets…</p> : sets.length === 0 ? <p className="fine">Add cards to your collection and their sets show up here.</p> : <>
+    {!sets ? !error && <p><LoadingNote>Loading your sets…</LoadingNote></p> : sets.length === 0 ? <p className="fine">Add cards to your collection and their sets show up here.</p> : <>
       <div className="set-filter">
         <label>Find a set<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Set name or code" /></label>
         <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}><option value="closest">Closest to complete</option><option value="newest">Newest</option><option value="name">Name</option></select></label>
@@ -80,7 +81,7 @@ function SetView({ session, code }: { session: Session; code: string }) {
     <h2 id="set-title">{data?.name || "Opening set…"}</h2>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
     {notice && <p className="message success" role="status">{notice}</p>}
-    {!data ? !error && <p role="status">Loading the set…</p> : <>
+    {!data ? !error && <p><LoadingNote>Loading the set…</LoadingNote></p> : <>
       <div className="social-total">
         <span>{data.owned} of {data.total} owned · {percent(data.owned, data.total)}%</span>
         <strong>{data.owned === data.total ? "Complete" : money(data.cost_to_finish)}</strong>

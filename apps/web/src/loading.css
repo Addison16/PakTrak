@@ -1,0 +1,45 @@
+/* Loading: a quiet spinner beside the status text, and placeholders shaped like
+   the cards or deck boxes that are on their way. */
+.loading-note { display: inline-flex; align-items: flex-start; gap: 8px; color: var(--muted); }
+.loading-note > span { display: flex; flex-direction: column; gap: 3px; }
+.loading-slow { font-size: 11px; color: var(--muted); animation: loading-fade 400ms ease both; }
+.loading-spinner { flex: none; width: 15px; height: 15px; margin-top: 1px; color: var(--forest); animation: loading-spin 900ms linear infinite; }
+p > .loading-note, .message > .loading-note { font-size: inherit; }
+
+.skeleton { display: block; --skeleton-base: color-mix(in srgb, var(--ink) 7%, transparent); --skeleton-glow: color-mix(in srgb, var(--ink) 13%, transparent);
+  background: linear-gradient(100deg, var(--skeleton-base) 30%, var(--skeleton-glow) 50%, var(--skeleton-base) 70%) var(--skeleton-base);
+  background-size: 300% 100%; background-position: 100% 0; border-radius: 4px;
+  animation: skeleton-sweep 1600ms ease-in-out var(--skeleton-delay, 0ms) infinite; }
+.skeleton-card, .skeleton-deck { min-width: 0; list-style: none; animation: loading-fade 300ms ease both; }
+.skeleton-art { aspect-ratio: 488 / 680; width: 100%; border-radius: var(--card-corner-radius); }
+.skeleton-info { display: flex; flex-direction: column; gap: 8px; padding: 13px 1px 0; }
+.skeleton-line { height: 10px; width: 78%; }
+.skeleton-line.short { width: 46%; height: 8px; }
+.skeleton-line.price { width: 34%; height: 12px; margin-top: 2px; }
+.gallery-list .skeleton-card { display: grid; grid-template-columns: 75px minmax(0, 1fr); gap: 18px; align-items: center; }
+.gallery-list .skeleton-card + li, .gallery-list li + .skeleton-card { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+.gallery-list .skeleton-info { padding: 0; }
+.gallery-list .skeleton-info .skeleton-line { max-width: 260px; }
+
+.skeleton-deck { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-deck-box { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1.31; }
+.skeleton-deck-case { position: absolute; inset: 2% 4% 7% 0; border-radius: 8px; }
+.skeleton-deck .skeleton-line { width: 62%; height: 16px; }
+.skeleton-deck .skeleton-line.short { width: 40%; height: 9px; margin-top: 10px; }
+
+/* Cards already on screen fade back while a new search or filter loads. */
+.gallery-grid { transition: opacity 220ms ease; }
+.gallery-grid[data-refreshing] { opacity: .5; }
+.gallery-result-note .loading-note { font-size: 12px; }
+
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@keyframes skeleton-sweep { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes loading-fade { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Placeholders hold still; the spinner keeps a slow turn so a load still reads as working. */
+  .loading-spinner { animation: loading-spin 2400ms linear infinite !important; }
+}
+.deck-list-rows { transition: opacity 220ms ease; }
+.deck-list-rows[data-refreshing] { opacity: .5; }
+.deck-list-loading { margin: 18px 0 0; }

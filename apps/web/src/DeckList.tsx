@@ -1,9 +1,10 @@
 import type { DeckSummary } from "./deckTypes";
 import { useRef } from "react";
 import DeckBox from "./DeckBox";
+import { DeckSkeletons, LoadingNote } from "./Loading";
 
-export default function DeckList({ ownerId, decks, busy, creating, newName, offset, next, onName, onCreate, onCreating, onImport, onScan, onOpen, onPage, onRestore }: {
-  ownerId: string; decks: DeckSummary[]; busy: boolean; creating: boolean; newName: string; offset: number; next: number | null;
+export default function DeckList({ ownerId, decks, loading, busy, creating, newName, offset, next, onName, onCreate, onCreating, onImport, onScan, onOpen, onPage, onRestore }: {
+  ownerId: string; decks: DeckSummary[]; loading: boolean; busy: boolean; creating: boolean; newName: string; offset: number; next: number | null;
   onName: (name: string) => void; onCreate: () => void; onCreating: (value: boolean) => void;
   onImport: () => void; onScan: () => void; onOpen: (deck: DeckSummary, box: HTMLElement) => void; onPage: (offset: number) => void; onRestore: (file: File) => void;
 }) {
@@ -16,8 +17,9 @@ export default function DeckList({ ownerId, decks, busy, creating, newName, offs
       <label>New deck name<input value={newName} required maxLength={255} placeholder="Friday night deck" onChange={(event) => onName(event.target.value)} /></label>
       <div className="actions"><button className="button primary" disabled={busy || !newName.trim()}>Create deck</button><button type="button" className="text-button" disabled={busy} onClick={() => onCreating(false)}>Cancel</button></div>
     </form>}
-    {decks.length === 0 && <p>{offset ? "No more decks on this page." : "No saved decks yet. Start with a name or import a card list."}</p>}
-    <ul className="deck-list-rows" aria-label="Saved deck boxes">{decks.map((deck) => <li key={deck.id}><DeckBox ownerId={ownerId} deck={deck} busy={busy} onOpen={(box) => onOpen(deck, box)} /></li>)}</ul>
+    {loading && <p className="fine deck-list-loading"><LoadingNote slow="Still loading. Lots of decks can take a moment.">Loading your decks…</LoadingNote></p>}
+    {!loading && decks.length === 0 && <p>{offset ? "No more decks on this page." : "No saved decks yet. Start with a name or import a card list."}</p>}
+    <ul className="deck-list-rows" aria-label="Saved deck boxes" aria-busy={loading} data-refreshing={loading && decks.length > 0 || undefined}>{loading && !decks.length && <DeckSkeletons count={6} />}{decks.map((deck) => <li key={deck.id}><DeckBox ownerId={ownerId} deck={deck} busy={busy} onOpen={(box) => onOpen(deck, box)} /></li>)}</ul>
     {(offset > 0 || next !== null) && <div className="pagination">{offset > 0 && <button className="text-button" disabled={busy} onClick={() => onPage(Math.max(0, offset - 20))}>Previous decks</button>}{next !== null && <button className="text-button" disabled={busy} onClick={() => onPage(next)}>More decks</button>}</div>}
     <details className="deck-export"><summary>Move all decks</summary>
       <p className="fine">Download every deck in one file, with sections, editions, format and notes. Restore it here on another server or account. Decks with a name you already have are skipped.</p>

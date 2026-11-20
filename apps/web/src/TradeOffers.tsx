@@ -6,6 +6,7 @@ import { navigation } from "./navigation";
 import { appliedMessage, applyTrade, finishNames, planRemovals } from "./tradeApply";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
+import { LoadingNote } from "./Loading";
 
 type Offers = { items: TradeOffer[]; attention: number };
 const count = (cards: OfferCard[]) => cards.reduce((sum, card) => sum + card.quantity, 0);
@@ -94,7 +95,7 @@ export default function TradeOffers({ session, active, onCount }: { session: Ses
     <button type="button" className="button secondary" onClick={() => navigation.go({ page: "trade" })}><Icon name="trade" />Make an offer in Trade value</button>
     {error && <ErrorNotice error={error} onDismiss={() => setError("")} />}
     {notice && <p className="message success" role="status">{notice}</p>}
-    {!data ? !error && <p role="status">Loading trade offers…</p> : items.length === 0 ? <p className="fine">No offers yet. Add a friend, then choose them under “Trading with” on Trade value.</p>
+    {!data ? !error && <p><LoadingNote>Loading trade offers…</LoadingNote></p> : items.length === 0 ? <p className="fine">No offers yet. Add a friend, then choose them under “Trading with” on Trade value.</p>
       : groups.map(([title, offers]) => offers.length > 0 && <div key={title} className="social-block">
         <h3>{title}</h3>
         <ul className="plain-list offer-list">{offers.map((offer) => {
