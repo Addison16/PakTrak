@@ -1,11 +1,20 @@
 import ErrorNotice from "./ErrorNotice";
 import { useEffect, useState } from "react";
 import { pendingPreviews } from "./offline";
-import { foilName, isQueued, mutation, queuedNotice, request, send, type CollectionCard as Card, type Location, type Lot, type Session } from "./api";
+import { foilName, isQueued, money, mutation, queuedNotice, request, send, type CollectionCard as Card, type Location, type Lot, type Session } from "./api";
 import { MoveCards } from "./Locations";
 import CardEditor from "./CardEditor";
 
 const finishes: Record<string, string> = { unknown: "Unknown finish", nonfoil: "Nonfoil", foil: "Foil", etched: "Etched foil" };
+
+/** "Paid $2.00 each · now $3.50 (up $1.50)": what a copy cost next to today's price for its finish. */
+export function paidLine(lot: Pick<Lot, "purchase_price" | "purchase_currency" | "market_price">) {
+  const paid = Number(lot.purchase_price);
+  if (lot.purchase_currency && lot.purchase_currency !== "USD") return `Paid ${paid.toFixed(2)} ${lot.purchase_currency} each`;
+  if (lot.market_price == null) return `Paid ${money(paid)} each`;
+  const change = Number(lot.market_price) - paid;
+  return `Paid ${money(paid)} each · now ${money(lot.market_price)}${Math.abs(change) < 0.005 ? "" : ` (${change > 0 ? "up" : "down"} ${money(Math.abs(change))})`}`;
+}
 
 export default function CollectionCard({ card, binder, locations, session, onSaved, onCorrected = onSaved }: { card: Card; binder: string; locations: Location[]; session: Session; onSaved: () => Promise<void>; onCorrected?: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
@@ -60,6 +69,7 @@ export default function CollectionCard({ card, binder, locations, session, onSav
         {loading && lots.length === 0 ? <p role="status">Loading your copies…</p> : lots.length === 0 ? <p>No remaining copies on this page.</p> : <ul className="plain-list copy-groups">{lots.map((lot) => <li key={lot.id + ":" + lot.version + ":" + lot.quantity}>
           <div className="holding-title"><strong>{lot.binder}</strong><span className="badge">{lot.quantity.toLocaleString()} {lot.quantity === 1 ? "copy" : "copies"}</span></div>
           <p className="fine">{lot.finish === "foil" ? foilName(lot.printing) : finishes[lot.finish] || lot.finish} · {lot.condition === "ungraded" ? "Ungraded" : lot.condition}</p>
+          {lot.purchase_price != null && <p className="fine copy-paid">{paidLine(lot)}</p>}
           {lot.notes && <p className="fine">{lot.notes}</p>}
           <CardEditor lot={lot} session={session} onSaved={onCorrected} />
           <MoveCards lot={lot} locations={locations} session={session} onSaved={onSaved} />

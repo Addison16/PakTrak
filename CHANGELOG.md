@@ -1,5 +1,13 @@
 # Changelog
 
+## Quality-of-life pass — November 19, 2026
+
+- **Collection → Add a card** adds a card without a photo or an import file. Search for it, pick the printing, then choose its finish, condition, storage location and how many copies. The search clears after each card so the next one can be typed right away, and the storage location is remembered.
+- The first card can name a new storage location on the spot, and **New location…** does the same later.
+- **What you paid.** Each group of copies can record what you paid per copy, in **Add a card** and under **Manage copies → Edit card details**. Prices that came in with an import file now show too. Next to it PakTrak shows today's price for that finish and how far it is up or down, for example "Paid $2.00 each · now $3.50 (up $1.50)". Clear the box to forget a price.
+- **Collection → Collection breakdown** shows where your cards and their value sit: by color, rarity, card type, set or storage location. Below it are your ten most valuable cards (tap one to open it) and, once any copies have a recorded price, what you paid for them next to what they're worth today.
+- **Print proxies.** A deck's buy list has a **Print proxies** button that lays out the cards you're missing at real card size, nine to a page with cut lines, ready for your browser's Print. Use them to try a deck before buying; they aren't for sanctioned events.
+
 ## Cancel a collection import — October 16, 2026
 
 - Long text and CSV imports no longer stall. Before, a list of card names without set codes could take longer than the server allows for one step; the work was thrown away and started over, and after three tries the import failed with "The server will retry this processing step." The server now saves matched rows as it goes and picks up where it left off, so large lists finish.

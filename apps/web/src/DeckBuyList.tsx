@@ -3,6 +3,7 @@ import type { Session } from "./api";
 import { addToWishlist } from "./Wishlist";
 import type { Deck } from "./deckTypes";
 import StoreButtons, { ReferralNote } from "./StoreButtons";
+import ProxySheet from "./ProxySheet";
 import { storeList, withReferral, type Store, type StoreLinks } from "./storeLinks";
 
 const stores: string[] = ["cardkingdom", "tcgplayer", "manapool"];
@@ -11,6 +12,7 @@ export default function DeckBuyList({ deck, busy, session, links, onRefresh }: {
   const [format, setFormat] = useState("cardkingdom");
   const [message, setMessage] = useState("");
   const [wishing, setWishing] = useState(false);
+  const [proxies, setProxies] = useState(false);
   async function wishlistMissing() {
     if (!session || wishing) return;
     setWishing(true); setMessage("");
@@ -27,6 +29,7 @@ export default function DeckBuyList({ deck, busy, session, links, onRefresh }: {
       {format !== "csv" && <label>Missing cards to copy<textarea readOnly rows={Math.min(8, Math.max(3, deck.missing_cards.length))} value={text} onFocus={(e) => e.target.select()} /></label>}
       <div className="actions"><a className="button primary" href={`/api/v1/decks/${deck.id}/buy-list?format=${format}`}>Download buy list</a>
         {session && <button type="button" className="button secondary" disabled={wishing} onClick={() => void wishlistMissing()}>Add missing cards to wishlist</button>}
+        <button type="button" className="button secondary" onClick={() => setProxies(true)}>Print proxies</button>
         {format !== "csv" && <button className="button secondary" onClick={() => { void navigator.clipboard?.writeText(text).then(() => setMessage("Buy list copied."), () => setMessage("Select the list above and use Copy on your phone.")); if (!navigator.clipboard) setMessage("Select the list above and use Copy on your phone."); }}>Copy buy list</button>}</div>
       {stores.includes(format) && <StoreButtons stores={[format as Store]} cards={deck.missing_cards} exact={deck.match_mode === "exact"} links={links} />}
       {format === "cardkingdom" && <p className="fine">Paste into <a href={withReferral("cardkingdom", "https://www.cardkingdom.com/builder", links)} target="_blank" rel="noreferrer">Card Kingdom’s deck builder</a>, then choose editions, finishes and conditions.</p>}
@@ -34,6 +37,7 @@ export default function DeckBuyList({ deck, busy, session, links, onRefresh }: {
       {format === "manapool" && <p className="fine">Paste into <a href={withReferral("manapool", "https://manapool.com/add-deck", links)} target="_blank" rel="noreferrer">ManaPool’s mass entry</a>. {deck.match_mode === "exact" ? "Set codes and collector numbers are included." : "Choose your preferred printings in the store."} Review finishes and conditions before buying.</p>}
       {format === "csv" && <p className="fine">Missing quantities and card names, with printing identifiers when exact-printing matching is selected.</p>}
       {message && <p className="fine" role="status">{message}</p>}
+      {proxies && <ProxySheet title={deck.name} cards={deck.missing_cards} onClose={() => setProxies(false)} />}
       {stores.includes(format) && <ReferralNote links={links} />}
     </>}
     <p className="fine">Each owned copy counts once across this deck’s sections. Copies are not reserved across other decks. All finishes count toward ownership.</p>
