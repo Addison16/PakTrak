@@ -94,3 +94,31 @@ test("fixing invalid import quantity and section makes unmatched cards selectabl
   await page.getByRole("button", { name: "Choose card", exact: true }).click(); await page.locator(".printing-choice").click();
   await expect(page.getByRole("button", { name: "Import deck", exact: true })).toBeEnabled();
 });
+
+for (const width of [320, 1280]) test(`a selection can be labeled and marked for trade together at ${width}px`, async ({ page }) => {
+  const calls = await fixture(page); await page.setViewportSize({ width, height: 844 });
+  await page.goto("/#/collection"); await expect(page.locator(".gallery-card")).toHaveCount(1);
+  const open = async () => {
+    // Selecting stays on after a change is saved.
+    if (await page.getByRole("button", { name: "Select cards", exact: true }).count()) await page.getByRole("button", { name: "Select cards", exact: true }).click();
+    await page.getByLabel("Select Island", { exact: true }).check();
+    await page.getByRole("button", { name: "Organize selected", exact: true }).click();
+    return page.getByRole("dialog");
+  };
+  let dialog = await open();
+  await dialog.getByRole("combobox", { name: "Action", exact: true }).selectOption("label_add");
+  await expect(dialog.getByRole("button", { name: "Preview changes", exact: true })).toBeDisabled();
+  await dialog.getByLabel("Label", { exact: true }).fill("Cube, staples");
+  await expect(dialog.getByText("A label can’t contain a comma. Add one label at a time.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Preview changes", exact: true })).toBeDisabled();
+  await dialog.getByLabel("Label", { exact: true }).fill(" Cube ");
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await dialog.getByRole("button", { name: "Preview changes", exact: true }).click();
+  await dialog.getByRole("button", { name: "Confirm 4 copies", exact: true }).click(); await expect(dialog).toHaveCount(0);
+  expect(calls.find((call) => call.path.endsWith("bulk/apply"))?.body).toEqual({ printing_ids: ["qol-card"], action: "label_add", label: "Cube", token: "test-preview" });
+  calls.length = 0; dialog = await open();
+  await dialog.getByRole("combobox", { name: "Action", exact: true }).selectOption("trade_on");
+  await dialog.getByRole("button", { name: "Preview changes", exact: true }).click();
+  await dialog.getByRole("button", { name: "Confirm 4 copies", exact: true }).click(); await expect(dialog).toHaveCount(0);
+  expect(calls.find((call) => call.path.endsWith("bulk/apply"))?.body).toEqual({ printing_ids: ["qol-card"], action: "trade", for_trade: true, token: "test-preview" });
+});

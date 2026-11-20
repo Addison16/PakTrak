@@ -11,7 +11,9 @@ from sqlalchemy import select
 from scanner.auth import DB, Identity
 from scanner.collection_api import (
     Key,
+    LabelName,
     StrictModel,
+    clean_labels,
     fingerprint,
     lock_scan_source,
     owned,
@@ -33,13 +35,36 @@ router = APIRouter(prefix="/api/v1/collection/bulk", tags=["collection"])
 class BulkSelection(StrictModel):
     printing_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     source_binder_id: uuid.UUID | None = None
-    action: Literal["move", "finish"]
+    action: Literal["move", "finish", "label_add", "label_remove", "trade"]
     binder_id: uuid.UUID | None = None
     finish: Literal["unknown", "nonfoil", "foil", "etched"] | None = None
+    label: LabelName | None = None
+    for_trade: bool | None = None
 
 
 class BulkApply(BulkSelection):
     token: str = Field(min_length=64, max_length=64)
+
+
+MAX_LABELS = 8
+
+
+def has_label(row, label):
+    return label.casefold() in {item.casefold() for item in row.labels or []}
+
+
+def changes(row, data):
+    """Whether the chosen action would alter this group of copies."""
+    if data.action == "move":
+        return row.binder_id != data.binder_id
+    if data.action == "finish":
+        return row.finish != data.finish
+    if data.action == "label_add":
+        # A group that already carries the most labels allowed is left as it is.
+        return not has_label(row, data.label) and len(row.labels or []) < MAX_LABELS
+    if data.action == "label_remove":
+        return has_label(row, data.label)
+    return bool(row.for_trade) != data.for_trade
 
 
 def selection(db, owner, data, lock=False):
@@ -49,8 +74,12 @@ def selection(db, owner, data, lock=False):
         if data.binder_id is None:
             raise HTTPException(422, "Choose a destination.")
         owned(db, Binder, data.binder_id, owner)
-    elif data.finish is None:
+    elif data.action == "finish" and data.finish is None:
         raise HTTPException(422, "Choose a finish.")
+    elif data.action in {"label_add", "label_remove"} and data.label is None:
+        raise HTTPException(422, "Enter a label.")
+    elif data.action == "trade" and data.for_trade is None:
+        raise HTTPException(422, "Choose whether these cards are for trade.")
     if data.source_binder_id:
         owned(db, Binder, data.source_binder_id, owner)
     conditions = [
@@ -124,11 +153,7 @@ def selection(db, owner, data, lock=False):
 @router.post("/preview")
 def preview(data: BulkSelection, identity: Identity, db: DB):
     rows, groups, token = selection(db, identity.owner_id, data)
-    affected = [
-        row
-        for row in rows
-        if (row.binder_id != data.binder_id if data.action == "move" else row.finish != data.finish)
-    ]
+    affected = [row for row in rows if changes(row, data)]
     return {
         "token": token,
         "groups": groups,
@@ -154,7 +179,33 @@ def apply(data: BulkApply, key: Key, identity: Identity, db: DB):
         )
     affected = 0
     for row in rows:
-        if data.action == "move" and row.binder_id != data.binder_id:
+        if not changes(row, data):
+            continue
+        if data.action in {"label_add", "label_remove", "trade"}:
+            affected += row.quantity_remaining
+            before = {"labels": list(row.labels or []), "for_trade": bool(row.for_trade)}
+            if data.action == "label_add":
+                row.labels = clean_labels([*(row.labels or []), data.label])
+            elif data.action == "label_remove":
+                row.labels = [
+                    item for item in row.labels if item.casefold() != data.label.casefold()
+                ]
+            else:
+                row.for_trade = data.for_trade
+            row.version += 1
+            db.add(
+                InventoryEvent(
+                    lot_id=row.id,
+                    operation_key=operation + ":" + str(row.id),
+                    kind="BULK_LABELS",
+                    delta=0,
+                    detail={
+                        "before": before,
+                        "after": {"labels": list(row.labels), "for_trade": bool(row.for_trade)},
+                    },
+                )
+            )
+        elif data.action == "move" and row.binder_id != data.binder_id:
             affected += row.quantity_remaining
             relocate_lot(
                 db, row, data.binder_id, row.quantity_remaining, operation + ":" + str(row.id)
