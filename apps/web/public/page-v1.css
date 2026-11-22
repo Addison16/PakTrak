@@ -1,0 +1,3 @@
+/* The page color before the application stylesheet arrives, so a stored dark
+   appearance never flashes light while the application loads. */
+html { background: var(--canvas); color: var(--ink); }

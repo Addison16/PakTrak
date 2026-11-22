@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type Browser } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -31,3 +31,17 @@ async function collector(request: APIRequestContext, provision: boolean) {
 
 export const createCollector = (request: APIRequestContext) => collector(request, true);
 export const registrationCollector = (request: APIRequestContext) => collector(request, false);
+
+// Catalog search needs a signed-in account, so printings are looked up
+// through a short-lived signed-in session. The quick tour stays for the
+// test's own session to dismiss.
+export async function catalogLookup<T>(browser: Browser, account: { baseURL: string; username: string; password: string }, lookup: (request: APIRequestContext) => Promise<T>): Promise<T> {
+  const context = await browser.newContext({ baseURL: account.baseURL });
+  try {
+    const page = await context.newPage();
+    await page.goto("/"); await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await page.locator("#username").fill(account.username); await page.locator("#password").fill(account.password); await page.locator("#kc-login").click();
+    await expect(page.getByRole("dialog", { name: "Quick tour", exact: true })).toBeVisible({ timeout: 15000 });
+    return await lookup(context.request);
+  } finally { await context.close(); }
+}

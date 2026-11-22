@@ -1,5 +1,11 @@
 # Changelog
 
+## Security follow-ups — November 22, 2026
+
+- The sign-in service's administration console is no longer reachable through PakTrak's address. Before, anyone who could open your server could also open its sign-in administration page at `/identity/admin/` and try the `admin` password. PakTrak's own **Menu → Administration** is unchanged. If you ever need the console, set `IDENTITY_ADMIN_CONSOLE=true` for a while (a container variable on Unraid, or in `.env` for Compose).
+- Card catalog search needs a signed-in account. Visitors without an account could run the server's heaviest search as often as they liked. Share links still open without an account.
+- A stored dark appearance is painted before the app finishes loading, so the page no longer flashes light for a moment on a slow connection.
+
 ## Labels in bulk, wishlist prices and shortcuts — November 20, 2026
 
 - **Label many cards at once.** **Collection → Select cards → Organize selected** can now add a label, remove a label, or mark the selected cards as available for trade (or not), alongside moving them and setting their finish. The preview shows exactly which copies will change before anything is saved.

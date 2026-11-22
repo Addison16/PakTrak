@@ -9,7 +9,7 @@ sh scripts/setup.sh
 sh scripts/update.sh
 ```
 
-The web app is at `http://localhost:8095`. Its first launch offers **Create administrator account**; choose your own credentials through the registration screen. There is no pre-created application account on fresh installations. Finish setup before opening registration to general visitors. The separate identity administrator is `admin`, with `KEYCLOAK_ADMIN_PASSWORD`; the identity console is under `/identity/admin/`. Keep secrets, generated configuration, private volumes, test artifacts, and real collection/photo fixtures private.
+The web app is at `http://localhost:8095`. Its first launch offers **Create administrator account**; choose your own credentials through the registration screen. There is no pre-created application account on fresh installations. Finish setup before opening registration to general visitors. The separate identity administrator is `admin`, with `KEYCLOAK_ADMIN_PASSWORD`. Its console, administration API and master realm are not reachable through PakTrak's address: the web proxy answers `/identity/admin/` and `/identity/realms/master/` with 404. To open the console at `APP_URL/identity/admin/` for a while, set `IDENTITY_ADMIN_CONSOLE=true` (in `.env` for Compose, or as a container variable on Unraid), restart PakTrak, and remove it again afterwards. Keep secrets, generated configuration, private volumes, test artifacts, and real collection/photo fixtures private.
 
 The application's **Administration** tab controls guest signup and approval. Guests receive 100 total detected card regions from successful photo processing, never a daily/monthly allowance or a concurrency allowance. Ignoring/removing a card or expiring a photo does not refund usage. If a photo would exceed the remaining allowance, it fails with no charge; smaller photos can use the remainder. Approval changes the account to a standard member with no total-card scan limit. The existing default of two active photo jobs per account remains an independent capacity limit for every role. CSV/text transfers do not consume photo scans.
 
@@ -226,7 +226,7 @@ sh scripts/test-recovery.sh
 sh scripts/test-backup.sh
 ```
 
-Run these sequentially. The backend suite uses a separate database and bucket. Browser tests require a running stack, its generated local credentials, a populated catalog, and Linux host-network access. They create and remove their own identity accounts; their synthetic application records can remain in this development instance. Screenshots contain only test account data and are git-ignored.
+Run these sequentially. The backend suite uses a separate database and bucket. Browser tests require a running stack with `IDENTITY_ADMIN_CONSOLE=true` (they create their accounts through the identity administration API), its generated local credentials, a populated catalog, and Linux host-network access. They create and remove their own identity accounts; their synthetic application records can remain in this development instance. Screenshots contain only test account data and are git-ignored.
 
 The recovery test deliberately interrupts this project's services, loses its task queue, and recreates containers while a browser is closed. It checks for active non-test jobs first. Run it on a development instance, never concurrently with builds, other tests, or real uploads/transfers. It preserves volumes; it does not simulate disk loss or prove a backup restore.
 

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("text imports default to nonfoil and explain explicitly unknown finishes", async ({ browser, request }) => {
   const account = await createCollector(request);
-  const candidates = (await (await request.get(account.baseURL + "/api/v1/catalog/search?q=Forest")).json()).items;
+  const candidates = await catalogLookup(browser, account, async (catalog) => (await (await catalog.get("/api/v1/catalog/search?q=Forest")).json()).items);
   const card = candidates.find((value: { name: string; language: string; finishes: string[] }) => value.name === "Forest" && value.language === "en" && value.finishes.includes("nonfoil") && value.finishes.includes("foil"));
   expect(card).toBeTruthy();
   const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });

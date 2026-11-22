@@ -34,6 +34,8 @@ If you run a reverse proxy on Unraid with a hostname and certificate, point it a
 
 Once PakTrak has an HTTPS address, you can connect it to a friend's PakTrak server so people on both can be friends. Open **Menu → Administration → Other PakTrak servers**; the steps are in [connecting to other PakTrak servers](OPERATIONS.md#connecting-to-other-paktrak-servers). If you use Cloudflare's bot protection, let requests to `/api/federation/v1/` through. To connect to another server on your own network, add a container variable named `FEDERATION_ALLOW_PRIVATE_ADDRESSES` with the value `true`.
 
+The sign-in service's own administration console is not reachable through PakTrak's address. You will not normally need it: accounts, roles and registration are managed in **Menu → Administration**. If you ever do, add a container variable named `IDENTITY_ADMIN_CONSOLE` with the value `true`, apply, open `/identity/admin/` at your App address with the user `admin` and the `KEYCLOAK_ADMIN_PASSWORD` from `paktrak.env` in your Data folder, and remove the variable again when you are done.
+
 ## Where your data lives
 
 The **Data** folder holds the database, your photos and `paktrak.env`, which contains the container's private passwords. Keep it private. To back up, stop the container and copy the whole folder, or use a backup plugin that does the same. Restoring the folder and starting the container brings everything back.

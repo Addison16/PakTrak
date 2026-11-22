@@ -36,9 +36,9 @@ Guests have a lifetime 100-card photo allowance. Processing counts newly persist
 
 Guest-to-member approval persists a pending congratulations notice. Only a new verified OIDC login session captures eligibility to display it, so an already-open session receives the role change without an unexpected popup. The authenticated, CSRF-protected dismissal clears the account-level notice across devices. A receipt scoped to account and approval timestamp prevents repeated display during a failed save and retries acknowledgement on a later mount. Existing members are not retroactively shown a new-approval message.
 
-Provider endpoints inside Docker differ from the public browser-facing issuer. The nginx proxy derives forwarded scheme/host/port from the configured application origin, including behind an HTTPS reverse proxy. Plain HTTP setup is limited to local development.
+Provider endpoints inside Docker differ from the public browser-facing issuer. The nginx proxy derives forwarded scheme/host/port from the configured application origin, including behind an HTTPS reverse proxy, and keeps the identity provider's administration console, administration API and master realm off the public address unless `IDENTITY_ADMIN_CONSOLE=true`. Plain HTTP setup is limited to local development.
 
-Private queries derive ownership from the session. Public catalog searches return printing metadata only. Photos/crops expire after seven days, unfinished photo uploads after 24 hours, raw CSV uploads seven days after terminal processing, and export downloads after 24 hours. Active jobs protect their inputs until completion/deadline. Collection records and provenance remain after file expiry.
+Private queries derive ownership from the session. Catalog searches need a signed-in account and return printing metadata only; share links serve their card data through their own public route. Photos/crops expire after seven days, unfinished photo uploads after 24 hours, raw CSV uploads seven days after terminal processing, and export downloads after 24 hours. Active jobs protect their inputs until completion/deadline. Collection records and provenance remain after file expiry.
 
 ## Request diagnostics
 

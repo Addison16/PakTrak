@@ -1,17 +1,20 @@
 import { expect, test } from "@playwright/test";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("mobile gallery discovers owned cards, caches artwork and compares daily prices", async ({ browser, request }) => {
   const account = await createCollector(request);
   const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
-    const cards = [];
-    for (const name of ["Lightning Bolt", "Counterspell", "Llanowar Elves", "Swords to Plowshares", "Sol Ring", "Dark Ritual", "Brainstorm", "Forest"]) {
-      const response = await request.get(account.baseURL + "/api/v1/catalog/search?q=" + encodeURIComponent(name));
-      const card = (await response.json()).items.find((item: { language: string; finishes: string[]; name: string }) => item.language === "en" && item.finishes.includes("nonfoil") && item.name === name);
-      expect(card, "The daily catalog includes " + name).toBeTruthy(); cards.push(card);
-    }
+    const cards = await catalogLookup(browser, account, async (catalog) => {
+      const found = [];
+      for (const name of ["Lightning Bolt", "Counterspell", "Llanowar Elves", "Swords to Plowshares", "Sol Ring", "Dark Ritual", "Brainstorm", "Forest"]) {
+        const response = await catalog.get("/api/v1/catalog/search?q=" + encodeURIComponent(name));
+        const card = (await response.json()).items.find((item: { language: string; finishes: string[]; name: string }) => item.language === "en" && item.finishes.includes("nonfoil") && item.name === name);
+        expect(card, "The daily catalog includes " + name).toBeTruthy(); found.push(card);
+      }
+      return found;
+    });
     const page = await context.newPage();
     const errors: string[] = [];
     const foreignRequests: string[] = [];

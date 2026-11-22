@@ -105,17 +105,22 @@ for (const width of [390, 1280]) {
         }, phase);
         await expect.poll(() => lid.getAttribute("data-hinge-angle").then(value => Number(value))).toBeCloseTo(expected, 1);
         const samples = await lid.evaluate(svg => {
-          const edges = new Map<string, { count: number; point: { x: number; y: number } }>();
+          const edges = new Map<string, { sides: Set<number>; point: { x: number; y: number } }>();
           for (const face of svg.querySelectorAll(".deck-box-cap-face")) {
             const vertices = [...face.getAttribute("d")!.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+            const centroid = { x: vertices.reduce((sum, p) => sum + p.x, 0) / vertices.length, y: vertices.reduce((sum, p) => sum + p.y, 0) / vertices.length };
             vertices.forEach((a, index) => {
               const b = vertices[(index + 1) % vertices.length];
               const key = [a, b].map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).sort().join("|");
-              const edge = edges.get(key) || { count: 0, point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
-              edge.count++; edges.set(key, edge);
+              const edge = edges.get(key) || { sides: new Set<number>(), point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+              edge.sides.add(Math.sign((b.x - a.x) * (centroid.y - a.y) - (b.y - a.y) * (centroid.x - a.x)));
+              edges.set(key, edge);
             });
           }
-          return [...edges.values()].filter(edge => edge.count > 1).map(edge => {
+          // A seam is an edge two faces meet at from opposite sides. Where the
+          // projected faces fold onto the same side, the edge is the lid's
+          // silhouette with the page behind it, so its pixels blend with the page.
+          return [...edges.values()].filter(edge => edge.sides.has(1) && edge.sides.has(-1)).map(edge => {
             const position = new DOMPoint(edge.point.x, edge.point.y).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);
             return { x: position.x / position.w, y: position.y / position.w };
           });
