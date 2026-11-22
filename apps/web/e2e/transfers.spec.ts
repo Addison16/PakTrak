@@ -1,12 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("mobile collection import, export, reconnect, and undo preserve copy totals", async ({ browser, request }) => {
   const account = await createCollector(request);
-  const cardResponse = await request.get(account.baseURL + "/api/v1/catalog/search?q=Island");
-  const card = (await cardResponse.json()).items.find((item: { language: string }) => item.language === "en");
+  const card = await catalogLookup(browser, account, async (catalog) => (await (await catalog.get("/api/v1/catalog/search?q=Island")).json()).items.find((item: { language: string }) => item.language === "en"));
   expect(card, "Load the real print catalog before running the collection browser test").toBeTruthy();
   let context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
