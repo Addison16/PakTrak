@@ -184,6 +184,9 @@ services:
     ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8095}:8080"]
     environment:
       APP_URL: ${APP_URL}
+      # "true" opens the sign-in service's administration console at
+      # APP_URL/identity/admin/. Leave unset to keep it off the public address.
+      IDENTITY_ADMIN_CONSOLE: ${IDENTITY_ADMIN_CONSOLE:-}
     depends_on:
       # Restart nginx when Compose replaces the API or identity containers.
       api: {condition: service_healthy, restart: true}

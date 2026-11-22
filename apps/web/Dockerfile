@@ -18,4 +18,4 @@ COPY --from=build /app/public/fonts /usr/share/paktrak/identity-theme/login/reso
 COPY --from=build /app/public /usr/share/paktrak/identity-theme/login/resources/shared
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/paktrak/
 COPY docs/DEPENDENCIES.md /usr/share/doc/paktrak/DEPENDENCIES.md
-ENV NGINX_ENVSUBST_FILTER=^APP_URL$
+ENV NGINX_ENVSUBST_FILTER=^(APP_URL|IDENTITY_ADMIN_CONSOLE)$

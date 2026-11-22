@@ -75,6 +75,10 @@ export async function fixture(page: Page, boxes = false, artwork?: string, store
     else { status = 500; json = { detail: "Unexpected fixture request: " + path }; }
     await route.fulfill({ status, json });
   });
+  // Phones draw overlay scrollbars and reserve no gutter. Headless Chromium
+  // keeps a 15px gutter for the page's stable scrollbar, which lays the deck
+  // shelf and gallery out narrower than the window the tests measure.
+  await page.addInitScript(() => { document.addEventListener("DOMContentLoaded", () => { document.documentElement.style.scrollbarGutter = "auto"; }); });
   await page.goto("/"); await navigate(page, "Decks");
   return { calls, saved, decks, loseNextResponse: () => { loseResponse = true; } };
 }

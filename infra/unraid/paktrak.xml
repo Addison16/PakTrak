@@ -16,5 +16,6 @@
   <ExtraParams>--stop-timeout=120</ExtraParams>
   <Config Name="App address" Target="APP_URL" Default="" Mode="" Description="The address you open PakTrak at, including the port, for example http://192.168.1.50:8095 or https://cards.example.net. Sign-in only works from this address." Type="Variable" Display="always" Required="true" Mask="false"/>
   <Config Name="Web port" Target="8095" Default="8095" Mode="tcp" Description="Port for the web interface." Type="Port" Display="always" Required="true" Mask="false">8095</Config>
+  <Config Name="Sign-in admin console" Target="IDENTITY_ADMIN_CONSOLE" Default="" Mode="" Description="Set to true only while you need the sign-in service's own administration console at your App address under /identity/admin/. Leave empty to keep it off the public address." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="Data" Target="/data" Default="/mnt/user/appdata/paktrak" Mode="rw" Description="Database, photos and private settings. Back up this folder while the container is stopped." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/paktrak</Config>
 </Container>

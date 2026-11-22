@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 
-from scanner.auth import DB
+from scanner.auth import DB, Identity
 from scanner.card_search import card_display_name, card_name_matches, split_collector_search
 from scanner.db import session_factory
 from scanner.foil_types import special_foil
@@ -73,7 +73,7 @@ def printing_json(printing):
 
 
 @router.get("/status")
-def status(db: DB):
+def status(identity: Identity, db: DB):
     latest = db.scalar(select(CatalogSnapshot).order_by(CatalogSnapshot.created_at.desc()).limit(1))
     return {
         "printings": db.scalar(select(func.count()).select_from(Printing)),
@@ -83,6 +83,7 @@ def status(db: DB):
 
 @router.get("/search")
 def search(
+    identity: Identity,
     db: DB,
     q: str = Query(min_length=2, max_length=255),
     offset: int = Query(0, ge=0),
@@ -94,7 +95,9 @@ def search(
     facets: bool = False,
 ):
     q, inline_number = split_collector_search(q)
-    # Treat wildcard input literally. Search exposes only public card metadata.
+    # Treat wildcard input literally. The catalog is public card data, but the
+    # name search scans every printing, so only signed-in accounts may run it;
+    # share links serve their own card data without this route.
     name_match = card_name_matches(q, exact=exact_name)
     condition = name_match
     try:
@@ -151,7 +154,7 @@ def search(
 
 
 @router.get("/printings/{printing_id}")
-def detail(printing_id: uuid.UUID, db: DB):
+def detail(printing_id: uuid.UUID, identity: Identity, db: DB):
     printing = db.get(Printing, printing_id)
     if printing is None:
         raise HTTPException(404, "Printing not found in this server's catalog.")
@@ -159,7 +162,7 @@ def detail(printing_id: uuid.UUID, db: DB):
 
 
 @router.get("/printings/{printing_id}/rulings")
-def rulings(printing_id: uuid.UUID, db: DB):
+def rulings(printing_id: uuid.UUID, identity: Identity, db: DB):
     """Format legality and official rulings, shared by every printing of the card."""
     printing = db.get(Printing, printing_id)
     if printing is None:

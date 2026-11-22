@@ -25,8 +25,10 @@ export default function DeckOpening({ origin, ready, onComplete }: { origin: Dec
   complete.current = onComplete;
   const [stage] = useState(() => {
     // The overlay spans the page's content box, which a desktop scrollbar (or
-    // its reserved gutter) makes narrower than the window; centre on that.
-    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    // its reserved gutter) makes narrower than the window; centre on that. The
+    // body is that box: the root element reports the full window width while
+    // the gutter is reserved but no scrollbar is drawn.
+    const viewportWidth = document.body.getBoundingClientRect().width || document.documentElement.clientWidth || window.innerWidth;
     const width = Math.min(206, viewportWidth * .43, window.innerHeight * .28);
     const height = width * origin.height / origin.width;
     const cardWidth = Math.min(110, viewportWidth * .19, width * .57);

@@ -1,17 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("mobile card corrections change set and rarity while keeping copies and locations", async ({ browser, request }) => {
   const account = await createCollector(request);
   const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
-    const find = async (rarity: string) => {
-      const params = new URLSearchParams({ q: "Lightning Bolt", exact_name: "true", rarity, language: "en" });
-      const result = await (await request.get(account.baseURL + "/api/v1/catalog/search?" + params)).json();
-      return result.items.find((card: { finishes: string[] }) => card.finishes.includes("nonfoil"));
-    };
-    const original = await find("common"); const corrected = await find("rare");
+    const [original, corrected] = await catalogLookup(browser, account, async (catalog) => {
+      const find = async (rarity: string) => {
+        const params = new URLSearchParams({ q: "Lightning Bolt", exact_name: "true", rarity, language: "en" });
+        const result = await (await catalog.get("/api/v1/catalog/search?" + params)).json();
+        return result.items.find((card: { finishes: string[] }) => card.finishes.includes("nonfoil"));
+      };
+      return [await find("common"), await find("rare")];
+    });
     expect(original).toBeTruthy(); expect(corrected).toBeTruthy();
     const page = await context.newPage(); const errors: string[] = []; const foreignRequests: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));

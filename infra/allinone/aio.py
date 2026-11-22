@@ -143,8 +143,10 @@ def environment(origin, values):
 
 def nginx_config(origin):
     site = Path("/usr/share/paktrak/nginx-site.conf").read_text()
+    console = os.environ.get("IDENTITY_ADMIN_CONSOLE", "").strip().lower() == "true"
     replacements = {
         "${APP_URL}": origin,
+        "${IDENTITY_ADMIN_CONSOLE}": "true" if console else "",
         "resolver 127.0.0.11 valid=10s ipv6=off;": "",
         "http://api:8000": API,
         "http://identity:8080": IDENTITY,

@@ -164,7 +164,8 @@ test("unavailable storage still allows immediate appearance changes", async ({ c
 
 test("stored appearance and color theme are applied before the application bundle loads", async ({ context, page }) => {
   await context.addInitScript(() => { localStorage.setItem("paktrak-appearance", "dark"); localStorage.setItem("paktrak-palette", "amethyst"); });
-  await context.route("**/assets/*.js", (route) => route.abort());
+  // The built app loads from /assets/, the dev server from /src/main.tsx.
+  await context.route(/\/(assets\/[^/]+\.js|src\/main\.tsx)(\?.*)?$/, (route) => route.abort());
   await page.emulateMedia({ colorScheme: "light" }); await page.goto("/");
   await theme(page, "dark");
   await paletteMatches(page, "amethyst");

@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("import decks, compare editions and export only missing copies without adding holdings", async ({ browser, request }) => {
   const account = await createCollector(request);
-  const printings = (await (await request.get(account.baseURL + "/api/v1/catalog/search?q=Island&exact_name=true&language=en")).json()).items;
+  const { printings, mountain } = await catalogLookup(browser, account, async (catalog) => ({
+    printings: (await (await catalog.get("/api/v1/catalog/search?q=Island&exact_name=true&language=en")).json()).items,
+    mountain: (await (await catalog.get("/api/v1/catalog/search?q=Mountain&exact_name=true&language=en")).json()).items[0],
+  }));
   const first = printings[0], alternate = printings.find((item: any) => item.id !== first.id);
-  const mountain = (await (await request.get(account.baseURL + "/api/v1/catalog/search?q=Mountain&exact_name=true&language=en")).json()).items[0];
   expect(first).toBeTruthy(); expect(alternate).toBeTruthy();
   const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {

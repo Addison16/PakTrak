@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createCollector } from "./account";
+import { catalogLookup, createCollector } from "./account";
 import { navigate, skipWelcomeTour } from "./navigation";
 
 test("mobile storage locations, saved decks and text transfers", async ({ browser, request }) => {
   const account = await createCollector(request);
-  const card = (await (await request.get(account.baseURL + "/api/v1/catalog/search?q=Island")).json()).items.find((item: { language: string }) => item.language === "en");
+  const card = await catalogLookup(browser, account, async (catalog) => (await (await catalog.get("/api/v1/catalog/search?q=Island")).json()).items.find((item: { language: string }) => item.language === "en"));
   expect(card).toBeTruthy();
   const context = await browser.newContext({ baseURL: account.baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   context.setDefaultTimeout(15000);
