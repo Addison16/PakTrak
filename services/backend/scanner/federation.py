@@ -56,6 +56,7 @@ MAX_RESPONSE = 4 * 1024 * 1024
 TIMEOUT = 8.0
 MAX_WAITING = 20
 MISSES_PER_HOUR = 30
+MAX_WAITING_REQUESTS = 25
 # Connect requests from unknown servers make this server look up their key. Each
 # API process does at most two lookups at once and twenty a minute.
 DISCOVERY_TIMEOUT = 4.0
@@ -589,6 +590,21 @@ def remote_friend_request(request: Request, db: DB, signed: Signed = Depends(sig
         .with_for_update()
     )
     if link is None:
+        # A connected server can name any account of its own, so one person's
+        # list of requests from it stays short.
+        waiting = db.scalar(
+            select(func.count())
+            .select_from(RemoteFriendship)
+            .where(
+                RemoteFriendship.owner_id == person.id,
+                RemoteFriendship.peer_id == peer.id,
+                RemoteFriendship.state == "pending",
+                RemoteFriendship.sent_by_owner.is_(False),
+            )
+        )
+        if waiting >= MAX_WAITING_REQUESTS:
+            db.commit()
+            raise HTTPException(429, "This person has too many friend requests waiting.")
         link = RemoteFriendship(
             owner_id=person.id,
             peer_id=peer.id,

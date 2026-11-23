@@ -1,5 +1,12 @@
 # Changelog
 
+## Privacy fixes — November 23, 2026
+
+- **Saved prices no longer hint at what other accounts own.** PakTrak saves daily prices only for cards someone on the server owns, wants or has in a deck. A deck's price-jump notes and a card's price chart showed those saved prices to any signed-in account, so an account could tell that somebody else on the server had a card. Each account now sees saved prices only from the day after it had the card itself. On a new card the chart and the jump notes fill in over the following days. For cards in a deck you don't own, the notes restart from the deck's last change.
+- **The sign-up form is closed while sign-ups are off.** With **Allow guest signup** turned off, the sign-in service's sign-up form could still be opened directly, and it answers "username already exists", which tells a visitor who has an account. The form now opens only while guest signup is on (or before the first administrator exists); otherwise the visitor is sent back to PakTrak.
+- A connected PakTrak server can leave at most 25 friend requests waiting for one person.
+- This update changes the database. Back up your data folder before updating.
+
 ## Security follow-ups — November 22, 2026
 
 - The sign-in service's administration console is no longer reachable through PakTrak's address. Before, anyone who could open your server could also open its sign-in administration page at `/identity/admin/` and try the `admin` password. PakTrak's own **Menu → Administration** is unchanged. If you ever need the console, set `IDENTITY_ADMIN_CONSOLE=true` for a while (a container variable on Unraid, or in `.env` for Compose).

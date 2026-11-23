@@ -606,6 +606,24 @@ class CardPriceHistory(Base):
     amount: Mapped[float] = mapped_column(Numeric(16, 4))
 
 
+class PriceWatch(Base):
+    """The day an account's saved prices for a card begin.
+
+    Daily prices are saved for cards anyone on the server owns, wants or has in
+    a deck. An account sees them only from after the first price update that ran
+    while it had the card itself; earlier ones exist because of someone else.
+    """
+
+    __tablename__ = "price_watches"
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    printing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("card_printings.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date)
+
+
 class CollectionValueHistory(Base):
     __tablename__ = "collection_value_history"
     owner_id: Mapped[uuid.UUID] = mapped_column(

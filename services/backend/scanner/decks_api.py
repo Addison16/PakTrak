@@ -133,6 +133,7 @@ def check_value(data: DeckValueCheck, identity: Identity, db: DB):
         [(choice, printings[choice.printing_id]) for choice in data.cards],
         data.provider,
         data.finish_preference,
+        owner_id=identity.owner_id,
     )
 
 
@@ -215,7 +216,10 @@ def deck_detail(db, deck):
         "legality": legality_report(db, rows, deck.format),
         "tokens": token_report(db, rows),
         "valuation": value_report(
-            db, rows, db.get(User, deck.owner_id).preferred_price_source or "tcgplayer"
+            db,
+            rows,
+            db.get(User, deck.owner_id).preferred_price_source or "tcgplayer",
+            owner_id=deck.owner_id,
         ),
     }
 

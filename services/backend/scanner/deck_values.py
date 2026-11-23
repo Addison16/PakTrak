@@ -5,11 +5,11 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 
 from scanner.data_sync import PROVIDERS
 from scanner.gallery import feed_json
-from scanner.models import CardPrice, CardPriceHistory, DataFeed, now
+from scanner.models import CardPrice, CardPriceHistory, DataFeed, PriceWatch, now
 
 FinishPreference = Literal["nonfoil", "foil", "etched"]
 FINISHES = ("nonfoil", "foil", "etched")
@@ -17,12 +17,26 @@ FINISHES = ("nonfoil", "foil", "etched")
 COMPARE_DAYS = 30
 
 
-def earlier_prices(db, printing_ids, provider):
-    """The oldest saved price in the comparison window for each printing and finish."""
+def earlier_prices(db, printing_ids, provider, owner_id):
+    """The oldest saved price in the comparison window for each printing and finish.
+
+    Only prices saved since this account has had the card: older ones exist
+    because another account has it, and would give that away.
+    """
     today = date.today()
     earlier = {}
+    if owner_id is None:
+        return earlier
     for row in db.scalars(
         select(CardPriceHistory)
+        .join(
+            PriceWatch,
+            and_(
+                PriceWatch.owner_id == owner_id,
+                PriceWatch.printing_id == CardPriceHistory.printing_id,
+                PriceWatch.day < CardPriceHistory.day,
+            ),
+        )
         .where(
             CardPriceHistory.printing_id.in_(printing_ids),
             CardPriceHistory.provider == provider,
@@ -43,7 +57,7 @@ def was(found):
     }
 
 
-def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
+def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil", owner_id=None):
     quotes = defaultdict(dict)
     for quote in db.scalars(
         select(CardPrice).where(
@@ -69,7 +83,7 @@ def value_report(db, rows, provider="tcgplayer", finish_preference="nonfoil"):
             "amount": str(total) if priced or not copies else None,
         }
 
-    earlier = earlier_prices(db, {printing.id for _, printing in rows}, provider)
+    earlier = earlier_prices(db, {printing.id for _, printing in rows}, provider, owner_id)
     items = []
     for choice, printing in rows:
         available = [finish for finish in FINISHES if finish in printing.finishes]

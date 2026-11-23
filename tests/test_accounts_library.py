@@ -6,12 +6,14 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from conftest import accept, create, upload
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 from starlette.responses import RedirectResponse
 from test_collections import catalog as catalog
 from test_collections import commit, export, key, preview, run_batch
 
 from scanner import auth
+from scanner.api import app
 from scanner.db import session_factory
 from scanner.models import AccountPolicy, Deck, InventoryEvent, Observation, User
 from scanner.settings import get_settings
@@ -120,12 +122,17 @@ def test_signup_toggle_blocks_direct_admission_but_keeps_existing_accounts(clien
         guest.get("/api/auth/register", follow_redirects=False).headers["location"]
         == "/?registration_closed=1"
     )
+    # The web server asks this before showing the sign-in service's sign-up form,
+    # which would otherwise tell a visitor which usernames are taken.
+    visitor = TestClient(app, base_url=get_settings().app_url)
+    assert visitor.get("/api/auth/signup-open").status_code == 403
     assert guest.get("/api/auth/session").status_code == 200
     with session_factory()() as db, pytest.raises(HTTPException, match="registration"):
         auth.save_account(db, "account-test-blocked", "Blocked", initial_setup=True)
     body["expected_version"] = saved.json()["version"]
     body["guest_signup_enabled"] = True
     assert admin.post("/api/auth/settings", json=body).status_code == 200
+    assert visitor.get("/api/auth/signup-open").status_code == 204
     with session_factory()() as db, db.begin():
         assert auth.save_account(db, "account-test-reopened", "Reopened").role == "guest"
 

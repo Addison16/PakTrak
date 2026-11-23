@@ -8,7 +8,7 @@ from authlib.common.errors import AuthlibBaseError
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from httpx import HTTPError
 from joserfc.errors import JoseError
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -125,6 +125,17 @@ def status(db: DB):
         "guest_card_limit": GUEST_CARD_LIMIT,
         "guest_signup_enabled": db.get(AccountPolicy, 1).guest_signup_enabled,
     }
+
+
+@router.get("/signup-open", include_in_schema=False)
+def signup_open(db: DB):
+    """Asked by the web server before it shows the sign-in service's sign-up form.
+
+    That form says when a username is taken, so it stays shut unless this
+    server accepts new accounts or is waiting for its first administrator.
+    """
+    allowed = setup_required(db) or db.get(AccountPolicy, 1).guest_signup_enabled
+    return Response(status_code=204 if allowed else 403)
 
 
 async def begin_login(request, flow, owner_id=None, fresh=False):
