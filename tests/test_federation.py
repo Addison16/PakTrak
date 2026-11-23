@@ -246,6 +246,20 @@ def test_friend_codes_stay_private_across_servers(clients, peer):
     assert remote_request(peer, code).status_code == 429
 
 
+def test_one_server_cannot_flood_a_person_with_requests(clients, peer):
+    connect(clients, peer)
+    alice, _ = clients()
+    code = alice.post("/api/v1/friends/code", json={"action": "new"}).json()["code"]
+    for _ in range(federation.MAX_WAITING_REQUESTS):
+        assert remote_request(peer, code).status_code == 200
+    assert remote_request(peer, code).status_code == 429
+    incoming = alice.get("/api/v1/friends").json()["incoming"]
+    assert len(incoming) == federation.MAX_WAITING_REQUESTS
+    # Declining one makes room again.
+    alice.post(f"/api/v1/friends/requests/{incoming[0]['id']}/decline")
+    assert remote_request(peer, code).status_code == 200
+
+
 def test_a_remote_friend_sees_only_what_is_shared(clients, peer, cards):  # noqa: F811
     connect(clients, peer)
     alice, alice_id = clients()

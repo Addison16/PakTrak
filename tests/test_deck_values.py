@@ -12,7 +12,14 @@ from test_collections import key
 from scanner.api import app
 from scanner.db import session_factory
 from scanner.deck_values import value_report
-from scanner.models import CardPrice, CardPriceHistory, CatalogSnapshot, Deck, Printing
+from scanner.models import (
+    CardPrice,
+    CardPriceHistory,
+    CatalogSnapshot,
+    Deck,
+    PriceWatch,
+    Printing,
+)
 from scanner.settings import get_settings
 
 
@@ -267,7 +274,7 @@ def test_price_reads_are_batched_and_invalid_numeric_quotes_are_excluded(clients
 
         event.listen(engine, "before_cursor_execute", count)
         try:
-            value = value_report(db, rows)
+            value = value_report(db, rows, owner_id=_owner)
         finally:
             event.remove(engine, "before_cursor_execute", count)
         assert len(queries) == 3
@@ -287,7 +294,17 @@ def test_price_reads_are_batched_and_invalid_numeric_quotes_are_excluded(clients
                 )
             )
         db.flush()
-        item = value_report(db, rows)["items"][0]
+        # Saved prices exist because some account has the card. An account that has
+        # never had it sees none, or it would learn that someone else does.
+        assert value_report(db, rows, owner_id=_owner)["items"][0]["earlier_amount"] is None
+        watch = PriceWatch(owner_id=_owner, printing_id=printing.id, day=today - timedelta(days=5))
+        db.add(watch)
+        db.flush()
+        # Nor any from before its own first day with the card.
+        assert value_report(db, rows, owner_id=_owner)["items"][0]["earlier_amount"] is None
+        watch.day = today - timedelta(days=60)
+        db.flush()
+        item = value_report(db, rows, owner_id=_owner)["items"][0]
         assert Decimal(item["earlier_amount"]) == 2
         assert item["earlier_day"] == (today - timedelta(days=20)).isoformat()
         quote = db.get(CardPrice, (printing.id, "tcgplayer", "nonfoil"))

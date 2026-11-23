@@ -19,6 +19,7 @@ from scanner.models import (
     CardPriceHistory,
     CollectionValueHistory,
     InventoryLot,
+    PriceWatch,
     Printing,
     WishlistItem,
 )
@@ -310,6 +311,13 @@ def price_history(
         raise HTTPException(404, "This card isn’t in your collection or wishlist.")
     provider = provider or preferred_provider(db, identity.owner_id)
     today = date.today()
+    # Earlier saved prices exist because another account has the card, so the
+    # chart begins after this account's own first day with it.
+    since = db.scalar(
+        select(PriceWatch.day).where(
+            PriceWatch.owner_id == identity.owner_id, PriceWatch.printing_id == printing_id
+        )
+    )
     finishes = {
         finish: [] for finish in printing.finishes if finish in ("nonfoil", "foil", "etched")
     }
@@ -319,6 +327,7 @@ def price_history(
             CardPriceHistory.printing_id == printing_id,
             CardPriceHistory.provider == provider,
             CardPriceHistory.day >= today - timedelta(days=days),
+            CardPriceHistory.day > (since or today),
             CardPriceHistory.day < today,
         )
         .order_by(CardPriceHistory.day)

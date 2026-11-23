@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from test_collections import commit, key, preview
 
 from scanner.db import session_factory
@@ -14,6 +14,7 @@ from scanner.models import (
     CardPriceHistory,
     CatalogSnapshot,
     CollectionValueHistory,
+    PriceWatch,
     Printing,
     User,
 )
@@ -335,6 +336,20 @@ def test_value_and_price_history_record_owned_cards(clients, cards):
     client.post("/api/v1/wishlist", json={"items": [{"printing_id": cards[3]}]})
     with session_factory()() as db, db.begin():
         record_history(db, "tcgplayer")
+        # The update notes the day this account's saved prices begin for each card it has.
+        watched = select(PriceWatch).where(PriceWatch.owner_id == owner_id)
+        assert {watch.printing_id for watch in db.scalars(watched)} == {
+            uuid.UUID(cards[0]),
+            uuid.UUID(cards[1]),
+            uuid.UUID(cards[3]),
+        }
+        assert {watch.day for watch in db.scalars(watched)} == {date.today()}
+        # These cards have been here a while.
+        db.execute(
+            update(PriceWatch)
+            .where(PriceWatch.owner_id == owner_id)
+            .values(day=date.today() - timedelta(days=5))
+        )
         db.add(
             CollectionValueHistory(
                 owner_id=owner_id,
@@ -384,8 +399,26 @@ def test_value_and_price_history_record_owned_cards(clients, cards):
     # Wanted cards have history too; an unrelated printing's history stays private
     # (it would reveal that another account owns the card).
     assert client.get(f"/api/v1/collection/printings/{cards[3]}/price-history").status_code == 200
-    stranger, _ = clients()
+    stranger, stranger_id = clients()
     assert stranger.get(f"/api/v1/collection/printings/{cards[1]}/price-history").status_code == 404
+    # Prices saved before an account had a card exist because someone else has
+    # it. Neither a new wishlist entry nor a deck draft shows them.
+    stranger.post("/api/v1/wishlist", json={"items": [{"printing_id": cards[1]}]})
+    with session_factory()() as db, db.begin():
+        record_history(db, "tcgplayer")
+    fresh = stranger.get(f"/api/v1/collection/printings/{cards[1]}/price-history").json()
+    assert [p["amount"] for p in fresh["finishes"]["nonfoil"]["points"]] == ["10.00"]
+    draft = {"cards": [{"printing_id": cards[1], "section": "main", "quantity": 1}]}
+    for viewer, earlier in ((stranger, None), (client, "8.0000")):
+        value = viewer.post("/api/v1/decks/value", json=draft)
+        assert value.status_code == 200, value.text
+        assert value.json()["items"][0]["earlier_amount"] == earlier
+    # Letting the card go forgets the day, so having it again later starts over.
+    wanted = stranger.get("/api/v1/wishlist").json()["items"][0]["id"]
+    stranger.delete(f"/api/v1/wishlist/{wanted}")
+    with session_factory()() as db, db.begin():
+        record_history(db, "tcgplayer")
+        assert not db.scalar(select(PriceWatch).where(PriceWatch.owner_id == stranger_id))
     with session_factory()() as db, db.begin():
         db.execute(
             delete(CardPriceHistory).where(

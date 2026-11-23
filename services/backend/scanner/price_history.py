@@ -3,6 +3,13 @@
 from sqlalchemy import text
 
 KEEP_DAYS = 400
+# Every card an account has: owned, wanted or in one of its decks.
+HELD = """
+    SELECT owner_id, printing_id FROM inventory_lots WHERE quantity_remaining > 0
+    UNION ALL SELECT owner_id, printing_id FROM wishlist_items
+    UNION ALL SELECT deck.owner_id, card.printing_id
+        FROM deck_cards AS card JOIN decks AS deck ON deck.id = card.deck_id
+"""
 
 
 def record_history(db, provider):
@@ -52,6 +59,27 @@ def record_history(db, provider):
             """
         ),
         params,
+    )
+    # Each account's saved prices for a card start with the first update that ran
+    # while it had the card, and start over if it lets the card go.
+    db.execute(
+        text(
+            f"""
+            INSERT INTO price_watches (owner_id, printing_id, day)
+            SELECT DISTINCT held.owner_id, held.printing_id, CURRENT_DATE FROM ({HELD}) AS held
+            ON CONFLICT (owner_id, printing_id) DO NOTHING
+            """
+        )
+    )
+    db.execute(
+        text(
+            f"""
+            DELETE FROM price_watches AS watch WHERE NOT EXISTS (
+                SELECT 1 FROM ({HELD}) AS held
+                WHERE held.owner_id = watch.owner_id AND held.printing_id = watch.printing_id
+            )
+            """
+        )
     )
     for table in ("card_price_history", "collection_value_history"):
         db.execute(

@@ -118,7 +118,12 @@ async def response_headers(request: Request, call_next):
         )
         problem = {"code": code, "summary": MESSAGES[code], "context": {}}
     route = getattr(request.scope.get("route"), "path", "[unmatched]")
-    if problem and not (route == "/api/auth/session" and problem["code"] == "sign_in_required"):
+    # Two routine answers aren't problems: a visitor who isn't signed in yet, and
+    # the web server being told the sign-up form is closed.
+    routine = (
+        route == "/api/auth/session" and problem and problem["code"] == "sign_in_required"
+    ) or (route == "/api/auth/signup-open" and response.status_code == 403)
+    if problem and not routine:
         await run_in_threadpool(
             record_problem,
             {
