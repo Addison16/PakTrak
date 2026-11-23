@@ -1,0 +1,31 @@
+/* Small transitions that carry you from one step to the next. They sit inside
+   the no-preference query so My account > Appearance > Animations (and the
+   device's reduce-motion setting on Auto) turns them off with the rest. The
+   screen change fade lives in main.tsx and checks reducedMotion() there. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Organize selected, the shortcut list and the membership welcome rise
+     softly into place instead of appearing at once. Card details and deck
+     card previews keep their own card flight; only their backdrop fades, so
+     the flight still lands exactly where it measured. */
+  .bulk-collection-dialog[open], .membership-welcome[open] { animation: flow-dialog-in .22s cubic-bezier(.2, .8, .3, 1); }
+  .bulk-collection-dialog[open]::backdrop, .membership-welcome[open]::backdrop, .card-dialog[open]::backdrop { animation: flow-fade-in .22s ease-out; }
+
+  /* Confirmations and errors ease down into the page so the eye catches them. */
+  :where(.message.success, .error-notice, .message[role="status"], .message[role="alert"]) { animation: flow-notice-in .24s ease-out; }
+
+  /* Opening a section lets its content settle in under the heading. */
+  :where(details[open]) > :where(:not(summary)) { animation: flow-reveal .2s ease-out; }
+
+  /* Buttons give a light press under the finger. */
+  .button, .menu-links button { transition: background .15s, box-shadow .15s, color .15s, transform .15s ease-out; }
+  :where(.button, .menu-links button):not(:disabled):active { transform: scale(.98); }
+  .tab-bar button > .icon { transition: transform .18s ease-out; }
+  .tab-bar button:not(:disabled):active > .icon { transform: scale(.9); }
+  .tab-bar button[aria-current=page] > .icon { animation: flow-tab-settle .26s ease-out; }
+}
+
+@keyframes flow-dialog-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes flow-fade-in { from { opacity: 0; } }
+@keyframes flow-notice-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes flow-reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@keyframes flow-tab-settle { 0% { transform: translateY(0); } 45% { transform: translateY(-2px); } 100% { transform: translateY(0); } }

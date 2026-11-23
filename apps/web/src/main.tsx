@@ -15,6 +15,7 @@ import { photoAccept, photoFormatLabel, photoMime } from "./photoFormats";
 import "./style.css";
 import "./qol.css";
 import "./offline.css";
+import "./flow.css";
 import { readPendingPhoto, savePendingPhoto, removePendingPhoto, type PendingPhoto } from "./pendingPhoto";
 import { navigation, openedSharedLink, restoreScroll, sameScreen, useNavigationGuard, useRoute, type Page } from "./navigation";
 import ConnectionStatus from "./ConnectionStatus";
@@ -26,7 +27,7 @@ import { saveDaily } from "./offlineSave";
 import { moveToSecureAddress, registerServiceWorker } from "./serviceWorker";
 import PullToRefresh from "./PullToRefresh";
 import FallingCards from "./FallingCards";
-import { loadMotionPreference } from "./motion";
+import { loadMotionPreference, reducedMotion } from "./motion";
 import { usePullRefresh } from "./pullRefresh";
 
 const Collections = lazy(() => import("./Collections"));
@@ -632,6 +633,17 @@ function App() {
   // Home and the batch list reload the sign-in check and batches; other screens register their own.
   usePullRefresh(!!session && (page === "scan" || page === "batches"), () => refreshNow.current?.(true));
   // Not over open batches, the camera or the menu, where touches belong to the work on screen.
+  // Switching screens fades the new one in. Opacity only: a transform on <main>
+  // would move the fixed deck-opening and card-arrival layers inside it.
+  const mainRef = useRef<HTMLElement>(null);
+  const shownPage = useRef(page);
+  useEffect(() => {
+    if (shownPage.current === page) return;
+    shownPage.current = page;
+    const node = mainRef.current;
+    if (!node || reducedMotion() || route.deck || route.overlay || typeof node.animate !== "function") return;
+    node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+  }, [page]);
   const pullEnabled = !!session && !selected && !route.batch && !route.overlay;
   const showTabs = !!session && !selected && !route.batch && ["scan", "batches", "collection", "decks"].includes(page) && !(page === "decks" && route.deck);
   // Behind every page; the live camera fills the screen, so it goes away there.
@@ -643,7 +655,7 @@ function App() {
       {session && <div className="topbar-actions"><ConnectionStatus onOpen={() => navigate("queue")} /><Navigation session={session} page={page} offerCount={offerCount} onNavigate={navigate} onLogout={() => leaveReview(() => void logout())} onReplayTour={() => leaveReview(onboarding.replay)} /><Shortcuts onNavigate={navigate} /></div>}
     </header>
     {session && <PullToRefresh enabled={pullEnabled} />}
-    <main className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : ["wishlist", "friends", "offers", "sets"].includes(page) ? " social-view" : page === "account" || page === "admin" || page === "queue" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
+    <main ref={mainRef} className={session ? "signed-in" + (showTabs ? " has-tabs" : "") + (page === "collection" ? " collection-view" : page === "batches" ? " batches-view" : page === "decks" ? " decks-view" : page === "trade" ? " trade-view" : ["wishlist", "friends", "offers", "sets"].includes(page) ? " social-view" : page === "account" || page === "admin" || page === "queue" ? " account-view" : page === "scan" ? " scan-view" : "") : undefined}>
       <div className="hero">
         <div className="hero-copy">
           <div className="edition">YOUR COLLECTION, WITH PAKTRAK</div>
