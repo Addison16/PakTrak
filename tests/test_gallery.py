@@ -417,3 +417,31 @@ def test_card_art_is_cached_unmodified_authorized_and_host_restricted(
             .get("Contents", [])
         ):
             storage.delete(obj["Key"])
+
+
+def test_tcgplayer_etched_prices_link_to_the_etched_product():
+    printing_id = uuid.uuid4()
+    raw = {
+        "prices": {"usd": "2.00", "usd_foil": "5.00", "usd_etched": "9.50"},
+        "purchase_uris": {"tcgplayer": "https://partner.tcgplayer.com/c/1/2/3?u=x"},
+        "tcgplayer_id": 111,
+        "tcgplayer_etched_id": 222,
+    }
+    quotes = {
+        quote["finish"]: quote
+        for quote in data_sync.tcgplayer_quotes(printing_id, ["nonfoil", "foil", "etched"], raw)
+    }
+    assert quotes["etched"]["amount"] == Decimal("9.50")
+    assert quotes["etched"]["url"] == "https://www.tcgplayer.com/product/222"
+    assert quotes["foil"]["amount"] == Decimal("5.00")
+    assert quotes["foil"]["url"] == "https://www.tcgplayer.com/product/111"
+    assert quotes["nonfoil"]["url"] == "https://www.tcgplayer.com/product/111"
+
+    # Without a separate etched product, etched copies use the card's own listing,
+    # and a finish the printing never comes in gets no price.
+    only = data_sync.tcgplayer_quotes(
+        printing_id, ["etched"], {"prices": raw["prices"], "tcgplayer_id": 111}
+    )
+    assert [(q["finish"], q["url"]) for q in only] == [
+        ("etched", "https://www.tcgplayer.com/product/111")
+    ]
