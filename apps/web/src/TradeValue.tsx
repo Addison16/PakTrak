@@ -7,6 +7,7 @@ import usePriceSource from "./usePriceSource";
 import { navigation } from "./navigation";
 import { appliedMessage, applyTrade, finishNames, TRADE_BINDER, type PickedLot } from "./tradeApply";
 import "./trade-value.css";
+import { randomId } from "./randomId";
 
 type Side = "give" | "get";
 type Source = "collection" | "catalog" | "friend";
@@ -155,7 +156,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
     const existing = trade[side].find((card) => card.printing.id === printing.id && card.finish === finish);
     if (!existing && trade[side].length >= MAX_ROWS) { setError(`A trade side can list up to ${MAX_ROWS} different cards.`); return; }
     setError(""); setAccepted("");
-    update(side, (cards) => existing ? cards.map((card) => card === existing ? { ...card, quantity: Math.min(999, card.quantity + 1), lots: lot ? joinLots(card.lots, [lot]) : card.lots } : card) : [...cards, { key: crypto.randomUUID(), printing, finish, quantity: 1, lots: lot && [lot] }]);
+    update(side, (cards) => existing ? cards.map((card) => card === existing ? { ...card, quantity: Math.min(999, card.quantity + 1), lots: lot ? joinLots(card.lots, [lot]) : card.lots } : card) : [...cards, { key: randomId(), printing, finish, quantity: 1, lots: lot && [lot] }]);
   }
   function addLot(side: Side, lot: Lot) {
     const available = finishesOf(lot.printing);
@@ -204,7 +205,7 @@ export default function TradeValue({ session, active }: { session: Session; acti
       // A retry of the same offer reuses its key, so a lost reply can't send it twice.
       const body = { friend_id: partner.id, give: lines(trade.give), get: lines(trade.get), message: message.trim() };
       const encoded = JSON.stringify(body);
-      if (offerReceipt.current?.body !== encoded) offerReceipt.current = { body: encoded, key: crypto.randomUUID() };
+      if (offerReceipt.current?.body !== encoded) offerReceipt.current = { body: encoded, key: randomId() };
       await request("/api/v1/trade-offers", { ...mutation(session, body, offerReceipt.current.key), action: "Send trade offer" });
       offerReceipt.current = null;
       setTrade({ give: [], get: [], friend: partner }); setMessage(""); setAdding(null);

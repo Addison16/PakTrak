@@ -4,6 +4,7 @@ import { mutation, request, type Session } from "./api";
 import type { ReviewState } from "./scanTypes";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./scan-qol.css";
+import { randomId } from "./randomId";
 
 type CropDraft = { points: number[][]; version?: number };
 // The magnifier follows the active corner from the side of the photo away from
@@ -175,7 +176,7 @@ export default function ScanCropEditor({ scanId, session, region, found = [], on
     try {
       const body = { polygon: points, ...(region ? { expected_version: version } : {}) };
       const encoded = JSON.stringify(body);
-      if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+      if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
       const result = await request<{ id: string }>(`/api/v1/scans/${scanId}/observations${region ? `/${region.id}/geometry` : ""}`, {
         ...mutation(session, body, receipt.current.key), method: region ? "PUT" : "POST",
       }); removeDraft(recoveryKey); onSaved(result.id);

@@ -4,6 +4,7 @@ import ErrorNotice from "./ErrorNotice";
 import PrintingPicker from "./PrintingPicker";
 import { useConnection } from "./offline";
 import "./trade-value.css";
+import { randomId } from "./randomId";
 
 const NEW_LOCATION = "new";
 const conditions = ["ungraded", "NM", "LP", "MP", "HP", "damaged"];
@@ -29,7 +30,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
   const [notice, setNotice] = useState("");
   const [round, setRound] = useState(0);
   // One key per card being added, so a retry after a dropped connection can't add it twice.
-  const requestKey = useRef(crypto.randomUUID());
+  const requestKey = useRef(randomId());
   const chosen = useRef<HTMLDivElement>(null);
   const { reachable } = useConnection();
 
@@ -41,7 +42,7 @@ export default function AddCard({ session, locations: saved, preferredLocation, 
   function choose(card: Printing) {
     setPrinting(card); setQuantity(1); setCondition("ungraded"); setPaid(""); setError(""); setNotice("");
     setFinish(card.finishes.includes("nonfoil") ? "nonfoil" : card.finishes[0] || "unknown");
-    requestKey.current = crypto.randomUUID();
+    requestKey.current = randomId();
   }
 
   async function add() {

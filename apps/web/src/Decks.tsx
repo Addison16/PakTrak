@@ -31,6 +31,7 @@ import "./deck-studio.css";
 import { usePullRefresh } from "./pullRefresh";
 import { LoadingNote } from "./Loading";
 import { reducedMotion } from "./motion";
+import { randomId } from "./randomId";
 
 type EditableCard = Card & { quantityInput?: string };
 type DeckDraft = { name: string; format: string; notes: string; matchMode: MatchMode; cards: EditableCard[]; baseVersion: number };
@@ -306,7 +307,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       cards: cards.filter((card) => card.quantity > 0).map((card) => ({ printing_id: card.printing.id, section: card.section, quantity: card.quantity })),
     };
     const encoded = JSON.stringify(body);
-    if (saveReceipt.current?.body !== encoded) saveReceipt.current = { body: encoded, key: crypto.randomUUID() };
+    if (saveReceipt.current?.body !== encoded) saveReceipt.current = { body: encoded, key: randomId() };
     let result: Deck | Queued;
     const copies = body.cards.reduce((sum, card) => sum + card.quantity, 0);
     const offlineDeck: Deck = { ...deck, name: body.name, format, notes, match_mode: matchMode, cards: cards.filter((card) => card.quantity > 0).map((card) => ({ ...card, quantityInput: undefined })) };
@@ -512,7 +513,7 @@ export default function Decks({ session, active, navigationRef }: { session: Ses
       {!dirty && <div className="deck-duplicate"><button className="button secondary" disabled={busy} onClick={() => { setDuplicating(!duplicating); setDuplicateName(`${deck.name} (copy)`.slice(0, 255)); }}>Duplicate deck</button>
         {duplicating && <form onSubmit={(e) => { e.preventDefault(); void act(async () => {
           const body = { name: duplicateName.trim(), format: deck.format, notes: deck.notes, match_mode: deck.match_mode, cards: cardChoices(deck.cards) };
-          const encoded = JSON.stringify(body); if (duplicateReceipt.current?.body !== encoded) duplicateReceipt.current = { body: encoded, key: crypto.randomUUID() };
+          const encoded = JSON.stringify(body); if (duplicateReceipt.current?.body !== encoded) duplicateReceipt.current = { body: encoded, key: randomId() };
           const copied = await request<Deck>("/api/v1/decks", mutation(session, body, duplicateReceipt.current.key));
           fill(copied, true); navigation.go({ page: "decks", deck: copied.id }, { force: true }); setOffset(0); setNotice("Deck duplicated. Your collection quantities stay the same."); await list(0); focusTitle();
         }); }}><label>Name for the duplicate<input maxLength={255} value={duplicateName} disabled={busy} onChange={(e) => setDuplicateName(e.target.value)} /></label><p className="fine">Copies the saved cards, notes, format and collection matching. Use it to try a different build.</p><div className="actions"><button className="button primary" disabled={busy || !duplicateName.trim()}>Create duplicate</button><button className="text-button" type="button" disabled={busy} onClick={() => setDuplicating(false)}>Cancel duplicate</button></div></form>}

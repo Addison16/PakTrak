@@ -13,6 +13,7 @@ import { readDraft, removeDraft, writeDraft } from "./recovery";
 import CountUp from "./CountUp";
 import "./scan-qol.css";
 import { reducedMotion } from "./motion";
+import { randomId } from "./randomId";
 
 type CardDraft = { version: number; choice: Printing | null; editing: boolean; finish: string; condition: string };
 type SavedReview = { schema: 1; cards: [string, CardDraft][]; current: string | null; binder: string; binderDirty: boolean; selected: string[]; bulkFinish: string; bulkCondition: string; bulkBinder: string };
@@ -309,7 +310,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
   async function approve(items: { observation_id: string; expected_version: number; printing_id: string; finish: string }[], destination = binder, grade = condition) {
     const body = { items, binder: destination.trim(), condition: grade };
     const encoded = JSON.stringify(body);
-    if (approvalKey.current?.body !== encoded) approvalKey.current = { body: encoded, key: crypto.randomUUID() };
+    if (approvalKey.current?.body !== encoded) approvalKey.current = { body: encoded, key: randomId() };
     await request("/api/v1/scans/" + scanId + "/approve", mutation(session, body, approvalKey.current.key));
     setNotice(deckOnly ? `${items.length} card matches saved for your deck.` : `${items.length} ${items.length === 1 ? "copy" : "copies"} imported into ${destination.trim()}.`);
     setSelected(new Set()); setBinderDirty(false);
@@ -320,7 +321,7 @@ export default function Review({ scanId, photo, session, onStateChange, processi
     if (!region) return;
     const body = { expected_version: region.version, rotation: region.rotation === 180 ? 0 : 180 };
     const encoded = JSON.stringify({ id: region.id, ...body });
-    if (orientationKey.current?.body !== encoded) orientationKey.current = { body: encoded, key: crypto.randomUUID() };
+    if (orientationKey.current?.body !== encoded) orientationKey.current = { body: encoded, key: randomId() };
     const key = orientationKey.current.key;
     void act(async () => {
       await request(`/api/v1/scans/${scanId}/observations/${region.id}/orientation`, {

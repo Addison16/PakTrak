@@ -8,6 +8,7 @@ import DataUpdates, { ProgressView } from "./DataUpdates";
 import type { WorkProgress } from "./api";
 import "./collection-qol.css";
 import { usePullRefresh } from "./pullRefresh";
+import { randomId } from "./randomId";
 
 type Counts = { rows: number; copies: number };
 type Import = {
@@ -158,7 +159,7 @@ function CollectionTransfers({ session }: { session: Session }) {
     await act(async () => {
       try {
         const value = await request<Import>("/api/v1/imports?filename=" + encodeURIComponent(file.name) + "&format=" + format + "&repeat=" + repeat, {
-          method: "POST", body: file, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": crypto.randomUUID() },
+          method: "POST", body: file, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": randomId() },
         });
         setSelected(value); setRowOffset(0); setHistoryOffset(0);
         setNotice("File saved. You can close this page while your preview is prepared. Copies are added only after you confirm.");

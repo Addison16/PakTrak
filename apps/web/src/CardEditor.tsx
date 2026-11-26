@@ -2,6 +2,7 @@ import ErrorNotice from "./ErrorNotice";
 import { useRef, useState } from "react";
 import { foilName, isQueued, labelInput, mutation, priceInput, queuedNotice, send, type Lot, type Printing, type Session } from "./api";
 import PrintingPicker from "./PrintingPicker";
+import { randomId } from "./randomId";
 
 const finishes: Record<string, string> = { nonfoil: "Normal / nonfoil", foil: "Foil", etched: "Etched foil", unknown: "Unknown finish" };
 
@@ -32,7 +33,7 @@ function Editor({ lot, session, onSaved }: { lot: Lot; session: Session; onSaved
     setBusy(true); setError("");
     const data = { printing_id: printing.id, finish, condition, notes, expected_version: lot.version, ...(priceChanged ? { purchase_price: price || null } : {}), ...(labelsChanged ? { labels } : {}), ...(tradeChanged ? { for_trade: forTrade } : {}) };
     const body = JSON.stringify(data);
-    if (attempt.current.body !== body) attempt.current = { body, key: crypto.randomUUID() };
+    if (attempt.current.body !== body) attempt.current = { body, key: randomId() };
     const changes = [printing.id !== lot.printing.id && `Printing: ${printing.set_code.toUpperCase()} #${printing.collector_number}`, finish !== lot.finish && `Finish: ${finish === "foil" ? foilName(printing) : finishes[finish] || finish}`,
       condition !== lot.condition && `Condition: ${condition === "ungraded" ? "Ungraded" : condition}`, notes !== lot.notes && "Notes changed", priceChanged && (price ? `Paid: $${price} each` : "Paid price removed"), labelsChanged && (labels.length ? `Labels: ${labels.join(", ")}` : "Labels removed"), tradeChanged && (forTrade ? "Marked for trade" : "No longer for trade")].filter(Boolean).join(" · ");
     try {

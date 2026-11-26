@@ -8,6 +8,7 @@ import "./trade-value.css";
 import "./social.css";
 import { usePullReload } from "./pullRefresh";
 import { LoadingNote } from "./Loading";
+import { randomId } from "./randomId";
 
 type FriendsData = { code: string | null; address?: string | null; share_collection: boolean; share_wishlist: boolean; friends: Friend[]; incoming: { id: string; name: string; created_at: string; server?: string | null }[]; outgoing: { id: string; created_at: string; server?: string | null }[] };
 type Match = { printing: Printing; finish: Finish; finish_recorded: boolean; quantity: number; wanted: number; unit_amount: string | null };
@@ -178,7 +179,7 @@ function FriendView({ session, friend, reload, busy, onRemove }: { session: Sess
 
   const partner = { id: friend.user_id, name: friend.name };
   const remote = !!friend.server;
-  const line = (item: Match, take: number) => ({ key: crypto.randomUUID(), printing: item.printing, finish: item.finish, quantity: Math.max(1, Math.min(take, 999)) });
+  const line = (item: Match, take: number) => ({ key: randomId(), printing: item.printing, finish: item.finish, quantity: Math.max(1, Math.min(take, 999)) });
   return <section className="panel social-page" aria-labelledby="friend-title">
     <button type="button" className="button secondary social-back" onClick={() => navigation.go({ page: "friends" })}>← Back to friends</button>
     <div className="friend-header">

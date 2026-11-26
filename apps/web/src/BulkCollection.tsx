@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { mutation, request, type Location, type Session } from "./api";
 import ErrorNotice from "./ErrorNotice";
 import "./collection-qol.css";
+import { randomId } from "./randomId";
 
 type Preview = { token: string; copies: number; groups_changed: number; groups: { id: string; name: string; binder: string; quantity: number; finish: string; condition: string }[] };
 const describe = (value: string) => value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
@@ -29,7 +30,7 @@ export default function BulkCollection({ ids, binder, locations, session, onClos
       if (!confirm) setPreview(await request<Preview>("/api/v1/collection/bulk/preview", mutation(session, payload)));
       else if (preview) {
         const body = { ...payload, token: preview.token }; const encoded = JSON.stringify(body);
-        if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+        if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
         const result = await request<{ copies_changed: number }>("/api/v1/collection/bulk/apply", mutation(session, body, receipt.current.key));
         await onSaved(result.copies_changed); onClose();
       }
