@@ -5,6 +5,7 @@ import type { Batch, ReviewState } from "./scanTypes";
 import { Icon } from "./Icon";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./scan-qol.css";
+import { randomId } from "./randomId";
 
 type FoilDraft = { foils: string[]; etched: string[]; versions?: Record<string, string>; token: string };
 function isFoilDraft(value: FoilDraft | null): value is FoilDraft {
@@ -90,7 +91,7 @@ export default function ScanFinishes({ scanId, session, data, processing, disabl
     working.current = true; setBusy(true); setError("");
     const body = { foil_count: selected.length, foil_ids: selected.map((r) => r.id), etched_ids: selected.filter((r) => etched.has(r.id)).map((r) => r.id), printing_ids: chosenVersions, token };
     const encoded = JSON.stringify(body);
-    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
     try {
       await request(`/api/v1/scans/${scanId}/finishes`, mutation(session, body, receipt.current.key));
       removeDraft(recoveryKey); setRecovery(null); setLocalSaved(null);

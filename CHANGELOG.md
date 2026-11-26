@@ -1,5 +1,9 @@
 # Changelog
 
+## Plain http:// addresses — November 26, 2026
+
+- **PakTrak opens at a plain http:// address again.** Opened at an address like `http://192.168.1.50:8095`, PakTrak showed a blank page after signing in (and before it), in every browser. Browsers leave out one of the tools PakTrak used to make request IDs on http:// addresses other than localhost, and the app stopped before it drew anything. It now makes them another way that works everywhere. HTTPS addresses are unchanged. The camera and full offline use still need HTTPS.
+
 ## Privacy fixes — November 23, 2026
 
 - **Saved prices no longer hint at what other accounts own.** PakTrak saves daily prices only for cards someone on the server owns, wants or has in a deck. A deck's price-jump notes and a card's price chart showed those saved prices to any signed-in account, so an account could tell that somebody else on the server had a card. Each account now sees saved prices only from the day after it had the card itself. On a new card the chart and the jump notes fill in over the following days. For cards in a deck you don't own, the notes restart from the deck's last change.

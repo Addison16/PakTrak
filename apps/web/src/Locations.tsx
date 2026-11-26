@@ -1,6 +1,7 @@
 import ErrorNotice from "./ErrorNotice";
 import { useRef, useState } from "react";
 import { isQueued, mutation, queuedNotice, request, send, type Location, type Lot, type Session } from "./api";
+import { randomId } from "./randomId";
 
 function LocationForm({ location, session, onSaved }: { location?: Location; session: Session; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(location?.name || "");
@@ -58,7 +59,7 @@ export function MoveCards({ lot, locations, session, onSaved }: { lot: Lot; loca
     try {
       const body = { binder_id: destination, quantity: count, expected_version: lot.version };
       const encoded = JSON.stringify(body);
-      if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+      if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
       const result = await send(session, "/api/v1/collection/" + lot.id + "/move", mutation(session, body, receipt.current.key),
         { label: `Move ${count} ${count === 1 ? "copy" : "copies"} of ${lot.printing.name}`, detail: `${lot.binder} to ${locations.find((item) => item.id === destination)?.name || "another location"}`, resource: "lot:" + lot.id });
       if (isQueued(result)) setQueued(true); else await onSaved();

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { clearPendingPhotos } from "./pendingPhoto";
 import { clearDrafts } from "./recovery";
+import { randomId } from "./randomId";
 
 // Offline layer: saved copies of server reads, a queue of edits made while the
 // server can't be reached, and the connection state shown in the header.
@@ -180,7 +181,7 @@ let createdLast = 0;
 export async function enqueue(action: Omit<QueuedAction, "id" | "owner" | "createdAt" | "state">) {
   // Strictly increasing times keep two quick edits in the order they were made.
   createdLast = Math.max(Date.now(), createdLast + 1);
-  const queued: QueuedAction = { ...action, id: crypto.randomUUID(), owner: state.owner, createdAt: createdLast, state: "waiting" };
+  const queued: QueuedAction = { ...action, id: randomId(), owner: state.owner, createdAt: createdLast, state: "waiting" };
   await putQueued(queued);
   return queued;
 }

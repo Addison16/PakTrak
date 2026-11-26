@@ -5,6 +5,7 @@ import { Icon } from "./Icon";
 import { navigation } from "./navigation";
 import { formats, sections, type Deck, type DeckWorkState, type Section } from "./deckTypes";
 import "./deck-scan.css";
+import { randomId } from "./randomId";
 
 type PhotoBatch = { id: string; filename: string; state: string; created_at: string; cards: number; already_added: number; thumbnail_url: string | null };
 type PhotoCard = { observation_id: string; scan_id: string; printing: Printing; section: Section };
@@ -56,7 +57,7 @@ export default function DeckScan({ session, deck, fromBatch, onCreated, onSaved,
   }
   function savedRequest(body: unknown) {
     const encoded = JSON.stringify(body);
-    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
     return mutation(session, body, receipt.current.key);
   }
   function chooseBatch(id: string) {

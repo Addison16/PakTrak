@@ -1,5 +1,6 @@
 import type { StoreLinks } from "./storeLinks";
 import { checkConnection, connection, enqueue, markReachable, markSavedCopy, offlineReadable, queuedActions, savedOrDerived, saveResponse } from "./offline";
+import { randomId } from "./randomId";
 export type PriceSource = "tcgplayer" | "cardkingdom" | "manapool";
 export type Session = { store_links?: StoreLinks; trade_offers_waiting?: number; scans_paused?: boolean; suspended?: boolean; scan_card_limit_override?: number | null; account_version?: number; membership_welcome?: boolean; approved_at?: string | null; tour_dismissed: boolean; preferred_price_source: PriceSource | null; owner_id: string; display_name: string; csrf_token: string; role: "admin" | "member" | "guest"; scan_cards_used: number; scan_card_limit: number | null; scan_cards_remaining: number | null };
 export type Location = { id: string; name: string; kind: "binder" | "box" | "other"; notes: string; version: number; copies: number };
@@ -202,7 +203,7 @@ export async function send<T>(session: Session, path: string, init: RequestInit 
   const queue = async () => {
     const headers = new Headers(init.headers);
     const action = await enqueue({ ...offline, path, method: (init.method || "POST").toUpperCase(), body: typeof init.body === "string" ? init.body : undefined,
-      contentType: headers.get("Content-Type") || undefined, idempotencyKey: headers.get("Idempotency-Key") || crypto.randomUUID() });
+      contentType: headers.get("Content-Type") || undefined, idempotencyKey: headers.get("Idempotency-Key") || randomId() });
     window.dispatchEvent(new CustomEvent("paktrak:queued", { detail: { owner: session.owner_id } }));
     return { queued: true, id: action.id } as Queued;
   };
@@ -222,7 +223,7 @@ export async function send<T>(session: Session, path: string, init: RequestInit 
 }
 const sendWait = 15000;
 
-export function mutation(session: Session, data?: unknown, key: string = crypto.randomUUID()): RequestInit {
+export function mutation(session: Session, data?: unknown, key: string = randomId()): RequestInit {
   return { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": key },
     ...(data === undefined ? {} : { body: JSON.stringify(data) }) };
 }

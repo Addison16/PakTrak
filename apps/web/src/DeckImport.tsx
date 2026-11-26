@@ -6,6 +6,7 @@ import DeckLegality from "./DeckLegality";
 import { formats, sections, type Deck, type DeckWorkState, type MatchMode, type Section } from "./deckTypes";
 import { readDraft, removeDraft, writeDraft } from "./recovery";
 import "./deck-qol.css";
+import { randomId } from "./randomId";
 
 type ImportRow = { line: number; name: string; quantity: number; section: Section | null; printing: Printing | null; error: string | null; can_choose: boolean; collection_match?: boolean; owned?: number; excluded?: boolean; source_key?: string; identity_error?: string | null; quantity_error?: string | null; section_error?: string | null; reviewed?: boolean; quantityInput?: string };
 type ImportDraft = { content: string; name: string; format: string; mode: MatchMode; sectionMode: string; fileFormat: string; operation: "replace" | "add"; rows: ImportRow[] | null; priorRows?: ImportRow[]; layoutNote: string };
@@ -117,7 +118,7 @@ export default function DeckImport({ session, deck, onImported, onCancel, onStat
     const body = target ? { name: target.name, format: target.format, notes: target.notes, ...matching, expected_version: target.version, cards: [...combined.values()] }
       : { name: name.trim(), format, notes: "", ...matching, cards: [...combined.values()] };
     const encoded = JSON.stringify(body);
-    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: crypto.randomUUID() };
+    if (receipt.current?.body !== encoded) receipt.current = { body: encoded, key: randomId() };
     const saved = await request<Deck>("/api/v1/decks" + (target ? "/" + target.id : ""), mutation(session, body, receipt.current.key));
     removeDraft(recoveryKey); onImported(saved);
   }

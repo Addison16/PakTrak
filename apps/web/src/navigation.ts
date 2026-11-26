@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { randomId } from "./randomId";
 
 export type Page = "scan" | "batches" | "collection" | "transfers" | "decks" | "trade" | "queue" | "admin" | "account" | "wishlist" | "sets" | "friends" | "offers";
 export type Route = { page: Page; batch?: string; deck?: string; account?: string; view?: "edit" | "import" | "scan"; card?: string; overlay?: "menu" | "camera"; targetDeck?: string; fromBatch?: string; collect?: boolean; collectionQuery?: string; friend?: string; set?: string };
@@ -55,7 +56,7 @@ function isEntry(value: unknown): value is Entry {
 // Navigation identifiers and collection filters enter browser history, never drafts,
 // session tokens or the temporary password shown after an administrator reset.
 const saved = isEntry(history.state) ? history.state : null;
-let current: Entry = { paktrak: 1, chain: saved?.chain || crypto.randomUUID(), index: saved?.index || 0, route: parse(), y: saved?.y || 0 };
+let current: Entry = { paktrak: 1, chain: saved?.chain || randomId(), index: saved?.index || 0, route: parse(), y: saved?.y || 0 };
 // A link or bookmark opens the collection with its search; a reload or Back starts it without the old one.
 const arrival = (performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined)?.type;
 export const linkedCollectionQuery = !arrival || arrival === "navigate" ? current.route.collectionQuery : undefined;

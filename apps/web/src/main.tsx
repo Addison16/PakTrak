@@ -29,6 +29,7 @@ import PullToRefresh from "./PullToRefresh";
 import FallingCards from "./FallingCards";
 import { loadMotionPreference, reducedMotion } from "./motion";
 import { usePullRefresh } from "./pullRefresh";
+import { randomId } from "./randomId";
 
 const Collections = lazy(() => import("./Collections"));
 const Review = lazy(() => import("./Review"));
@@ -559,7 +560,7 @@ function App() {
         draft.size === file.size && draft.content_type === contentType && draft.target_deck_id === targetDeck
         && (!targetDeck || draft.add_to_collection === !!collect);
       const pending: Draft = same ? { ...draft } : {
-        key: crypto.randomUUID(), filename: file.name, size: file.size, content_type: contentType, foil_count: 0,
+        key: randomId(), filename: file.name, size: file.size, content_type: contentType, foil_count: 0,
         ...(targetDeck ? { target_deck_id: targetDeck, add_to_collection: !!collect } : {}),
       };
       pending.photo_saved_at = photo?.savedAt;
@@ -612,7 +613,7 @@ function App() {
   async function finishUpload() {
     if (!selected || busyRef.current) return;
     busyRef.current = true; setBusy(true); setError("");
-    try { await accept(selected.id, draft?.key || crypto.randomUUID(), draft?.photo_saved_at); }
+    try { await accept(selected.id, draft?.key || randomId(), draft?.photo_saved_at); }
     catch (e) { setError(e as Error); }
     finally { busyRef.current = false; setBusy(false); }
   }

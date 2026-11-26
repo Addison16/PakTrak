@@ -1,4 +1,5 @@
 import { mutation, request, type Finish, type Lot, type Printing, type Session } from "./api";
+import { randomId } from "./randomId";
 
 // Shared by Trade value and accepted trade offers: each person's app changes only their own collection.
 export type PickedLot = { id: string; binder: string; quantity: number };
@@ -45,7 +46,7 @@ export async function addReceived(session: Session, get: TradeLine[], note: stri
   const body = ["Scryfall ID,Name,Set Code,Collector Number,Language,Quantity,Finish,Binder Name,Notes", ...lines].join("\r\n") + "\r\n";
   // With a receipt, a retry sends the same file and key, so the server returns the first import instead of adding the cards again.
   let batch = await request<ImportBatch>(`/api/v1/imports?filename=${encodeURIComponent(`trade-${receipt?.day || new Date().toISOString().slice(0, 10)}.csv`)}&format=generic&repeat=true`, {
-    method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": receipt?.key || crypto.randomUUID() }, action: "Add traded cards" });
+    method: "POST", body, headers: { "Content-Type": "text/csv", "X-CSRF-Token": session.csrf_token, "Idempotency-Key": receipt?.key || randomId() }, action: "Add traded cards" });
   // The server previews, then adds, imported copies in the background; follow it until both finish.
   for (let attempt = 0; ; attempt++) {
     if (batch.state === "REVIEW") {
