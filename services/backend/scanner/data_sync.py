@@ -255,6 +255,42 @@ def rulings_sync(client, manifest, directory, progress):
     return len(values)
 
 
+def tcgplayer_product(raw, key):
+    product = raw.get(key)
+    if isinstance(product, int) and not isinstance(product, bool) and product > 0:
+        return "https://www.tcgplayer.com/product/" + str(product)
+    return None
+
+
+def tcgplayer_quotes(printing_id, finishes, raw):
+    """TCGplayer prices from a Scryfall card, one per finish the printing comes in.
+
+    Scryfall keeps etched prices in usd_etched. When TCGplayer lists the etched
+    version as its own product, Scryfall gives it a separate tcgplayer_etched_id,
+    so etched copies link there instead of to the regular product.
+    """
+    prices = raw.get("prices") or {}
+    url = trusted_url(
+        (raw.get("purchase_uris") or {}).get("tcgplayer"), "www.tcgplayer.com"
+    ) or tcgplayer_product(raw, "tcgplayer_id")
+    etched_url = tcgplayer_product(raw, "tcgplayer_etched_id") or url
+    quotes = []
+    for finish, field in (("nonfoil", "usd"), ("foil", "usd_foil"), ("etched", "usd_etched")):
+        price = amount(prices.get(field))
+        if price is not None and finish in finishes:
+            quotes.append(
+                {
+                    "printing_id": printing_id,
+                    "provider": "tcgplayer",
+                    "finish": finish,
+                    "amount": price,
+                    "url": etched_url if finish == "etched" else url,
+                    "available": None,
+                }
+            )
+    return quotes
+
+
 def scryfall_sync(client, directory, progress):
     with session_factory()() as db:
         snapshot = db.scalar(
@@ -298,29 +334,7 @@ def scryfall_sync(client, directory, progress):
             .execution_options(yield_per=500)
         )
         for count, card in enumerate(db.scalars(query), 1):
-            prices = card.source_json.get("prices") or {}
-            url = trusted_url(
-                (card.source_json.get("purchase_uris") or {}).get("tcgplayer"), "www.tcgplayer.com"
-            )
-            if not url and isinstance(card.source_json.get("tcgplayer_id"), int):
-                url = "https://www.tcgplayer.com/product/" + str(card.source_json["tcgplayer_id"])
-            for finish, field in (
-                ("nonfoil", "usd"),
-                ("foil", "usd_foil"),
-                ("etched", "usd_etched"),
-            ):
-                price = amount(prices.get(field))
-                if price is not None and finish in card.finishes:
-                    values.append(
-                        {
-                            "printing_id": card.id,
-                            "provider": "tcgplayer",
-                            "finish": finish,
-                            "amount": price,
-                            "url": url,
-                            "available": None,
-                        }
-                    )
+            values.extend(tcgplayer_quotes(card.id, card.finishes, card.source_json))
             if count % 500 == 0:
                 progress("Indexing TCGplayer prices", count, total)
     replace_prices("tcgplayer", values)
