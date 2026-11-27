@@ -10,38 +10,57 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/images/scan-photo.png" alt="A photo of fifteen cards with each card outlined and numbered"></td>
-    <td width="33%"><img src="docs/images/scan-review.png" alt="Scan results showing auto-imported cards and two matches to review"></td>
-    <td width="33%"><img src="docs/images/collection.png" alt="Collection gallery with copy counts, prices and binder locations"></td>
+    <td width="33%"><img src="docs/images/scan-photo.png" alt="A photo of a binder page with each of its nine cards outlined and numbered"></td>
+    <td width="33%"><img src="docs/images/scan-review.png" alt="Scanned cards, seven added automatically and two waiting for a check"></td>
+    <td width="33%"><img src="docs/images/collection.png" alt="Collection gallery with copy counts, prices and storage locations"></td>
   </tr>
   <tr>
     <td align="center">One photo, a whole page of cards</td>
-    <td align="center">Strong matches import themselves</td>
+    <td align="center">Strong matches add themselves</td>
     <td align="center">Every copy, price and binder</td>
   </tr>
   <tr>
+    <td><img src="docs/images/card-details.png" alt="Card details listing format legality and dated rulings"></td>
+    <td><img src="docs/images/price-history.png" alt="Prices from three stores and a price history chart"></td>
+    <td><img src="docs/images/collection-breakdown.png" alt="Collection breakdown by color with copies and value, and what you paid"></td>
+  </tr>
+  <tr>
+    <td align="center">Legality and rulings</td>
+    <td align="center">Three price sources and history</td>
+    <td align="center">Where your value sits</td>
+  </tr>
+  <tr>
     <td><img src="docs/images/decks.png" alt="Saved decks shown as deck boxes with their artwork"></td>
-    <td><img src="docs/images/deck.png" alt="A Commander deck showing which cards you own and where to find them"></td>
-    <td><img src="docs/images/price-history.png" alt="Card details with prices from three stores and a 30-day price chart"></td>
+    <td><img src="docs/images/deck.png" alt="A Commander deck page with its deck list"></td>
+    <td><img src="docs/images/deck-stats.png" alt="Deck stats with a mana curve and land drop odds by turn"></td>
   </tr>
   <tr>
     <td align="center">Decks in their own boxes</td>
-    <td align="center">What you own and where it is</td>
-    <td align="center">Three price sources and history</td>
+    <td align="center">A page for every deck</td>
+    <td align="center">Mana curve and land drop odds</td>
   </tr>
   <tr>
     <td><img src="docs/images/price-alerts.png" alt="Price alerts listing cards that went up and down"></td>
-    <td><img src="docs/images/trade-offer.png" alt="A trade offer from a friend with the value of each side"></td>
-    <td><img src="docs/images/set-completion.png" alt="Set completion progress for three sets"></td>
+    <td><img src="docs/images/wishlist.png" alt="Wishlist with a Pay up to price on each card"></td>
+    <td><img src="docs/images/trade-value.png" alt="Trade value comparing both sides of a trade"></td>
   </tr>
   <tr>
     <td align="center">Alerts when your cards move</td>
-    <td align="center">Trade offers between friends</td>
-    <td align="center">Set completion</td>
+    <td align="center">A wishlist that watches prices</td>
+    <td align="center">Is this trade fair?</td>
   </tr>
 </table>
 
-<sub>Screenshots use sample cards and placeholder art. Real card images come from Scryfall once your server downloads the card catalog.</sub>
+It works just as well on a computer, with keyboard shortcuts for getting around.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/desktop-decks.png" alt="Deck boxes on a wide screen"></td>
+    <td width="50%"><img src="docs/images/desktop-deck.png" alt="A deck list on a wide screen showing where each card is stored"></td>
+  </tr>
+</table>
+
+<sub>Screenshots use made-up cards and placeholder art. Real card images come from Scryfall once your server downloads the card catalog.</sub>
 
 ## Why PakTrak
 
@@ -54,15 +73,19 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 
 ### Scanning and adding cards
 - Photograph up to a page of cards with the in-app camera, the phone's own camera or a photo from your library (JPEG, HEIC, PNG, WebP and more). See [photo formats](docs/PHOTO_FORMATS.md).
-- Matches above 88% strength are added automatically; the rest get a quick guided review with suggested printings, crop correction and upside-down card handling. See [scanning](docs/SCANNING.md) and [the camera](docs/CAMERA.md).
-- Tap the foils in a batch to mark them. Scan review tells you when you already own a card.
+- Matches above 88% strength are added automatically; the rest get a quick guided review with suggested printings, crop correction and upside-down card handling. Draw an outline by hand around a card the scan missed or outlined badly. See [scanning](docs/SCANNING.md) and [the camera](docs/CAMERA.md).
+- Tap the foils in a batch to mark them, and pick the foil type (etched, galaxy, surge, fracture and the rest) from the foils that card really comes in. Scan review tells you when you already own a card.
 - Undo a whole batch later without touching cards from other scans.
-- Import from other apps with CSV or plain text lists like `4 Lightning Bolt (M11) 146`, wishlist rows included. See [import formats](docs/IMPORT_FORMATS.md).
+- **Add a card** by hand: search, pick the printing, then set finish, condition, location and how many copies.
+- Import from other apps with CSV or plain text lists like `4 Lightning Bolt (M11) 146`, wishlist rows included. Big lists pick up where they left off if interrupted, and **Cancel import** stops one cleanly. See [import formats](docs/IMPORT_FORMATS.md).
 
 ### Collection
-- A searchable card gallery with copy counts, filters, saved views, shuffle and price sorting. Swipe through cards in the order you're viewing them.
-- Binders and boxes: see where every copy lives, and move or reorganize cards in bulk.
+- A searchable card gallery with copy counts, filters (including foil type and your own labels), saved views, shuffle and price sorting. Swipe through cards in the order you're viewing them.
+- Card details with format legality for twelve paper formats and the official rulings, saved with the daily catalog update so they work offline too.
+- Binders and boxes: see where every copy lives, and move, relabel or mark cards for trade in bulk with a preview before anything changes.
 - Collection value from TCGplayer, Card Kingdom or ManaPool, with a value-over-time chart and a price history for each card.
+- **Collection breakdown** by color, rarity, type, set or location, your most valuable cards, and what you paid next to what they're worth today.
+- Record what you paid per copy and see how far today's price is up or down.
 - Price alerts on Home when your cards go up or down by an amount you choose.
 - Set completion with the cost to finish a set.
 - Export to CSV or text at any time.
@@ -70,19 +93,25 @@ PakTrak is a self-hosted Magic: The Gathering collection app for your phone's br
 ### Decks
 - Saved decks shown as customizable deck boxes with commander artwork.
 - Import a deck list or scan a physical deck across several photos.
-- See which cards you own, which binder they're in, and what's still missing, with a buy list and buttons for TCGplayer, Card Kingdom and ManaPool.
-- Deck value, format legality, token checklist, mana curve, sample opening hands, and export for MTG Arena or MTGO. See [decks](docs/DECKS.md).
+- See which cards you own, which binder they're in, and what's still missing, with a buy list, buttons for TCGplayer, Card Kingdom and ManaPool, and **Print proxies** for the cards you don't have yet.
+- Deck value with notes when cards jump in price, format legality, token checklist and sample opening hands. See [decks](docs/DECKS.md).
+- Deck stats: mana curve, land drop odds for turns 1 to 7 on the play and on the draw, color balance between your spells and your mana, and card types.
+- Export for MTG Arena or MTGO, or every deck at once as text or CSV, and restore them all from that CSV.
 
 ### Friends and trading
-- A wishlist with prices and store buttons.
-- Add friends with a private friend code, browse each other's collections and wishlists, and send trade offers. Accepting updates each person's own collection.
-- Trade value: add cards to both sides and see whether a trade is fair. See [wishlist, friends and trade offers](docs/FRIENDS.md).
+- A wishlist with prices, store buttons and a **Pay up to** price on each card that tells you when it's at your price. Only you see that amount.
+- Add friends with a private friend code, browse each other's collections and wishlists, see the cards each of you has marked for trade, and send trade offers. Accepting updates each person's own collection.
+- Friends on other PakTrak servers: once the administrators of both servers approve a connection, people add each other with `CODE@server-address`. Servers never list each other's accounts, and trade offers stay within one server for now. See [wishlist, friends and trade offers](docs/FRIENDS.md).
+- Trade value: add cards to both sides and see whether a trade is fair.
+- Read-only share links for a deck or your wishlist, for people without an account. Nothing is shared until you make a link, and **Turn off link** ends it.
 
 ### Everyday use
 - Works offline: view your collection and decks without a connection and queue changes until the server is back. See [using PakTrak offline](docs/OFFLINE.md).
 - Accounts for everyone in the house, with an administrator who approves new members and can set scan limits. See [account controls](docs/ACCOUNTS.md).
 - Daily automatic backups on the single-container install, with download and restore from the app.
-- Light and dark mode and five color themes.
+- Light and dark mode, five color themes with soft backdrops and a few cards drifting behind each page, and gentle transitions between screens. **My account → Appearance → Animations** turns them down or off.
+- Keyboard shortcuts on a computer: **/** to search, **G** then a letter to jump to a page, **?** to list them all.
+- Loading placeholders while decks and the collection arrive, so a slow connection never looks like an empty page.
 - Card data and prices update daily on the server. See [card data and pricing](docs/CARD_DATA.md).
 
 ## Install
@@ -131,7 +160,7 @@ Put PakTrak behind HTTPS with a hostname so your phone can use the live camera a
 
 ## For developers
 
-Build from source with `sh scripts/start.sh --build`. Tests run with `sh scripts/test.sh` and `sh scripts/test-browser.sh`; [validation status](docs/STATUS.md) explains what is covered. See [architecture decisions](docs/ARCHITECTURE.md), the [release guide](docs/RELEASING.md), [quality of life notes](docs/QOL.md), [browser navigation](docs/NAVIGATION.md), [PakTrak's visual identity](docs/BRAND.md) and the [changelog](CHANGELOG.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+Build from source with `sh scripts/start.sh --build`. Tests run with `sh scripts/test.sh` and `sh scripts/test-browser.sh`; [validation status](docs/STATUS.md) explains what is covered. README screenshots come from `node scripts/readme-screenshots/shoot.mjs`, which runs the web app against made-up cards. See [architecture decisions](docs/ARCHITECTURE.md), the [release guide](docs/RELEASING.md), [quality of life notes](docs/QOL.md), [browser navigation](docs/NAVIGATION.md), [PakTrak's visual identity](docs/BRAND.md) and the [changelog](CHANGELOG.md). Contributions and security reports are covered by [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 ## License
 
